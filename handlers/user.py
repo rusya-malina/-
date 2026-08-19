@@ -1,6 +1,6 @@
 """Пользовательские сценарии: регистрация, расчёты и возврат в меню."""
 from bot_context import *
-from storage import load_json, save_json
+from storage import load_json, save_json, load_pending, save_pending
 from keyboards import cancel_keyboard, get_main_keyboard
 from services import notify_user_bot_stopped
 

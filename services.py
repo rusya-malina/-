@@ -8,18 +8,30 @@ async def check_pending_requests_job(context: ContextTypes.DEFAULT_TYPE):
     team_requests = await load_json(TEAM_REQUESTS_FILE)
     user_requests = await load_json(USER_REQUESTS_FILE)
     count = len(pending) + len(team_requests) + len(user_requests)
-    if count:
+    if not count:
+        return
+
+    now = datetime.now(timezone.utc)
+    last_reminder = context.application.bot_data.get("last_requests_reminder")
+    if last_reminder:
         try:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=(
-                    f"⏰ **Напоминание:** у вас есть необработанные заявки (`{count} шт.`).\n"
-                    "Откройте раздел: **⚙️ Дополнительно ➡️ 📥 Заявки**."
-                ),
-                parse_mode="Markdown",
-            )
-        except Exception as e:
-            logging.error(f"Не удалось отправить напоминание о заявках: {e}")
+            if (now - datetime.fromisoformat(last_reminder)).total_seconds() < 1800:
+                return
+        except (TypeError, ValueError):
+            pass
+
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=(
+                f"⏰ **Напоминание:** у вас есть необработанные заявки (`{count} шт.`).\n"
+                "Откройте раздел: **⚙️ Дополнительно ➡️ 📥 Заявки**."
+            ),
+            parse_mode="Markdown",
+        )
+        context.application.bot_data["last_requests_reminder"] = now.isoformat()
+    except Exception as e:
+        logging.error(f"Не удалось отправить напоминание о заявках: {e}")
 
 
 async def notify_user_kpi_updated(context: ContextTypes.DEFAULT_TYPE, target_name: str):

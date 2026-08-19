@@ -13,6 +13,7 @@ from keyboards import cancel_keyboard, get_main_keyboard, get_kpi_menu_keyboard
 from services import (
     _format_quantity,
     calculate_balances,
+    notify_user_bot_stopped,
     notify_user_kpi_updated,
 )
 

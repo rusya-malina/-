@@ -29,9 +29,9 @@ def _sync_save_json(data: dict, filepath: str) -> None:
     try:
         with open(temp_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
-        if os.path.exists(filepath):
-            os.remove(filepath)
-        os.rename(temp_file, filepath)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_file, filepath)
     except OSError as e:
         logging.error(f"Ошибка сохранения файла {filepath}: {e}")
 
