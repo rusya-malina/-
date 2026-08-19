@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import handlers.admin as admin_handlers
 import handlers.requests as request_handlers
 import services
 import storage
@@ -43,6 +44,44 @@ async def test_request_inbox() -> None:
     finally:
         request_handlers.load_pending = original_load_pending
         request_handlers.load_json = original_load_json
+
+
+async def test_user_list_groups_and_data_sources() -> None:
+    original_load_json = admin_handlers.load_json
+
+    async def fake_load_json(path):
+        if path == admin_handlers.USERS_FILE:
+            return {"100": "Реальный Пользователь", "excel_legacy": "Сотрудник из файла"}
+        if path == admin_handlers.GROUPS_FILE:
+            return {"100": {"name": "Реальный Пользователь", "group": "A LAMP"}}
+        if path == admin_handlers.KPI_FILE:
+            return {
+                "реальный пользователь": {"original_name": "Реальный Пользователь"},
+                "новый kpi": {"original_name": "Новый KPI"},
+            }
+        if path == admin_handlers.ISSUANCE_FILE:
+            return {"_schema_version": 2, "200": {"name": "Выдача без регистрации"}}
+        return {}
+
+    admin_handlers.load_json = fake_load_json
+    try:
+        message = SimpleNamespace(reply_text=AsyncMock())
+        update = SimpleNamespace(effective_user=SimpleNamespace(id=admin_handlers.ADMIN_ID), message=message)
+        context = SimpleNamespace(user_data={})
+        result = await admin_handlers.show_registered_users(update, context)
+        assert result == admin_handlers.EXTRA_MENU_STATE
+        text = message.reply_text.await_args.args[0]
+        assert "Зарегистрированные пользователи (1)" in text
+        assert "ID: `100`" in text
+        assert "Группа: **A LAMP**" in text
+        assert "Ещё не зарегистрированы (3)" in text
+        assert "Сотрудник из файла" in text
+        assert "Новый KPI" in text
+        assert "Выдача без регистрации" in text
+        assert any(item.get("registered") is True for item in context.user_data["user_index_map"].values())
+        assert any(item.get("registered") is False for item in context.user_data["user_index_map"].values())
+    finally:
+        admin_handlers.load_json = original_load_json
 
 
 async def test_request_reminder_throttle() -> None:
@@ -115,6 +154,7 @@ async def test_concurrent_registration_updates() -> None:
 
 async def main() -> None:
     await test_request_inbox()
+    await test_user_list_groups_and_data_sources()
     await test_request_reminder_throttle()
     test_atomic_storage()
     test_no_startup_user_cleanup()
