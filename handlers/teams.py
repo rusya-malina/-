@@ -46,20 +46,35 @@ async def open_my_team_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TEAM_MENU_STATE
 
 
+def _report_sections(group: str, visible_users: list[dict]) -> list[tuple[str | None, list[dict]]]:
+    """MNG/SPV получают две ветки; coor получает свою единую ветку."""
+    if group in {"MNG", "SPV"}:
+        return [
+            (team, [person for person in visible_users if person["group"] == team])
+            for team in ("A LAMP", "R LAMP")
+        ]
+    return [(None, visible_users)]
+
+
 async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     team_context = await _get_team_context(update, context)
     if team_context is None:
         return ConversationHandler.END
     user_id, group, visible_users, kpi_data, _issuance_data = team_context
     title = "MNG" if is_admin_mode(user_id, context) else group
+    report_sections = _report_sections(group, visible_users)
+    report_users = [person for _section, section_users in report_sections for person in section_users]
     lines = [
         f"📊 **KPI команды — {title}**",
-        f"👤 Сотрудников: **{len(visible_users)}**\n",
+        f"👤 Сотрудников в командах: **{len(report_users)}**\n",
     ]
-    if not visible_users:
-        lines.append("_В вашей зоне ответственности пока нет зарегистрированных пользователей._")
-    else:
-        for index, person in enumerate(visible_users, start=1):
+    for section_name, section_users in report_sections:
+        if section_name:
+            lines.append(f"🏷 **{section_name}** — сотрудников: **{len(section_users)}**")
+        if not section_users:
+            lines.append("_Нет зарегистрированных пользователей._\n")
+            continue
+        for index, person in enumerate(section_users, start=1):
             kpi = kpi_data.get(_normalize_person_name(person["name"]), {})
             gt_plan = float(kpi.get("gt_plan", 0) or 0)
             gt_fact = float(kpi.get("gt_fact", 0) or 0)
@@ -74,6 +89,7 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{index}. *{person['name']}* — {person['group']}\n"
                 f"   GT: {gt_percent:.0f}% | Микроакты: {micro_percent:.0f}% | Re-trafic: {retrafic_percent:.0f}%"
             )
+        lines.append("")
     await update.message.reply_text(
         "\n".join(lines),
         reply_markup=get_team_menu_keyboard(),
@@ -88,14 +104,19 @@ async def show_team_balances(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return ConversationHandler.END
     user_id, group, visible_users, kpi_data, issuance_data = team_context
     title = "MNG" if is_admin_mode(user_id, context) else group
+    report_sections = _report_sections(group, visible_users)
+    report_users = [person for _section, section_users in report_sections for person in section_users]
     lines = [
         f"📦 **Остатки команды — {title}**",
-        f"👤 Сотрудников: **{len(visible_users)}**\n",
+        f"👤 Сотрудников в командах: **{len(report_users)}**\n",
     ]
-    if not visible_users:
-        lines.append("_В вашей зоне ответственности пока нет зарегистрированных пользователей._")
-    else:
-        for index, person in enumerate(visible_users, start=1):
+    for section_name, section_users in report_sections:
+        if section_name:
+            lines.append(f"🏷 **{section_name}** — сотрудников: **{len(section_users)}**")
+        if not section_users:
+            lines.append("_Нет зарегистрированных пользователей._\n")
+            continue
+        for index, person in enumerate(section_users, start=1):
             kpi = kpi_data.get(_normalize_person_name(person["name"]), {})
             balances = calculate_balances(kpi, issuance_data.get(person["user_id"], {}))
             lines.append(
@@ -103,6 +124,7 @@ async def show_team_balances(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 f"   Остаток MINTS: {_format_quantity(balances['mints_balance'])} | "
                 f"стиков: {_format_quantity(balances['sticks_balance'])}"
             )
+        lines.append("")
     await update.message.reply_text(
         "\n".join(lines),
         reply_markup=get_team_menu_keyboard(),

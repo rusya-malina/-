@@ -13,6 +13,7 @@ import handlers.teams as teams_handler
 from bot_context import ConversationHandler, TEAM_MENU_STATE
 from keyboards import get_main_keyboard
 from organization import get_scope_groups, get_visible_users
+from handlers.teams import _report_sections as get_report_sections
 
 
 async def test_scope_and_team_view() -> None:
@@ -20,6 +21,14 @@ async def test_scope_and_team_view() -> None:
     assert get_scope_groups("SPV") == {"A LAMP", "R LAMP", "coor A", "coor R", "SPV"}
     assert get_scope_groups("coor A") == {"A LAMP", "coor A"}
     assert get_scope_groups("coor R") == {"R LAMP", "coor R"}
+    grouped_people = [
+        {"name": "A User", "group": "A LAMP"},
+        {"name": "R User", "group": "R LAMP"},
+    ]
+    mng_sections = get_report_sections("MNG", grouped_people)
+    spv_sections = get_report_sections("SPV", grouped_people)
+    assert [name for name, _people in mng_sections] == ["A LAMP", "R LAMP"]
+    assert [name for name, _people in spv_sections] == ["A LAMP", "R LAMP"]
 
     users = {"10": "Coor A", "11": "A User", "12": "R User", "13": "SPV User"}
     groups = {
@@ -91,6 +100,14 @@ async def test_scope_and_team_view() -> None:
         assert "Остатки команды" in balance_text
         assert "Остаток MINTS" in balance_text
         assert "GT:" not in balance_text
+
+        teams_handler.get_user_group = AsyncMock(return_value="SPV")
+        message.reply_text.reset_mock()
+        result = await teams_handler.show_team_kpi(update, context)
+        assert result == TEAM_MENU_STATE
+        grouped_text = message.reply_text.await_args.args[0]
+        assert "🏷 **A LAMP**" in grouped_text
+        assert "🏷 **R LAMP**" in grouped_text
     finally:
         teams_handler.get_user_group = original_group
         teams_handler.load_json = original_load_json
