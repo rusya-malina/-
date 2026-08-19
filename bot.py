@@ -2,12 +2,13 @@
 from bot_context import ThreadingHTTPServer, logging, os, threading
 from app_factory import build_application
 from health import HealthHandler
-from storage import _reset_issuance_if_legacy
+from storage import _migrate_team_label, _reset_issuance_if_legacy
 
 
 def main() -> None:
     """Запускает HTTP health endpoint и Telegram polling в одном процессе Render."""
     _reset_issuance_if_legacy()
+    _migrate_team_label()
     token = os.getenv("BOT_TOKEN")
     if not token:
         raise RuntimeError(

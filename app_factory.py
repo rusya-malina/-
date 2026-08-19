@@ -8,6 +8,7 @@ from handlers.kpi import *
 from handlers.issuance import *
 from handlers.uploads import *
 from handlers.broadcast import *
+from handlers.requests import *
 
 
 def build_application(token: str) -> Application:
@@ -27,6 +28,7 @@ def build_application(token: str) -> Application:
             MessageHandler(filters.Regex(r"^Загрузить данные$"), open_kpi_admin_menu),
             MessageHandler(filters.Regex(r"^⚙️ Дополнительно$"), open_extra_menu),
             MessageHandler(filters.Regex(r"^Выдача$"), start_issuance),
+            MessageHandler(filters.Regex(r"^📝 Оставить заявку$"), start_user_request),
         ],
         states={
             REG_FIRST_NAME: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, reg_get_first_name)],
@@ -51,10 +53,11 @@ def build_application(token: str) -> Application:
             SET_PLAN_GT: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, set_plan_gt)],
             SET_PLAN_MICRO: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, set_plan_micro)],
             SET_PLAN_RETRAFIC: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, set_plan_retrafic)],
-            EXTRA_MENU_STATE: [MessageHandler(filters.Regex(r"^👥 Пользователи$"), show_registered_users), MessageHandler(filters.Regex(r"^📥 Заявки на вступление$"), show_pending_requests_menu), MessageHandler(filters.Regex(r"^🗑 Удалить по номеру$"), request_user_number_to_delete), MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action)],
+            EXTRA_MENU_STATE: [MessageHandler(filters.Regex(r"^👥 Пользователи$"), show_registered_users), MessageHandler(filters.Regex(r"^📥 Заявки$"), show_requests_menu), MessageHandler(filters.Regex(r"^🗑 Удалить по номеру$"), request_user_number_to_delete), MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action)],
             DELETE_BY_NUM_STATE: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, process_delete_user_by_number)],
-            PENDING_REQUESTS_STATE: [CallbackQueryHandler(pending_requests_callback, pattern=r"^(pend_accept:|pend_accept_all|pend_back)$")],
+            PENDING_REQUESTS_STATE: [CallbackQueryHandler(requests_callback, pattern=r"^req_"), CallbackQueryHandler(pending_requests_callback, pattern=r"^(pend_accept:|pend_accept_all|pend_back)$")],
             TEAM_SELECTION: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, process_team_selection)],
+            USER_REQUEST: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, process_user_request)],
             ISSUANCE_MENU: [MessageHandler(filters.Regex(r"^(MINTS|Стики|📥 Загрузить выдачи \(Excel\)|📊 Выгрузка статистики)$"), issuance_menu_message), MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action)],
             ISSUANCE_EXCEL_UPLOAD: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.Document.ALL, process_issuance_excel_file)],
             ISSUANCE_USER: [CallbackQueryHandler(issuance_callback, pattern=r"^(issue_(type|user):|issue_cancel)$")],
@@ -70,6 +73,7 @@ def build_application(token: str) -> Application:
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(admin_moderation_callback, pattern=r"^adm_(accept|reject):"))
     app.add_handler(CallbackQueryHandler(team_moderation_callback, pattern=r"^team_(accept|reject):"))
+    app.add_handler(CallbackQueryHandler(requests_callback, pattern=r"^req_"))
     app.add_handler(MessageHandler(filters.Regex(r"^Мой KPI$"), my_kpi_menu))
     app.add_handler(MessageHandler(filters.Regex(r"^Остатки$"), show_balances))
     app.add_handler(CallbackQueryHandler(my_kpi_callback, pattern=r"^my_kpi_"))

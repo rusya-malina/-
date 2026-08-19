@@ -47,6 +47,7 @@ KPI_FILE = "kpi_data.json"
 PLANS_FILE = "plans_config.json"
 PENDING_FILE = "pending_requests.json"
 TEAM_REQUESTS_FILE = "team_requests.json"
+USER_REQUESTS_FILE = "user_requests.json"
 TEAMS_FILE = "teams.json"
 ISSUANCE_FILE = "issuance_data.json"
 ISSUANCE_SCHEMA_VERSION = 2
@@ -82,6 +83,7 @@ ISSUANCE_SCHEMA_VERSION = 2
     ISSUANCE_MENU,
     ISSUANCE_EXCEL_UPLOAD,
     TEAM_SELECTION,
-) = range(30)
+    USER_REQUEST,
+) = range(31)
 
-TEAM_OPTIONS = ("A LAMP", "К LAMP", "coor A", "coor R", "SPV", "MNG")
+TEAM_OPTIONS = ("A LAMP", "R LAMP", "coor A", "coor R", "SPV", "MNG")

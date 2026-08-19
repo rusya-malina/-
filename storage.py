@@ -4,6 +4,8 @@ from bot_context import (
     ISSUANCE_SCHEMA_VERSION,
     PENDING_FILE,
     PLANS_FILE,
+    TEAM_REQUESTS_FILE,
+    TEAMS_FILE,
     asyncio,
     json,
     logging,
@@ -46,6 +48,19 @@ def _reset_issuance_if_legacy() -> None:
     data = _sync_load_json(ISSUANCE_FILE)
     if data.get("_schema_version") != ISSUANCE_SCHEMA_VERSION:
         _sync_save_json({"_schema_version": ISSUANCE_SCHEMA_VERSION}, ISSUANCE_FILE)
+
+
+def _migrate_team_label() -> None:
+    """Переводит сохранённые заявки и команды со старого названия на R LAMP."""
+    for filepath in (TEAM_REQUESTS_FILE, TEAMS_FILE):
+        data = _sync_load_json(filepath)
+        changed = False
+        for record in data.values():
+            if isinstance(record, dict) and record.get("team") == "К LAMP":
+                record["team"] = "R LAMP"
+                changed = True
+        if changed:
+            _sync_save_json(data, filepath)
 
 
 async def load_pending() -> dict:

@@ -14,6 +14,7 @@ def get_main_keyboard(user_id: int) -> ReplyKeyboardMarkup:
         ["Мой KPI", "Справочник KPI"],
         ["Остатки"],
         ["Определить команду"],
+        ["📝 Оставить заявку"],
     ]
     if user_id == ADMIN_ID:
         keyboard.append(["Загрузить данные"])
@@ -31,7 +32,7 @@ def get_kpi_menu_keyboard() -> ReplyKeyboardMarkup:
 
 def get_extra_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [["👥 Пользователи"], ["📥 Заявки на вступление"], ["🗑 Удалить по номеру"], ["⬅️ Назад"]],
+        [["👥 Пользователи"], ["📥 Заявки"], ["🗑 Удалить по номеру"], ["⬅️ Назад"]],
         resize_keyboard=True,
     )
 
@@ -48,7 +49,7 @@ cancel_keyboard = ReplyKeyboardMarkup([["⬅️ Назад"]], resize_keyboard=T
 
 def get_team_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [["A LAMP", "К LAMP"], ["coor A", "coor R"], ["SPV", "MNG"], ["⬅️ Назад"]],
+        [["A LAMP", "R LAMP"], ["coor A", "coor R"], ["SPV", "MNG"], ["⬅️ Назад"]],
         resize_keyboard=True,
         one_time_keyboard=True,
     )

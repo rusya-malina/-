@@ -1,18 +1,20 @@
 """Общие расчёты, уведомления и фоновые задания."""
 from bot_context import *
-from storage import load_json
+from storage import load_json, load_pending
 
 
 async def check_pending_requests_job(context: ContextTypes.DEFAULT_TYPE):
     pending = await load_pending()
-    if pending:
-        count = len(pending)
+    team_requests = await load_json(TEAM_REQUESTS_FILE)
+    user_requests = await load_json(USER_REQUESTS_FILE)
+    count = len(pending) + len(team_requests) + len(user_requests)
+    if count:
         try:
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
                 text=(
-                    f"⏰ **Напоминание:** У вас есть необработанные заявки на вступление (`{count} шт.`).\n"
-                    "Зайдите в раздел: **⚙️ Дополнительно ➡️ 📥 Заявки на вступление**."
+                    f"⏰ **Напоминание:** у вас есть необработанные заявки (`{count} шт.`).\n"
+                    "Откройте раздел: **⚙️ Дополнительно ➡️ 📥 Заявки**."
                 ),
                 parse_mode="Markdown",
             )

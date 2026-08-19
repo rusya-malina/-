@@ -12,8 +12,9 @@ sys.path.insert(0, str(ROOT))
 import app_factory
 import bot
 from app_factory import build_application
+from bot_context import TEAM_OPTIONS, ThreadingHTTPServer
+from handlers.requests import build_requests_markup
 from keyboards import get_issuance_confirmation_markup, get_main_keyboard
-from bot_context import ThreadingHTTPServer
 from health import HealthHandler
 from services import calculate_balances
 
@@ -32,6 +33,7 @@ MODULES = [
     "handlers.issuance",
     "handlers.uploads",
     "handlers.broadcast",
+    "handlers.requests",
 ]
 
 
@@ -41,8 +43,16 @@ def main() -> None:
 
     app = build_application("123456:TEST_TOKEN")
     assert len(app.handlers) >= 1
-    assert get_main_keyboard(14599689).keyboard
+    main_keyboard = get_main_keyboard(14599689)
+    assert main_keyboard.keyboard
+    assert any(button.text == "📝 Оставить заявку" for row in main_keyboard.keyboard for button in row)
+    assert "R LAMP" in TEAM_OPTIONS
+    assert "К LAMP" not in TEAM_OPTIONS
     assert get_issuance_confirmation_markup().inline_keyboard
+    request_markup = build_requests_markup([{"id": "team:1", "kind": "team", "user_id": "1", "name": "Тест", "team": "R LAMP", "text": "Проверка"}])
+    callback_values = [button.callback_data for row in request_markup.inline_keyboard for button in row]
+    assert "req_accept:team:1" in callback_values
+    assert "req_reject:team:1" in callback_values
     balances = calculate_balances(
         {"micro_las_fact": 2, "micro_lau_fact": 3, "gt_fact": 4},
         {"mints_issued": 10, "sticks_issued": 9},
