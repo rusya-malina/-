@@ -38,6 +38,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # === НАСТРОЙКИ ===
 ADMIN_ID = 14599689
