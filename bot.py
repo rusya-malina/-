@@ -50,6 +50,8 @@ USERS_FILE = "users.json"
 KPI_FILE = "kpi_data.json"
 PLANS_FILE = "plans_config.json"
 PENDING_FILE = "pending_requests.json"
+TEAM_REQUESTS_FILE = "team_requests.json"
+TEAMS_FILE = "teams.json"
 ISSUANCE_FILE = "issuance_data.json"
 ISSUANCE_SCHEMA_VERSION = 2
 
@@ -84,7 +86,8 @@ ISSUANCE_SCHEMA_VERSION = 2
     ISSUANCE_AMOUNT,
     ISSUANCE_MENU,
     ISSUANCE_EXCEL_UPLOAD,
-) = range(29)
+    TEAM_SELECTION,
+) = range(30)
 
 
 # === ДИНАМИЧЕСКИЕ КЛАВИАТУРЫ ===
@@ -94,7 +97,7 @@ def get_main_keyboard(user_id: int) -> ReplyKeyboardMarkup:
         ["Новый расчет"],
         ["Мой KPI", "Справочник KPI"],
         ["Остатки"],
-        ["Сменить имя"],
+        ["Определить команду"],
     ]
 
     if user_id == ADMIN_ID:
@@ -139,6 +142,21 @@ def get_issuance_keyboard() -> ReplyKeyboardMarkup:
 
 
 cancel_keyboard = ReplyKeyboardMarkup([["⬅️ Назад"]], resize_keyboard=True)
+
+TEAM_OPTIONS = ("A LAMP", "К LAMP", "coor A", "coor R", "SPV", "MNG")
+
+
+def get_team_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [
+            ["A LAMP", "К LAMP"],
+            ["coor A", "coor R"],
+            ["SPV", "MNG"],
+            ["⬅️ Назад"],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
 
 
 # === АСИНХРОННАЯ РАБОТА С ФАЙЛАМИ И EXCEL (ПРЕДОТВРАЩАЕТ ЗАВИСАНИЯ) ===
@@ -1011,6 +1029,132 @@ async def process_delete_user_by_number(update: Update, context: ContextTypes.DE
         parse_mode="Markdown",
     )
     return EXTRA_MENU_STATE
+
+
+# === ВЫБОР И МОДЕРАЦИЯ КОМАНДЫ ===
+async def start_team_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    users = await load_json(USERS_FILE)
+    if user_id not in users:
+        await update.message.reply_text(
+            "⚠️ Сначала дождитесь подтверждения регистрации администратором.",
+            reply_markup=get_main_keyboard(update.effective_user.id),
+        )
+        return ConversationHandler.END
+
+    await update.message.reply_text(
+        "👥 **Выберите команду**\n\nПосле выбора заявка будет отправлена администратору на подтверждение.",
+        reply_markup=get_team_keyboard(),
+        parse_mode="Markdown",
+    )
+    return TEAM_SELECTION
+
+
+async def process_team_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    selected_team = update.message.text.strip()
+    if selected_team not in TEAM_OPTIONS:
+        await update.message.reply_text("⚠️ Выберите команду кнопкой из списка.", reply_markup=get_team_keyboard())
+        return TEAM_SELECTION
+
+    users = await load_json(USERS_FILE)
+    user_name = users.get(user_id)
+    if not user_name:
+        await update.message.reply_text("⚠️ Пользователь ещё не зарегистрирован.", reply_markup=get_main_keyboard(update.effective_user.id))
+        return ConversationHandler.END
+
+    team_requests = await load_json(TEAM_REQUESTS_FILE)
+    team_requests[user_id] = {
+        "user_id": user_id,
+        "name": user_name,
+        "team": selected_team,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await save_json(team_requests, TEAM_REQUESTS_FILE)
+
+    await update.message.reply_text(
+        f"⏳ Заявка на команду **{selected_team}** отправлена администратору.\n"
+        "После подтверждения команда будет назначена.",
+        reply_markup=get_main_keyboard(update.effective_user.id),
+        parse_mode="Markdown",
+    )
+
+    inline_keyboard = [[
+        InlineKeyboardButton("✅ Подтвердить", callback_data=f"team_accept:{user_id}"),
+        InlineKeyboardButton("❌ Отклонить", callback_data=f"team_reject:{user_id}"),
+    ]]
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=(
+                "🔔 **Запрос на определение команды**\n\n"
+                f"👤 Сотрудник: *{user_name}*\n"
+                f"🆔 Telegram ID: `{user_id}`\n"
+                f"👥 Команда: **{selected_team}**"
+            ),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard),
+            parse_mode="Markdown",
+        )
+    except Exception as error:
+        logging.error("Не удалось отправить запрос команды администратору: %s", error)
+
+    return ConversationHandler.END
+
+
+async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        await query.message.edit_text("⛔️ У вас нет доступа к этому запросу.")
+        return
+
+    action, user_id = query.data.split(":", 1)
+    team_requests = await load_json(TEAM_REQUESTS_FILE)
+    request = team_requests.get(user_id)
+    if not request:
+        await query.answer("Запрос уже обработан или устарел.", show_alert=True)
+        return
+
+    selected_team = request["team"]
+    user_name = request["name"]
+    if action == "team_accept":
+        teams = await load_json(TEAMS_FILE)
+        teams[user_id] = {
+            "name": user_name,
+            "team": selected_team,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await save_json(teams, TEAMS_FILE)
+        del team_requests[user_id]
+        await save_json(team_requests, TEAM_REQUESTS_FILE)
+        await query.message.edit_text(
+            f"✅ **Команда подтверждена**\n\n{user_name} → **{selected_team}**",
+            parse_mode="Markdown",
+        )
+        try:
+            await context.bot.send_message(
+                chat_id=int(user_id),
+                text=f"✅ Администратор подтвердил вашу команду: **{selected_team}**.",
+                reply_markup=get_main_keyboard(int(user_id)),
+                parse_mode="Markdown",
+            )
+        except Exception as error:
+            logging.error("Не удалось уведомить пользователя о команде: %s", error)
+    elif action == "team_reject":
+        del team_requests[user_id]
+        await save_json(team_requests, TEAM_REQUESTS_FILE)
+        await query.message.edit_text(
+            f"❌ **Запрос на команду отклонён**\n\n{user_name} → **{selected_team}**",
+            parse_mode="Markdown",
+        )
+        try:
+            await context.bot.send_message(
+                chat_id=int(user_id),
+                text="❌ Запрос на выбранную команду отклонён администратором. Вы можете отправить новый запрос через «Определить команду».",
+                reply_markup=get_main_keyboard(int(user_id)),
+            )
+        except Exception as error:
+            logging.error("Не удалось уведомить пользователя об отказе команды: %s", error)
 
 
 # === ДВУХЭТАПНАЯ РЕГИСТРАЦИЯ И МОДЕРАЦИЯ ===
@@ -2085,7 +2229,7 @@ def main():
         entry_points=[
             CommandHandler("start", start),
             MessageHandler(filters.Regex(r"^Новый расчет$"), new_calculation),
-            MessageHandler(filters.Regex(r"^Сменить имя$"), change_name),
+            MessageHandler(filters.Regex(r"^Определить команду$"), start_team_selection),
             MessageHandler(filters.Regex(r"^📢 Рассылка$"), start_broadcast),
             MessageHandler(filters.Regex(r"^Загрузить данные$"), open_kpi_admin_menu),
             MessageHandler(filters.Regex(r"^⚙️ Дополнительно$"), open_extra_menu),
@@ -2191,6 +2335,10 @@ def main():
             PENDING_REQUESTS_STATE: [
                 CallbackQueryHandler(pending_requests_callback, pattern=r"^(pend_accept:|pend_accept_all|pend_back)$"),
             ],
+            TEAM_SELECTION: [
+                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, process_team_selection),
+            ],
             ISSUANCE_MENU: [
                 MessageHandler(filters.Regex(r"^(MINTS|Стики|📥 Загрузить выдачи \(Excel\)|📊 Выгрузка статистики)$"), issuance_menu_message),
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
@@ -2215,6 +2363,7 @@ def main():
 
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(admin_moderation_callback, pattern=r"^adm_(accept|reject):"))
+    app.add_handler(CallbackQueryHandler(team_moderation_callback, pattern=r"^team_(accept|reject):"))
     app.add_handler(MessageHandler(filters.Regex(r"^Мой KPI$"), my_kpi_menu))
     app.add_handler(MessageHandler(filters.Regex(r"^Остатки$"), show_balances))
     app.add_handler(CallbackQueryHandler(my_kpi_callback, pattern=r"^my_kpi_"))
