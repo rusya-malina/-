@@ -14,7 +14,7 @@ import bot
 from app_factory import build_application
 from bot_context import TEAM_OPTIONS, ThreadingHTTPServer
 from handlers.requests import build_requests_markup
-from keyboards import get_issuance_confirmation_markup, get_main_keyboard, get_registration_group_keyboard
+from keyboards import get_issuance_confirmation_markup, get_kpi_menu_keyboard, get_main_keyboard, get_registration_group_keyboard
 from health import HealthHandler
 from services import calculate_balances
 
@@ -46,7 +46,12 @@ def main() -> None:
     assert len(app.handlers) >= 1
     main_keyboard = get_main_keyboard(14599689)
     assert main_keyboard.keyboard
+    admin_buttons = {button.text for row in main_keyboard.keyboard for button in row}
     assert any(button.text == "📝 Оставить заявку" for row in main_keyboard.keyboard for button in row)
+    assert "Определить команду" not in admin_buttons
+    kpi_admin_buttons = {button.text for row in get_kpi_menu_keyboard().keyboard for button in row}
+    assert "📥 Загрузить KPI (Excel)" in kpi_admin_buttons
+    assert "✏️ Ввести KPI вручную" not in kpi_admin_buttons
     registration_keyboard = get_registration_group_keyboard()
     registration_buttons = {button.text for row in registration_keyboard.keyboard for button in row}
     assert registration_buttons == set(TEAM_OPTIONS)

@@ -24,7 +24,6 @@ def get_main_keyboard(user_id: int, group: str | None = None) -> ReplyKeyboardMa
             ["Новый расчет"],
             ["Мой KPI", "Справочник KPI"],
             ["Остатки"],
-            ["Определить команду"],
             ["📝 Оставить заявку"],
             ["Загрузить данные"],
             ["Выдача"],
@@ -46,7 +45,7 @@ def get_main_keyboard(user_id: int, group: str | None = None) -> ReplyKeyboardMa
 
 def get_kpi_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [["📥 Загрузить KPI (Excel)", "✏️ Ввести KPI вручную"], ["⬅️ Назад"]],
+        [["📥 Загрузить KPI (Excel)"], ["⬅️ Назад"]],
         resize_keyboard=True,
     )
 
