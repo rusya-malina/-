@@ -74,12 +74,13 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         kpi_data = await load_json(KPI_FILE)
         users_data = await load_json(USERS_FILE)
-        existing_user_names = [v.strip().lower() for v in users_data.values()]
+        existing_user_names = {_normalize_person_name(v) for v in users_data.values()}
         updated_names = []
+        updated_name_keys = set()
 
         for _, row in df.iterrows():
             emp_name = str(row["full_name"]).strip()
-            clean_name = emp_name.lower()
+            clean_name = _normalize_person_name(emp_name)
             
             kpi_data[clean_name] = {
                 "original_name": emp_name,
@@ -93,12 +94,14 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 "office_hours": float(row["office_hours"]),
                 "field_hours": float(row["field_hours"]),
             }
-            updated_names.append(emp_name)
+            if clean_name not in updated_name_keys:
+                updated_names.append(emp_name)
+                updated_name_keys.add(clean_name)
 
             if clean_name not in existing_user_names:
                 fake_uid = f"excel_{clean_name}"
                 users_data[fake_uid] = emp_name
-                existing_user_names.append(clean_name)
+                existing_user_names.add(clean_name)
 
         await save_json(kpi_data, KPI_FILE)
         await save_json(users_data, USERS_FILE)

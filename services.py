@@ -34,22 +34,28 @@ async def check_pending_requests_job(context: ContextTypes.DEFAULT_TYPE):
         logging.error(f"Не удалось отправить напоминание о заявках: {e}")
 
 
+def find_telegram_user_ids_by_name(users: dict, target_name: str) -> list[int]:
+    """Находит Telegram ID только по полному имени, без учета группы пользователя."""
+    clean_target = _normalize_person_name(target_name)
+    result = []
+    for user_id, user_name in users.items():
+        if not str(user_id).isdigit():
+            continue
+        if _normalize_person_name(user_name) == clean_target:
+            result.append(int(user_id))
+    return result
+
+
 async def notify_user_kpi_updated(context: ContextTypes.DEFAULT_TYPE, target_name: str):
     users = await load_json(USERS_FILE)
-    clean_target = target_name.strip().lower()
+    target_user_ids = find_telegram_user_ids_by_name(users, target_name)
 
-    target_user_id = None
-    for uid, u_name in users.items():
-        if u_name.strip().lower() == clean_target:
-            target_user_id = uid
-            break
-
-    if target_user_id and target_user_id.isdigit():
+    for target_user_id in target_user_ids:
         try:
             await context.bot.send_message(
-                chat_id=int(target_user_id),
+                chat_id=target_user_id,
                 text=(
-                    "🔔 **Ваши показатели KPI были обновлены!**\n\n"
+                    f"🔔 **{target_name}**, ваши показатели KPI были обновлены!\n\n"
                     "Нажмите кнопку **«Мой KPI»**, чтобы посмотреть актуальные данные."
                 ),
                 parse_mode="Markdown",

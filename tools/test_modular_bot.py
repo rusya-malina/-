@@ -16,7 +16,7 @@ from bot_context import TEAM_OPTIONS, ThreadingHTTPServer
 from handlers.requests import build_requests_markup
 from keyboards import get_issuance_confirmation_markup, get_kpi_menu_keyboard, get_main_keyboard, get_registration_group_keyboard
 from health import HealthHandler
-from services import calculate_balances
+from services import calculate_balances, find_telegram_user_ids_by_name
 
 
 MODULES = [
@@ -69,6 +69,12 @@ def main() -> None:
     callback_values = [button.callback_data for row in request_markup.inline_keyboard for button in row]
     assert "req_accept:team:1" in callback_values
     assert "req_reject:team:1" in callback_values
+    matched_ids = find_telegram_user_ids_by_name(
+        {"100": "Анна Петрова", "excel_anna_petrova": "Анна Петрова", "101": "Иван Сидоров"},
+        "  Анна   Петрова ",
+    )
+    assert matched_ids == [100]
+
     balances = calculate_balances(
         {"micro_las_fact": 2, "micro_lau_fact": 3, "gt_fact": 4},
         {"mints_issued": 10, "sticks_issued": 9},
