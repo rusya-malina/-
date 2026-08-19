@@ -2,6 +2,8 @@ import logging
 import os
 import json
 import math
+import re
+import tempfile
 import warnings
 import asyncio
 import threading
@@ -49,6 +51,7 @@ KPI_FILE = "kpi_data.json"
 PLANS_FILE = "plans_config.json"
 PENDING_FILE = "pending_requests.json"
 ISSUANCE_FILE = "issuance_data.json"
+ISSUANCE_SCHEMA_VERSION = 2
 
 # Состояния разговора
 (
@@ -79,7 +82,9 @@ ISSUANCE_FILE = "issuance_data.json"
     PENDING_REQUESTS_STATE,
     ISSUANCE_USER,
     ISSUANCE_AMOUNT,
-) = range(27)
+    ISSUANCE_MENU,
+    ISSUANCE_EXCEL_UPLOAD,
+) = range(29)
 
 
 # === ДИНАМИЧЕСКИЕ КЛАВИАТУРЫ ===
@@ -121,9 +126,14 @@ def get_extra_keyboard() -> ReplyKeyboardMarkup:
 
 
 def get_issuance_keyboard() -> ReplyKeyboardMarkup:
-    """Клавиатура выбора типа выдачи для администратора."""
+    """Главное меню выдач для администратора."""
     return ReplyKeyboardMarkup(
-        [["MINTS", "Стики"], ["⬅️ Назад"]],
+        [
+            ["MINTS", "Стики"],
+            ["📥 Загрузить выдачи (Excel)"],
+            ["📊 Выгрузка статистики"],
+            ["⬅️ Назад"],
+        ],
         resize_keyboard=True,
     )
 
@@ -161,6 +171,12 @@ async def load_json(filepath: str) -> dict:
 
 async def save_json(data: dict, filepath: str) -> None:
     await asyncio.to_thread(_sync_save_json, data, filepath)
+
+
+def _reset_issuance_if_legacy() -> None:
+    data = _sync_load_json(ISSUANCE_FILE)
+    if data.get("_schema_version") != ISSUANCE_SCHEMA_VERSION:
+        _sync_save_json({"_schema_version": ISSUANCE_SCHEMA_VERSION}, ISSUANCE_FILE)
 
 
 async def load_pending() -> dict:
@@ -301,6 +317,225 @@ def get_issuance_confirmation_markup() -> InlineKeyboardMarkup:
     )
 
 
+def _normalize_person_name(value) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
+def _find_column(columns, aliases):
+    normalized_columns = {_normalize_person_name(column).replace(" ", "_"): column for column in columns}
+    for alias in aliases:
+        normalized_alias = _normalize_person_name(alias).replace(" ", "_")
+        if normalized_alias in normalized_columns:
+            return normalized_columns[normalized_alias]
+    return None
+
+
+def _parse_nonnegative_quantity(value) -> float:
+    if value is None:
+        return 0.0
+    try:
+        if bool(pd.isna(value)):
+            return 0.0
+    except (TypeError, ValueError):
+        pass
+    number = float(str(value).strip().replace(",", "."))
+    if not math.isfinite(number) or number < 0:
+        raise ValueError("Количество должно быть конечным числом не меньше нуля")
+    return number
+
+
+async def issuance_menu_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
+        return ConversationHandler.END
+
+    action = update.message.text
+    if action == "MINTS":
+        return await issuance_type_message(update, context, "mints")
+    if action == "Стики":
+        return await issuance_type_message(update, context, "sticks")
+    if action == "📥 Загрузить выдачи (Excel)":
+        await update.message.reply_text(
+            "📥 **Загрузка выдач из Excel**\n\n"
+            "Отправьте файл `.xlsx` с колонками имени сотрудника, MINTS и стиков.\n"
+            "Поддерживаются заголовки `full_name`/`ФИО`, `mints`/`mints_issued`/`MINTS` "
+            "и `sticks`/`sticks_issued`/`Стики`.\n\n"
+            "Значения из файла будут добавлены к текущим выдачам.",
+            reply_markup=cancel_keyboard,
+            parse_mode="Markdown",
+        )
+        return ISSUANCE_EXCEL_UPLOAD
+    if action == "📊 Выгрузка статистики":
+        return await export_issuance_statistics(update, context)
+    return ISSUANCE_MENU
+
+
+async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
+        return ConversationHandler.END
+
+    document = update.message.document
+    if not document or not document.file_name.lower().endswith(".xlsx"):
+        await update.message.reply_text("⚠️ Отправьте файл в формате `.xlsx` или нажмите «Назад».", parse_mode="Markdown")
+        return ISSUANCE_EXCEL_UPLOAD
+
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(prefix="issuance_", suffix=".xlsx", delete=False) as temp_file:
+            temp_path = temp_file.name
+        remote_file = await context.bot.get_file(document.file_id)
+        await remote_file.download_to_drive(temp_path)
+
+        def read_issuance_excel(path):
+            frame = pd.read_excel(path, dtype=object)
+            name_column = _find_column(frame.columns, ["full_name", "name", "employee", "employee_name", "фио", "сотрудник", "имя"])
+            mints_column = _find_column(frame.columns, ["mints", "mints_issued", "mint", "минтс", "минты", "выданные_mints", "выдано_mints"])
+            sticks_column = _find_column(frame.columns, ["sticks", "sticks_issued", "stick", "стики", "выданные_стики", "выдано_стиков"])
+            if not name_column or not mints_column or not sticks_column:
+                return None, None
+            return frame, (name_column, mints_column, sticks_column)
+
+        frame, columns = await asyncio.to_thread(read_issuance_excel, temp_path)
+        if frame is None:
+            await update.message.reply_text(
+                "❌ Не найдены обязательные колонки. Нужны: имя сотрудника, MINTS и Стики.",
+                reply_markup=get_issuance_keyboard(),
+            )
+            return ISSUANCE_MENU
+
+        name_column, mints_column, sticks_column = columns
+        rows = []
+        errors = []
+        for excel_row_number, (_, row) in enumerate(frame.iterrows(), start=2):
+            employee_name = str(row.get(name_column, "")).strip()
+            if not employee_name or employee_name.lower() == "nan":
+                continue
+            try:
+                mints_amount = _parse_nonnegative_quantity(row.get(mints_column, 0))
+                sticks_amount = _parse_nonnegative_quantity(row.get(sticks_column, 0))
+            except (TypeError, ValueError) as error:
+                errors.append(f"строка {excel_row_number}: {error}")
+                continue
+            rows.append((employee_name, mints_amount, sticks_amount))
+
+        if errors:
+            preview = "\n".join(errors[:5])
+            await update.message.reply_text(
+                f"❌ Excel не загружен: найдены ошибки в данных.\n{preview}",
+                reply_markup=get_issuance_keyboard(),
+            )
+            return ISSUANCE_MENU
+        if not rows:
+            await update.message.reply_text("❌ В Excel нет заполненных строк с сотрудниками.", reply_markup=get_issuance_keyboard())
+            return ISSUANCE_MENU
+
+        users_data = await load_json(USERS_FILE)
+        issuance_data = await load_json(ISSUANCE_FILE)
+        name_to_user_id = {
+            _normalize_person_name(name): str(user_id)
+            for user_id, name in users_data.items()
+            if str(name).strip() and _normalize_person_name(name) != "nan"
+        }
+        added_without_telegram = []
+        timestamp = datetime.now(timezone.utc).isoformat()
+        for employee_name, mints_amount, sticks_amount in rows:
+            normalized_name = _normalize_person_name(employee_name)
+            user_id = name_to_user_id.get(normalized_name)
+            if not user_id:
+                user_id = f"excel_{normalized_name.replace(' ', '_')}"
+                suffix = 2
+                while user_id in users_data and _normalize_person_name(users_data[user_id]) != normalized_name:
+                    user_id = f"excel_{normalized_name.replace(' ', '_')}_{suffix}"
+                    suffix += 1
+                users_data[user_id] = employee_name
+                name_to_user_id[normalized_name] = user_id
+                added_without_telegram.append(employee_name)
+
+            record = issuance_data.setdefault(
+                user_id,
+                {"name": employee_name, "mints_issued": 0.0, "sticks_issued": 0.0, "history": []},
+            )
+            record["name"] = employee_name
+            record.setdefault("mints_issued", 0.0)
+            record.setdefault("sticks_issued", 0.0)
+            record.setdefault("history", [])
+            if mints_amount:
+                record["mints_issued"] = float(record["mints_issued"]) + mints_amount
+                record["history"].append({"type": "mints_excel", "amount": mints_amount, "admin_id": ADMIN_ID, "created_at": timestamp})
+            if sticks_amount:
+                record["sticks_issued"] = float(record["sticks_issued"]) + sticks_amount
+                record["history"].append({"type": "sticks_excel", "amount": sticks_amount, "admin_id": ADMIN_ID, "created_at": timestamp})
+
+        await save_json(users_data, USERS_FILE)
+        await save_json(issuance_data, ISSUANCE_FILE)
+        message = f"✅ Загружено строк: **{len(rows)}**. Выдачи добавлены сотрудникам по имени."
+        if added_without_telegram:
+            message += f"\nНовых записей без Telegram ID: **{len(added_without_telegram)}**."
+        await update.message.reply_text(message, reply_markup=get_issuance_keyboard(), parse_mode="Markdown")
+        return ISSUANCE_MENU
+    except Exception as error:
+        logging.exception("Ошибка загрузки Excel выдач: %s", error)
+        await update.message.reply_text("❌ Не удалось обработать Excel-файл. Проверьте формат и попробуйте снова.", reply_markup=get_issuance_keyboard())
+        return ISSUANCE_MENU
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+async def export_issuance_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
+        return ConversationHandler.END
+
+    report_path = None
+    try:
+        users_data = await load_json(USERS_FILE)
+        kpi_data = await load_json(KPI_FILE)
+        issuance_data = await load_json(ISSUANCE_FILE)
+        rows = []
+        for user_id, user_name in sorted(users_data.items(), key=lambda item: str(item[1]).lower()):
+            employee_name = str(user_name).strip()
+            if not employee_name or employee_name.lower() == "nan":
+                continue
+            user_kpi = kpi_data.get(_normalize_person_name(employee_name), {})
+            balances = calculate_balances(user_kpi, issuance_data.get(str(user_id), {}))
+            rows.append(
+                {
+                    "Сотрудник": employee_name,
+                    "Telegram ID": str(user_id) if str(user_id).isdigit() else "",
+                    "Выдано MINTS": balances["mints_issued"],
+                    "LAS факт": balances["las_done"],
+                    "LAU факт": balances["lau_done"],
+                    "Списано MINTS": balances["mints_used"],
+                    "Остаток MINTS": balances["mints_balance"],
+                    "Выдано стиков": balances["sticks_issued"],
+                    "ГТ факт": balances["sticks_used"],
+                    "Остаток стиков": balances["sticks_balance"],
+                }
+            )
+
+        report = pd.DataFrame(rows)
+        with tempfile.NamedTemporaryFile(prefix="issuance_statistics_", suffix=".xlsx", delete=False) as temp_file:
+            report_path = temp_file.name
+        await asyncio.to_thread(report.to_excel, report_path, index=False, engine="openpyxl")
+        with open(report_path, "rb") as report_file:
+            await update.message.reply_document(
+                document=report_file,
+                filename="issuance_statistics.xlsx",
+                caption="📊 Статистика по выданным и остаточным MINTS/стикам.",
+            )
+        await update.message.reply_text("📦 Раздел «Выдача»:", reply_markup=get_issuance_keyboard())
+        return ISSUANCE_MENU
+    except Exception as error:
+        logging.exception("Ошибка формирования статистики выдач: %s", error)
+        await update.message.reply_text("❌ Не удалось сформировать статистику.", reply_markup=get_issuance_keyboard())
+        return ISSUANCE_MENU
+    finally:
+        if report_path and os.path.exists(report_path):
+            os.remove(report_path)
+
+
 async def issuance_type_message(update: Update, context: ContextTypes.DEFAULT_TYPE, issuance_type: str):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
@@ -327,12 +562,13 @@ async def start_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data.pop("issuance_type", None)
     context.user_data.pop("issuance_user_id", None)
+    context.user_data.pop("issuance_amount", None)
     await update.message.reply_text(
-        "📦 **Выдача**\n\nВыберите, что выдать:",
+        "📦 **Выдача**\n\nВыберите действие:",
         reply_markup=get_issuance_keyboard(),
         parse_mode="Markdown",
     )
-    return ISSUANCE_USER
+    return ISSUANCE_MENU
 
 
 async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1824,6 +2060,7 @@ class HealthHandler(BaseHTTPRequestHandler):
 
 # === MAIN ===
 def main():
+    _reset_issuance_if_legacy()
     token = os.getenv("BOT_TOKEN")
     if not token:
         raise RuntimeError(
@@ -1954,10 +2191,16 @@ def main():
             PENDING_REQUESTS_STATE: [
                 CallbackQueryHandler(pending_requests_callback, pattern=r"^(pend_accept:|pend_accept_all|pend_back)$"),
             ],
+            ISSUANCE_MENU: [
+                MessageHandler(filters.Regex(r"^(MINTS|Стики|📥 Загрузить выдачи \(Excel\)|📊 Выгрузка статистики)$"), issuance_menu_message),
+                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
+            ],
+            ISSUANCE_EXCEL_UPLOAD: [
+                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
+                MessageHandler(filters.Document.ALL, process_issuance_excel_file),
+            ],
             ISSUANCE_USER: [
                 CallbackQueryHandler(issuance_callback, pattern=r"^(issue_(type|user):|issue_cancel$)"),
-                MessageHandler(filters.Regex(r"^MINTS$"), lambda update, context: issuance_type_message(update, context, "mints")),
-                MessageHandler(filters.Regex(r"^Стики$"), lambda update, context: issuance_type_message(update, context, "sticks")),
             ],
             ISSUANCE_AMOUNT: [
                 CallbackQueryHandler(issuance_callback, pattern=r"^(issue_confirm|issue_change_user|issue_cancel)$"),
