@@ -122,6 +122,16 @@ async def show_requests_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return PENDING_REQUESTS_STATE
 
 
+async def _show_admin_main_menu_after_callback(query, context: ContextTypes.DEFAULT_TYPE, status: str | None = None):
+    await query.message.edit_text(status or "✅ Заявка обработана.")
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text="🏠 Главное меню администратора:",
+        reply_markup=get_main_keyboard(ADMIN_ID),
+    )
+    return ConversationHandler.END
+
+
 async def _show_requests_after_callback(query, context: ContextTypes.DEFAULT_TYPE, status: str | None = None):
     inbox = await load_request_inbox()
     if not inbox:
@@ -186,7 +196,7 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     request = next((item for item in inbox if item["id"] == raw_id), None)
     if not request:
         await query.answer("Заявка уже обработана.", show_alert=True)
-        return await _show_requests_after_callback(query, context)
+        return await _show_admin_main_menu_after_callback(query, context, "ℹ️ Заявка уже обработана.")
 
     accepted = action == "req_accept"
     kind = request["kind"]
@@ -256,7 +266,7 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logging.warning("Не удалось уведомить пользователя по заявке %s: %s", user_id, error)
 
     result = "✅ Заявка принята." if accepted else "❌ Заявка отклонена."
-    return await _show_requests_after_callback(query, context, f"{result}\n\n📥 Активные заявки:")
+    return await _show_admin_main_menu_after_callback(query, context, result)
 
 
 async def start_user_request(update: Update, context: ContextTypes.DEFAULT_TYPE):

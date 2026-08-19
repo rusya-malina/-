@@ -85,7 +85,12 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
     request = team_requests.get(user_id)
     if not request:
         await query.message.edit_text("ℹ️ Запрос уже обработан или устарел.")
-        return EXTRA_MENU_STATE
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="🏠 Главное меню администратора:",
+            reply_markup=get_main_keyboard(ADMIN_ID),
+        )
+        return ConversationHandler.END
 
     selected_team = request["team"]
     user_name = request["name"]
@@ -128,4 +133,9 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
         except Exception as error:
             logging.error("Не удалось уведомить пользователя об отказе команды: %s", error)
 
-    return EXTRA_MENU_STATE
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text="🏠 Главное меню администратора:",
+        reply_markup=get_main_keyboard(ADMIN_ID),
+    )
+    return ConversationHandler.END

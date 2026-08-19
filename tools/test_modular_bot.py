@@ -55,7 +55,8 @@ def main() -> None:
     main_keyboard = get_main_keyboard(14599689)
     assert main_keyboard.keyboard
     admin_buttons = {button.text for row in main_keyboard.keyboard for button in row}
-    assert any(button.text == "📝 Оставить заявку" for row in main_keyboard.keyboard for button in row)
+    assert "📝 Оставить заявку" not in admin_buttons
+    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Загрузить данные", "Выдача", "📢 Рассылка", "⚙️ Дополнительно"}.issubset(admin_buttons)
     assert "Определить команду" not in admin_buttons
     kpi_admin_buttons = {button.text for row in get_kpi_menu_keyboard().keyboard for button in row}
     assert "📥 Загрузить KPI (Excel)" in kpi_admin_buttons
