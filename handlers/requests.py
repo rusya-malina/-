@@ -1,6 +1,6 @@
 """Единый inbox заявок пользователей для администратора."""
 from bot_context import *
-from storage import load_json, save_json, load_pending, save_pending
+from storage import load_json, save_json, load_pending, update_pending
 from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard, get_registration_group_keyboard
 
 
@@ -148,10 +148,10 @@ async def _show_requests_after_callback(query, context: ContextTypes.DEFAULT_TYP
 
 async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     if query.from_user.id != ADMIN_ID:
         await query.answer("⛔️ Нет доступа.", show_alert=True)
         return PENDING_REQUESTS_STATE
+    await query.answer()
 
     action, raw_id = query.data.split(":", 1) if ":" in query.data else (query.data, "")
     if action == "req_back":
@@ -168,7 +168,6 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         inbox = await load_request_inbox()
         request = next((item for item in inbox if item["id"] == raw_id), None)
         if not request:
-            await query.answer("Заявка уже обработана.", show_alert=True)
             return await _show_requests_after_callback(query, context)
         detail = (
             f"📥 {_request_title(request)}\n"
@@ -195,9 +194,12 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = _request_name(request)
 
     if kind == "registration":
-        pending = await load_pending()
-        pending.pop(user_id, None)
-        await save_pending(pending)
+        def remove_pending(data):
+            return data.pop(user_id, None)
+
+        removed_request = await update_pending(remove_pending)
+        if removed_request is None:
+            return await _show_requests_after_callback(query, context)
         group = request.get("group")
         if accepted:
             users = await load_json(USERS_FILE)

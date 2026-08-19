@@ -1,6 +1,6 @@
 """Пользовательские сценарии: регистрация, расчёты и возврат в меню."""
 from bot_context import *
-from storage import load_json, save_json, load_pending, save_pending
+from storage import load_json, save_json, load_pending, update_pending
 from keyboards import cancel_keyboard, get_main_keyboard, get_registration_group_keyboard
 from services import notify_user_bot_stopped
 from roles import get_user_group
@@ -17,6 +17,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"👋 С возвращением, {users[user_id]}!",
             reply_markup=get_main_keyboard(user_id_num, group),
+        )
+        return ConversationHandler.END
+
+    pending = await load_pending()
+    if user_id in pending:
+        request = pending[user_id] if isinstance(pending[user_id], dict) else {"group": "—"}
+        await update.message.reply_text(
+            f"⏳ Ваша заявка уже ожидает решения администратора.\nГруппа: {request.get('group', '—')}",
+            reply_markup=ReplyKeyboardRemove(),
         )
         return ConversationHandler.END
 
@@ -83,13 +92,17 @@ async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["pending_full_name"] = full_name
     context.user_data["pending_group"] = selected_group
 
-    pending = await load_pending()
-    pending[str(user_id_num)] = {
+    request_record = {
         "name": full_name,
         "group": selected_group,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    await save_pending(pending)
+
+    def add_pending(data):
+        data[str(user_id_num)] = request_record
+        return request_record
+
+    await update_pending(add_pending)
 
     await update.message.reply_text(
         "⏳ **Заявка отправлена администратору.**\n\n"
@@ -101,8 +114,8 @@ async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     inline_keyboard = [
         [
-            InlineKeyboardButton("✅ Принять", callback_data=f"adm_accept:{user_id_num}"),
-            InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_reject:{user_id_num}"),
+            InlineKeyboardButton("✅ Принять", callback_data=f"req_accept:registration:{user_id_num}"),
+            InlineKeyboardButton("❌ Отклонить", callback_data=f"req_reject:registration:{user_id_num}"),
         ]
     ]
     

@@ -76,10 +76,41 @@ def test_atomic_storage() -> None:
         assert not path.with_name("data.json.tmp").exists()
 
 
+async def test_concurrent_registration_updates() -> None:
+    original_pending_file = storage.PENDING_FILE
+    with tempfile.TemporaryDirectory() as directory:
+        pending_path = Path(directory) / "pending.json"
+        storage.PENDING_FILE = str(pending_path)
+        storage._sync_save_json({}, str(pending_path))
+        try:
+            async def add_request(index: int):
+                def mutate(data):
+                    data[str(index)] = {"name": f"User {index}", "group": "R LAMP"}
+                await storage.update_pending(mutate)
+
+            await asyncio.gather(*(add_request(index) for index in range(25)))
+            saved = storage._sync_load_json(str(pending_path))
+            assert len(saved) == 25
+
+            async def remove_request(index: int):
+                def mutate(data):
+                    return data.pop(str(index), None)
+                return await storage.update_pending(mutate)
+
+            results = await asyncio.gather(*(remove_request(index) for index in range(10)))
+            assert all(result is not None for result in results)
+            assert len(storage._sync_load_json(str(pending_path))) == 15
+            duplicate_results = await asyncio.gather(remove_request(0), remove_request(0))
+            assert sum(result is not None for result in duplicate_results) == 0
+        finally:
+            storage.PENDING_FILE = original_pending_file
+
+
 async def main() -> None:
     await test_request_inbox()
     await test_request_reminder_throttle()
     test_atomic_storage()
+    await test_concurrent_registration_updates()
     print("behavior audit passed")
 
 

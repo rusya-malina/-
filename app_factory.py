@@ -72,7 +72,6 @@ def build_application(token: str) -> Application:
     )
 
     app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(admin_moderation_callback, pattern=r"^adm_(accept|reject):"))
     app.add_handler(CallbackQueryHandler(team_moderation_callback, pattern=r"^team_(accept|reject):"))
     app.add_handler(CallbackQueryHandler(requests_callback, pattern=r"^req_"))
     app.add_handler(MessageHandler(filters.Regex(r"^Мой KPI$"), my_kpi_menu))
