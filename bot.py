@@ -291,6 +291,16 @@ async def _get_issuance_users_markup(context: ContextTypes.DEFAULT_TYPE) -> Inli
     return InlineKeyboardMarkup(keyboard)
 
 
+def get_issuance_confirmation_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✅ Выдать", callback_data="issue_confirm")],
+            [InlineKeyboardButton("👤 Изменить пользователя", callback_data="issue_change_user")],
+            [InlineKeyboardButton("❌ Отмена", callback_data="issue_cancel")],
+        ]
+    )
+
+
 async def issuance_type_message(update: Update, context: ContextTypes.DEFAULT_TYPE, issuance_type: str):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
@@ -325,6 +335,59 @@ async def start_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ISSUANCE_USER
 
 
+async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = context.user_data.get("issuance_user_id")
+    issuance_type = context.user_data.get("issuance_type")
+    amount = context.user_data.get("issuance_amount")
+    users = await load_json(USERS_FILE)
+    user_name = users.get(user_id)
+
+    if not user_id or not issuance_type or not user_name or amount is None:
+        await query.message.edit_text("❌ Сессия выдачи устарела. Начните операцию заново.")
+        context.user_data.pop("issuance_type", None)
+        context.user_data.pop("issuance_user_id", None)
+        context.user_data.pop("issuance_amount", None)
+        return ConversationHandler.END
+
+    issuance_data = await load_json(ISSUANCE_FILE)
+    record = issuance_data.setdefault(
+        str(user_id),
+        {"name": user_name, "mints_issued": 0.0, "sticks_issued": 0.0, "history": []},
+    )
+    record["name"] = user_name
+    record.setdefault("mints_issued", 0.0)
+    record.setdefault("sticks_issued", 0.0)
+    record.setdefault("history", [])
+    field = "mints_issued" if issuance_type == "mints" else "sticks_issued"
+    record[field] = float(record[field]) + float(amount)
+    record["history"].append(
+        {
+            "type": issuance_type,
+            "amount": float(amount),
+            "admin_id": ADMIN_ID,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    await save_json(issuance_data, ISSUANCE_FILE)
+
+    type_label = "MINTS" if issuance_type == "mints" else "стиков"
+    await query.message.edit_text(
+        f"✅ Выдано **{_format_quantity(float(amount))} {type_label}** пользователю **{user_name}**.\n"
+        f"Всего выдано: **{_format_quantity(record[field])}**.",
+        parse_mode="Markdown",
+    )
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text="🏠 Главное меню:",
+        reply_markup=get_main_keyboard(ADMIN_ID),
+    )
+    context.user_data.pop("issuance_type", None)
+    context.user_data.pop("issuance_user_id", None)
+    context.user_data.pop("issuance_amount", None)
+    return ConversationHandler.END
+
+
 async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -333,7 +396,24 @@ async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     data = query.data
+    if data == "issue_confirm":
+        return await confirm_issuance(update, context)
+
+    if data == "issue_change_user":
+        context.user_data.pop("issuance_user_id", None)
+        context.user_data.pop("issuance_amount", None)
+        issuance_type = context.user_data.get("issuance_type")
+        type_label = "MINTS" if issuance_type == "mints" else "стиков"
+        await query.message.edit_text(
+            f"👥 **Выдача {type_label}**\n\nВыберите пользователя:",
+            reply_markup=await _get_issuance_users_markup(context),
+            parse_mode="Markdown",
+        )
+        return ISSUANCE_USER
+
     if data == "issue_cancel":
+        for key in ("issuance_type", "issuance_user_id", "issuance_amount"):
+            context.user_data.pop(key, None)
         await query.message.delete()
         await context.bot.send_message(
             chat_id=query.message.chat_id,
@@ -405,37 +485,18 @@ async def process_issuance_amount(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text("❌ Сессия выдачи устарела. Начните выдачу заново.", reply_markup=get_main_keyboard(ADMIN_ID))
         return ConversationHandler.END
 
-    issuance_data = await load_json(ISSUANCE_FILE)
-    record = issuance_data.setdefault(
-        str(user_id),
-        {"name": user_name, "mints_issued": 0.0, "sticks_issued": 0.0, "history": []},
-    )
-    record["name"] = user_name
-    record.setdefault("mints_issued", 0.0)
-    record.setdefault("sticks_issued", 0.0)
-    record.setdefault("history", [])
-    field = "mints_issued" if issuance_type == "mints" else "sticks_issued"
-    record[field] = float(record[field]) + amount
-    record["history"].append(
-        {
-            "type": issuance_type,
-            "amount": amount,
-            "admin_id": ADMIN_ID,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
-    await save_json(issuance_data, ISSUANCE_FILE)
-
     type_label = "MINTS" if issuance_type == "mints" else "стиков"
+    context.user_data["issuance_amount"] = amount
     await update.message.reply_text(
-        f"✅ Выдано **{_format_quantity(amount)} {type_label}** пользователю **{user_name}**.\n"
-        f"Всего выдано: **{_format_quantity(record[field])}**.",
-        reply_markup=get_main_keyboard(ADMIN_ID),
+        f"🔎 **Проверьте выдачу**\n\n"
+        f"Пользователь: **{user_name}**\n"
+        f"Тип: **{type_label}**\n"
+        f"Количество: **{_format_quantity(amount)}**\n\n"
+        "Нажмите «Выдать» для записи операции или измените пользователя.",
+        reply_markup=get_issuance_confirmation_markup(),
         parse_mode="Markdown",
     )
-    context.user_data.pop("issuance_type", None)
-    context.user_data.pop("issuance_user_id", None)
-    return ConversationHandler.END
+    return ISSUANCE_AMOUNT
 
 
 # === РАЗДЕЛ ДОПОЛНИТЕЛЬНО (ТОЛЬКО АДМИН) ===
@@ -1700,6 +1761,8 @@ async def get_lau(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cancel_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for key in ("issuance_type", "issuance_user_id", "issuance_amount"):
+        context.user_data.pop(key, None)
     await update.message.reply_text("❌ Действие отменено.", reply_markup=get_main_keyboard(update.effective_user.id))
     return ConversationHandler.END
 
@@ -1897,6 +1960,7 @@ def main():
                 MessageHandler(filters.Regex(r"^Стики$"), lambda update, context: issuance_type_message(update, context, "sticks")),
             ],
             ISSUANCE_AMOUNT: [
+                CallbackQueryHandler(issuance_callback, pattern=r"^(issue_confirm|issue_change_user|issue_cancel)$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, process_issuance_amount),
             ],
         },
