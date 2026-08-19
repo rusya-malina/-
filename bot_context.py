@@ -53,6 +53,9 @@ REGISTRATION_DRAFTS_FILE = "registration_drafts.json"
 TEAMS_FILE = "teams.json"
 ISSUANCE_FILE = "issuance_data.json"
 ISSUANCE_SCHEMA_VERSION = 2
+UPLOADED_DATA_DIR = "uploaded_data"
+LATEST_KPI_FILE = os.path.join(UPLOADED_DATA_DIR, "latest_kpi.xlsx")
+LATEST_ISSUANCE_FILE = os.path.join(UPLOADED_DATA_DIR, "latest_issuance.xlsx")
 
 (
     REG_GROUP,

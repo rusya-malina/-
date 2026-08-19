@@ -16,6 +16,13 @@ from bot_context import (
 _JSON_LOCKS: dict[str, asyncio.Lock] = {}
 
 
+def replace_latest_file(source_path: str, latest_path: str) -> None:
+    """Атомарно делает source_path единственным актуальным файлом."""
+    parent = os.path.dirname(os.path.abspath(latest_path))
+    os.makedirs(parent, exist_ok=True)
+    os.replace(source_path, latest_path)
+
+
 def _get_json_lock(filepath: str) -> asyncio.Lock:
     return _JSON_LOCKS.setdefault(filepath, asyncio.Lock())
 

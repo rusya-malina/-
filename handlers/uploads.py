@@ -1,7 +1,7 @@
 """Тяжёлые операции с Excel, изолированные от меню и основного роутера."""
 from bot_context import *
 from organization import is_admin_mode
-from storage import load_json, save_json
+from storage import load_json, replace_latest_file, save_json
 from keyboards import cancel_keyboard, get_issuance_keyboard, get_main_keyboard
 from services import (
     _find_column,
@@ -37,9 +37,19 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return UPLOAD_EXCEL
 
-    file_path = "temp_kpi.xlsx"
-    file = await context.bot.get_file(document.file_id)
-    await file.download_to_drive(file_path)
+    file_path = None
+    try:
+        os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
+        with tempfile.NamedTemporaryFile(prefix=".kpi_", suffix=".xlsx", dir=UPLOADED_DATA_DIR, delete=False) as temp_file:
+            file_path = temp_file.name
+        file = await context.bot.get_file(document.file_id)
+        await file.download_to_drive(file_path)
+    except Exception as error:
+        logging.exception("Не удалось скачать KPI Excel: %s", error)
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+        await update.message.reply_text("❌ Не удалось скачать Excel-файл. Попробуйте отправить его ещё раз.")
+        return UPLOAD_EXCEL
 
     try:
         # Асинхронное чтение Excel для избежания фризов бота
@@ -106,14 +116,16 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         await save_json(kpi_data, KPI_FILE)
         await save_json(users_data, USERS_FILE)
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
+        replace_latest_file(file_path, LATEST_KPI_FILE)
+        file_path = None
 
         for name in updated_names:
             await notify_user_kpi_updated(context, name)
 
         await update.message.reply_text(
-            f"✅ **Данные KPI успешно загружены!**\nЗаписей обновлено: `{len(df)}`",
+            f"✅ **Данные KPI успешно загружены!**\nЗаписей обновлено: `{len(df)}`\n"
+            "📌 Файл сохранён как основной KPI-файл; предыдущий файл заменён.",
             reply_markup=get_main_keyboard(user_id_num, admin_mode=True),
             parse_mode="Markdown",
         )
@@ -226,7 +238,13 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
 
         await save_json(users_data, USERS_FILE)
         await save_json(issuance_data, ISSUANCE_FILE)
-        message = f"✅ Загружено строк: **{len(rows)}**. Выдачи добавлены сотрудникам по имени."
+        os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
+        replace_latest_file(temp_path, LATEST_ISSUANCE_FILE)
+        temp_path = None
+        message = (
+            f"✅ Загружено строк: **{len(rows)}**. Выдачи добавлены сотрудникам по имени.\n"
+            "📌 Файл сохранён как основной файл выдач; предыдущий файл заменён."
+        )
         if added_without_telegram:
             message += f"\nНовых записей без Telegram ID: **{len(added_without_telegram)}**."
         await update.message.reply_text(message, reply_markup=get_issuance_keyboard(), parse_mode="Markdown")
