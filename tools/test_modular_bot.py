@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 import app_factory
 import bot
 from app_factory import build_application
-from bot_context import TEAM_OPTIONS, ThreadingHTTPServer
+from bot_context import EXTRA_MENU_STATE, PENDING_REQUESTS_STATE, TEAM_OPTIONS, ThreadingHTTPServer
 from handlers.requests import build_requests_markup
 from keyboards import get_issuance_confirmation_markup, get_kpi_menu_keyboard, get_main_keyboard, get_registration_group_keyboard
 from health import HealthHandler
@@ -44,6 +44,14 @@ def main() -> None:
 
     app = build_application("123456:TEST_TOKEN")
     assert len(app.handlers) >= 1
+    conversation = app.handlers[0][0]
+    extra_state_handlers = conversation.states[EXTRA_MENU_STATE]
+    extra_callback_patterns = {handler.pattern.pattern for handler in extra_state_handlers if hasattr(handler, "pattern")}
+    assert any(pattern == r"^req_" for pattern in extra_callback_patterns)
+    assert any(pattern == r"^team_(accept|reject):" for pattern in extra_callback_patterns)
+    pending_state_handlers = conversation.states[PENDING_REQUESTS_STATE]
+    pending_callback_patterns = {handler.pattern.pattern for handler in pending_state_handlers if hasattr(handler, "pattern")}
+    assert any(pattern == r"^req_" for pattern in pending_callback_patterns)
     main_keyboard = get_main_keyboard(14599689)
     assert main_keyboard.keyboard
     admin_buttons = {button.text for row in main_keyboard.keyboard for button in row}
