@@ -2,6 +2,61 @@
 from bot_context import *
 from storage import load_json, save_json
 from keyboards import cancel_keyboard, get_main_keyboard, get_team_keyboard
+from organization import get_visible_users, is_management_group
+from roles import get_user_group
+from services import _format_quantity, calculate_balances, _normalize_person_name
+
+
+async def show_my_team(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает руководителю только его зону ответственности; режим read-only."""
+    user_id = update.effective_user.id
+    group = await get_user_group(user_id)
+    if user_id == ADMIN_ID:
+        group = "MNG"
+    if not is_management_group(group):
+        await update.message.reply_text(
+            "⛔️ Раздел «Моя команда» доступен только MNG, SPV, coor A и coor R.",
+            reply_markup=get_main_keyboard(user_id, group),
+        )
+        return ConversationHandler.END
+
+    users = await load_json(USERS_FILE)
+    groups = await load_json(GROUPS_FILE)
+    kpi_data = await load_json(KPI_FILE)
+    issuance_data = await load_json(ISSUANCE_FILE)
+    visible_users = get_visible_users(user_id, users, groups)
+
+    title = "MNG" if user_id == ADMIN_ID else group
+    lines = [
+        f"👥 **Моя команда — {title}**",
+        "🔒 Режим просмотра: изменение KPI и выдач из этого раздела недоступно.",
+        f"👤 Сотрудников в зоне ответственности: **{len(visible_users)}**\n",
+    ]
+    if not visible_users:
+        lines.append("_В вашей зоне ответственности пока нет зарегистрированных пользователей._")
+    else:
+        for index, person in enumerate(visible_users, start=1):
+            kpi = kpi_data.get(_normalize_person_name(person["name"]), {})
+            gt_plan = float(kpi.get("gt_plan", 0) or 0)
+            gt_fact = float(kpi.get("gt_fact", 0) or 0)
+            micro_plan = float(kpi.get("micro_plan", 0) or 0)
+            micro_fact = float(kpi.get("micro_las_fact", 0) or 0) + float(kpi.get("micro_lau_fact", 0) or 0)
+            gt_percent = (gt_fact / gt_plan * 100) if gt_plan else 0
+            micro_percent = (micro_fact / micro_plan * 100) if micro_plan else 0
+            balances = calculate_balances(kpi, issuance_data.get(person["user_id"], {}))
+            lines.append(
+                f"{index}. *{person['name']}* — {person['group']}\n"
+                f"   ID: `{person['user_id']}` | GT: {gt_percent:.0f}% | Микроакты: {micro_percent:.0f}%\n"
+                f"   Остаток MINTS: {_format_quantity(balances['mints_balance'])} | "
+                f"стиков: {_format_quantity(balances['sticks_balance'])}"
+            )
+
+    await update.message.reply_text(
+        "\n".join(lines),
+        reply_markup=get_main_keyboard(user_id, group),
+        parse_mode="Markdown",
+    )
+    return ConversationHandler.END
 
 
 async def start_team_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):

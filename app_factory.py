@@ -23,6 +23,7 @@ def build_application(token: str) -> Application:
         entry_points=[
             CommandHandler("start", start),
             MessageHandler(filters.Regex(r"^Новый расчет$"), new_calculation),
+            MessageHandler(filters.Regex(r"^Моя команда$"), show_my_team),
             MessageHandler(filters.Regex(r"^Определить команду$"), start_team_selection),
             MessageHandler(filters.Regex(r"^📢 Рассылка$"), start_broadcast),
             MessageHandler(filters.Regex(r"^Загрузить данные$"), open_kpi_admin_menu),

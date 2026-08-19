@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT))
 MODULES = [
     "bot_context",
     "storage",
+    "organization",
     "keyboards",
     "services",
     "health",
@@ -52,7 +53,7 @@ def load_json_files() -> list[str]:
 
 def source_audit() -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
-    for path in [ROOT / "bot.py", ROOT / "app_factory.py", ROOT / "bot_context.py", ROOT / "storage.py", ROOT / "keyboards.py", ROOT / "services.py", ROOT / "health.py", *sorted((ROOT / "handlers").glob("*.py"))]:
+    for path in [ROOT / "bot.py", ROOT / "app_factory.py", ROOT / "bot_context.py", ROOT / "storage.py", ROOT / "organization.py", ROOT / "keyboards.py", ROOT / "services.py", ROOT / "health.py", *sorted((ROOT / "handlers").glob("*.py"))]:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         defs = [node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
         result[str(path.relative_to(ROOT))] = defs
@@ -84,7 +85,7 @@ def main() -> None:
     for filename, defs in source_audit().items():
         print(f"  {filename}: {len(defs)} definitions")
 
-    text = "\n".join(path.read_text(encoding="utf-8") for path in [ROOT / "bot_context.py", ROOT / "keyboards.py", ROOT / "app_factory.py", *(ROOT / "handlers").glob("*.py")])
+    text = "\n".join(path.read_text(encoding="utf-8") for path in [ROOT / "bot_context.py", ROOT / "organization.py", ROOT / "keyboards.py", ROOT / "app_factory.py", *(ROOT / "handlers").glob("*.py")])
     checks = {
         "R LAMP present": "R LAMP" in text,
         "old team label absent outside migration/test": "К LAMP" not in text.replace('record.get("team") == "К LAMP"', "").replace('assert "К LAMP" not in TEAM_OPTIONS', ""),

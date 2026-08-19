@@ -13,6 +13,7 @@ MODULES = [
     "bot",
     "app_factory",
     "storage",
+    "organization",
     "keyboards",
     "services",
     "health",

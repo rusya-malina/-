@@ -22,6 +22,7 @@ from services import calculate_balances, find_telegram_user_ids_by_name
 MODULES = [
     "bot_context",
     "storage",
+    "organization",
     "roles",
     "keyboards",
     "services",

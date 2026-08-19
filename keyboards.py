@@ -8,6 +8,7 @@ from bot_context import (
     TEAM_OPTIONS,
 )
 from roles import get_user_group_sync
+from organization import is_management_group
 
 
 def get_registration_group_keyboard() -> ReplyKeyboardMarkup:
@@ -30,7 +31,12 @@ def get_main_keyboard(user_id: int, group: str | None = None) -> ReplyKeyboardMa
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
     group = group or get_user_group_sync(user_id)
-    if group in GROUPS_WITH_HOURS:
+    if is_management_group(group):
+        keyboard = [["Моя команда"], ["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
+        if group in GROUPS_WITH_BALANCES:
+            keyboard.append(["Остатки"])
+        keyboard.append(["📝 Оставить заявку"])
+    elif group in GROUPS_WITH_HOURS:
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["Остатки"], ["📝 Оставить заявку"]]
     elif group in GROUPS_WITH_BALANCES:
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["Остатки"], ["📝 Оставить заявку"]]
