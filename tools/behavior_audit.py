@@ -76,6 +76,22 @@ def test_atomic_storage() -> None:
         assert not path.with_name("data.json.tmp").exists()
 
 
+def test_admin_registration_cleanup() -> None:
+    original_registration_files = storage._registration_files
+    with tempfile.TemporaryDirectory() as directory:
+        paths = tuple(str(Path(directory) / f"registration_{index}.json") for index in range(6))
+        for path in paths:
+            storage._sync_save_json({str(storage.ADMIN_ID): {"name": "Администратор"}, "other": 1}, path)
+        storage._registration_files = lambda: paths
+        try:
+            removed = storage.remove_admin_registration_records_sync()
+            assert sum(removed.values()) == 6
+            for path in paths:
+                assert storage._sync_load_json(path) == {"other": 1}
+        finally:
+            storage._registration_files = original_registration_files
+
+
 async def test_concurrent_registration_updates() -> None:
     original_pending_file = storage.PENDING_FILE
     with tempfile.TemporaryDirectory() as directory:
@@ -110,6 +126,7 @@ async def main() -> None:
     await test_request_inbox()
     await test_request_reminder_throttle()
     test_atomic_storage()
+    test_admin_registration_cleanup()
     await test_concurrent_registration_updates()
     print("behavior audit passed")
 

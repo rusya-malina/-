@@ -4,17 +4,24 @@ import signal
 from bot_context import ThreadingHTTPServer, logging, os, threading
 from app_factory import build_application
 from health import HealthHandler
-from storage import _migrate_team_label, _reset_issuance_if_legacy
+from storage import (
+    _migrate_team_label,
+    _reset_issuance_if_legacy,
+    remove_admin_registration_records_sync,
+)
 from telegram.error import Conflict
 
 
-POLLING_RETRY_DELAY = 5
+POLLING_RETRY_DELAY = 15
 
 
 def main() -> None:
     """Запускает health endpoint и устойчивый Telegram polling в одном процессе Render."""
     _reset_issuance_if_legacy()
     _migrate_team_label()
+    removed_admin_records = remove_admin_registration_records_sync()
+    if any(removed_admin_records.values()):
+        logging.warning("Removed stale ADMIN_ID registration records: %s", removed_admin_records)
     token = os.getenv("BOT_TOKEN")
     if not token:
         raise RuntimeError(

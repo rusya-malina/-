@@ -11,6 +11,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id_num = update.effective_user.id
     user_id = str(user_id_num)
 
+    if user_id_num == ADMIN_ID:
+        context.user_data["name"] = "Администратор"
+        await update.message.reply_text(
+            "👋 Вы вошли как администратор.",
+            reply_markup=get_main_keyboard(ADMIN_ID),
+        )
+        return ConversationHandler.END
+
     if user_id in users:
         context.user_data["name"] = users[user_id]
         group = await get_user_group(user_id_num)
@@ -39,6 +47,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def reg_get_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id == ADMIN_ID:
+        await update.message.reply_text(
+            "👋 Вы вошли как администратор.",
+            reply_markup=get_main_keyboard(ADMIN_ID),
+        )
+        return ConversationHandler.END
+
     selected_group = update.message.text.strip()
     if selected_group not in TEAM_OPTIONS:
         await update.message.reply_text(
@@ -57,6 +72,13 @@ async def reg_get_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def reg_get_first_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id == ADMIN_ID:
+        await update.message.reply_text(
+            "👋 Вы вошли как администратор.",
+            reply_markup=get_main_keyboard(ADMIN_ID),
+        )
+        return ConversationHandler.END
+
     first_name = update.message.text.strip()
     if len(first_name) < 2:
         await update.message.reply_text("⚠️ Введите корректное имя:")
@@ -72,6 +94,13 @@ async def reg_get_first_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id == ADMIN_ID:
+        await update.message.reply_text(
+            "👋 Вы вошли как администратор.",
+            reply_markup=get_main_keyboard(ADMIN_ID),
+        )
+        return ConversationHandler.END
+
     last_name = update.message.text.strip()
     if len(last_name) < 2:
         await update.message.reply_text("⚠️ Введите корректную фамилию:")
