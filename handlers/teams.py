@@ -2,7 +2,7 @@
 from bot_context import *
 from storage import load_json, save_json
 from keyboards import cancel_keyboard, get_main_keyboard, get_team_keyboard
-from organization import get_visible_users, is_management_group
+from organization import get_visible_users, is_admin_mode, is_management_group
 from roles import get_user_group
 from services import _format_quantity, calculate_balances, _normalize_person_name
 
@@ -11,7 +11,8 @@ async def show_my_team(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показывает руководителю только его зону ответственности; режим read-only."""
     user_id = update.effective_user.id
     group = await get_user_group(user_id)
-    if user_id == ADMIN_ID:
+    admin_mode = is_admin_mode(user_id, context)
+    if admin_mode:
         group = "MNG"
     if not is_management_group(group):
         await update.message.reply_text(
@@ -24,9 +25,9 @@ async def show_my_team(update: Update, context: ContextTypes.DEFAULT_TYPE):
     groups = await load_json(GROUPS_FILE)
     kpi_data = await load_json(KPI_FILE)
     issuance_data = await load_json(ISSUANCE_FILE)
-    visible_users = get_visible_users(user_id, users, groups)
+    visible_users = get_visible_users(user_id, users, groups, admin_mode=admin_mode)
 
-    title = "MNG" if user_id == ADMIN_ID else group
+    title = "MNG" if admin_mode else group
     lines = [
         f"👥 **Моя команда — {title}**",
         "🔒 Режим просмотра: изменение KPI и выдач из этого раздела недоступно.",
@@ -62,7 +63,7 @@ async def show_my_team(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start_team_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     users = await load_json(USERS_FILE)
-    if user_id not in users and update.effective_user.id != ADMIN_ID:
+    if (update.effective_user.id == ADMIN_ID and not is_admin_mode(update.effective_user.id, context)) or (user_id not in users and update.effective_user.id != ADMIN_ID):
         await update.message.reply_text(
             "⚠️ Сначала завершите регистрацию через /start.",
             reply_markup=get_main_keyboard(update.effective_user.id),
@@ -79,6 +80,9 @@ async def start_team_selection(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def process_team_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
+    if update.effective_user.id == ADMIN_ID and not is_admin_mode(update.effective_user.id, context):
+        await update.message.reply_text("⛔️ Сначала включите административный режим командой /admin.")
+        return ConversationHandler.END
     selected_team = update.message.text.strip()
     if selected_team not in TEAM_OPTIONS:
         await update.message.reply_text("⚠️ Выберите команду кнопкой из списка.", reply_markup=get_team_keyboard())
@@ -131,7 +135,7 @@ async def process_team_selection(update: Update, context: ContextTypes.DEFAULT_T
 async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if not is_admin_mode(query.from_user.id, context):
         await query.message.edit_text("⛔️ У вас нет доступа к этому запросу.")
         return ConversationHandler.END
 
@@ -143,7 +147,7 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text="🏠 Главное меню администратора:",
-            reply_markup=get_main_keyboard(ADMIN_ID),
+            reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True),
         )
         return ConversationHandler.END
 
@@ -191,6 +195,6 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text="🏠 Главное меню администратора:",
-        reply_markup=get_main_keyboard(ADMIN_ID),
+        reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True),
     )
     return ConversationHandler.END

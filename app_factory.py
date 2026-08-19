@@ -22,6 +22,8 @@ def build_application(token: str) -> Application:
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler("start", start),
+            CommandHandler("admin", enter_admin_mode),
+            CommandHandler("coor", exit_admin_mode),
             MessageHandler(filters.Regex(r"^Новый расчет$"), new_calculation),
             MessageHandler(filters.Regex(r"^Моя команда$"), show_my_team),
             MessageHandler(filters.Regex(r"^Определить команду$"), start_team_selection),
@@ -75,7 +77,11 @@ def build_application(token: str) -> Application:
             ISSUANCE_USER: [CallbackQueryHandler(issuance_callback, pattern=r"^(issue_(type|user):|issue_cancel)$")],
             ISSUANCE_AMOUNT: [CallbackQueryHandler(issuance_callback, pattern=r"^(issue_confirm|issue_change_user|issue_cancel)$"), MessageHandler(filters.TEXT & ~filters.COMMAND, process_issuance_amount)],
         },
-        fallbacks=[MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action)],
+        fallbacks=[
+            CommandHandler("admin", enter_admin_mode),
+            CommandHandler("coor", exit_admin_mode),
+            MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
+        ],
         per_chat=True,
         per_user=True,
         per_message=False,

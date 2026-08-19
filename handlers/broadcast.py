@@ -1,11 +1,12 @@
 """Рассылка текста и фотографий администратором."""
 from bot_context import *
+from organization import is_admin_mode
 from storage import load_json
 from keyboards import cancel_keyboard, get_main_keyboard
 
 
 async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа.")
         return ConversationHandler.END
 
@@ -46,5 +47,5 @@ async def send_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ Рассылка завершена!\nУспешно: `{sent}` | Ошибок: `{failed}`",
         parse_mode="Markdown",
     )
-    await message.reply_text("Главное меню:", reply_markup=get_main_keyboard(update.effective_user.id))
+    await message.reply_text("Главное меню:", reply_markup=get_main_keyboard(update.effective_user.id, admin_mode=True))
     return ConversationHandler.END

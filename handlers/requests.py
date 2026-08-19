@@ -2,6 +2,7 @@
 from bot_context import *
 from storage import load_json, save_json, load_pending, update_pending
 from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard, get_registration_group_keyboard
+from organization import is_admin_mode
 
 
 def _request_title(request: dict) -> str:
@@ -96,7 +97,7 @@ def build_requests_markup(inbox: list[dict]) -> InlineKeyboardMarkup:
 
 
 async def show_requests_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -127,7 +128,7 @@ async def _show_admin_main_menu_after_callback(query, context: ContextTypes.DEFA
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text="🏠 Главное меню администратора:",
-        reply_markup=get_main_keyboard(ADMIN_ID),
+        reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True),
     )
     return ConversationHandler.END
 
@@ -158,7 +159,7 @@ async def _show_requests_after_callback(query, context: ContextTypes.DEFAULT_TYP
 
 async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    if query.from_user.id != ADMIN_ID:
+    if not is_admin_mode(query.from_user.id, context):
         await query.answer("⛔️ Нет доступа.", show_alert=True)
         return PENDING_REQUESTS_STATE
     await query.answer()

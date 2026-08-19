@@ -53,7 +53,7 @@ def main() -> None:
     pending_state_handlers = conversation.states[PENDING_REQUESTS_STATE]
     pending_callback_patterns = {handler.pattern.pattern for handler in pending_state_handlers if hasattr(handler, "pattern")}
     assert any(pattern == r"^req_" for pattern in pending_callback_patterns)
-    main_keyboard = get_main_keyboard(14599689)
+    main_keyboard = get_main_keyboard(14599689, admin_mode=True)
     assert main_keyboard.keyboard
     admin_buttons = {button.text for row in main_keyboard.keyboard for button in row}
     assert "📝 Оставить заявку" not in admin_buttons

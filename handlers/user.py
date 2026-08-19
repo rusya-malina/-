@@ -4,6 +4,7 @@ from storage import load_json, save_json, load_pending, update_pending
 from keyboards import cancel_keyboard, get_main_keyboard, get_registration_group_keyboard
 from services import notify_user_bot_stopped
 from roles import get_user_group
+from organization import is_admin_mode
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -12,10 +13,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(user_id_num)
 
     if user_id_num == ADMIN_ID:
-        context.user_data["name"] = "Администратор"
+        context.user_data["name"] = users.get(user_id, "Руслан Малинин")
+        admin_mode = bool(context.user_data.get("admin_mode"))
+        group = await get_user_group(user_id_num) or "coor R"
         await update.message.reply_text(
-            "👋 Вы вошли как администратор.",
-            reply_markup=get_main_keyboard(ADMIN_ID),
+            "👋 Вы вошли в режиме администратора." if admin_mode else "👋 Вы вошли в режиме coor R.",
+            reply_markup=get_main_keyboard(ADMIN_ID, group=group, admin_mode=admin_mode),
         )
         return ConversationHandler.END
 
@@ -50,7 +53,11 @@ async def reg_get_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id == ADMIN_ID:
         await update.message.reply_text(
             "👋 Вы вошли как администратор.",
-            reply_markup=get_main_keyboard(ADMIN_ID),
+            reply_markup=get_main_keyboard(
+                ADMIN_ID,
+                group=await get_user_group(ADMIN_ID) or "coor R",
+                admin_mode=bool(context.user_data.get("admin_mode")),
+            ),
         )
         return ConversationHandler.END
 
@@ -75,7 +82,11 @@ async def reg_get_first_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if update.effective_user.id == ADMIN_ID:
         await update.message.reply_text(
             "👋 Вы вошли как администратор.",
-            reply_markup=get_main_keyboard(ADMIN_ID),
+            reply_markup=get_main_keyboard(
+                ADMIN_ID,
+                group=await get_user_group(ADMIN_ID) or "coor R",
+                admin_mode=bool(context.user_data.get("admin_mode")),
+            ),
         )
         return ConversationHandler.END
 
@@ -97,7 +108,11 @@ async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id == ADMIN_ID:
         await update.message.reply_text(
             "👋 Вы вошли как администратор.",
-            reply_markup=get_main_keyboard(ADMIN_ID),
+            reply_markup=get_main_keyboard(
+                ADMIN_ID,
+                group=await get_user_group(ADMIN_ID) or "coor R",
+                admin_mode=bool(context.user_data.get("admin_mode")),
+            ),
         )
         return ConversationHandler.END
 
@@ -218,7 +233,11 @@ async def save_new_full_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await update.message.reply_text(
         f"✅ Имя и фамилия успешно изменены:\n👤 *{new_full_name}*",
-        reply_markup=get_main_keyboard(user_id_num),
+        reply_markup=get_main_keyboard(
+            user_id_num,
+            group=await get_user_group(user_id_num),
+            admin_mode=is_admin_mode(user_id_num, context),
+        ),
         parse_mode="Markdown",
     )
     return ConversationHandler.END

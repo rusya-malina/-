@@ -1,5 +1,6 @@
 """Тяжёлые операции с Excel, изолированные от меню и основного роутера."""
 from bot_context import *
+from organization import is_admin_mode
 from storage import load_json, save_json
 from keyboards import cancel_keyboard, get_issuance_keyboard, get_main_keyboard
 from services import (
@@ -11,7 +12,7 @@ from services import (
 
 
 async def start_excel_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
 
@@ -113,7 +114,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         await update.message.reply_text(
             f"✅ **Данные KPI успешно загружены!**\nЗаписей обновлено: `{len(df)}`",
-            reply_markup=get_main_keyboard(user_id_num),
+            reply_markup=get_main_keyboard(user_id_num, admin_mode=True),
             parse_mode="Markdown",
         )
         return ConversationHandler.END
@@ -127,7 +128,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 

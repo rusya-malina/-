@@ -37,7 +37,7 @@ class FakeBot:
 class FakeContext:
     def __init__(self):
         self.bot = FakeBot()
-        self.user_data = {}
+        self.user_data = {"admin_mode": True}
 
 
 async def verify_registration_accept() -> None:

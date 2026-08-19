@@ -3,10 +3,39 @@ from bot_context import *
 from storage import load_json, save_json, load_pending, save_pending
 from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard, get_registration_group_keyboard
 from services import _normalize_person_name, notify_user_bot_stopped
+from organization import is_admin_mode
+from roles import get_user_group
+
+
+async def enter_admin_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔️ Команда доступна только администратору.")
+        return ConversationHandler.END
+    context.user_data["admin_mode"] = True
+    await update.message.reply_text(
+        "🛡 **Режим администратора включён.**\nДля возврата в режим coor R используйте /coor.",
+        reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True),
+        parse_mode="Markdown",
+    )
+    return ConversationHandler.END
+
+
+async def exit_admin_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔️ Команда доступна только администратору.")
+        return ConversationHandler.END
+    context.user_data["admin_mode"] = False
+    group = await get_user_group(ADMIN_ID) or "coor R"
+    await update.message.reply_text(
+        "👥 **Режим coor R включён.**\nДля возврата к административным функциям используйте /admin.",
+        reply_markup=get_main_keyboard(ADMIN_ID, group=group, admin_mode=False),
+        parse_mode="Markdown",
+    )
+    return ConversationHandler.END
 
 
 async def open_extra_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -19,7 +48,7 @@ async def open_extra_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def show_registered_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
 
@@ -123,7 +152,7 @@ async def show_registered_users(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def show_pending_requests_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -259,7 +288,7 @@ async def pending_requests_callback(update: Update, context: ContextTypes.DEFAUL
 
 
 async def request_user_number_to_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
 
@@ -339,7 +368,7 @@ async def process_delete_user_by_number(update: Update, context: ContextTypes.DE
 async def admin_moderation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if not is_admin_mode(query.from_user.id, context):
         await query.answer("⛔️ Нет доступа.", show_alert=True)
         return
 

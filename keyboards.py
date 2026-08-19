@@ -8,7 +8,7 @@ from bot_context import (
     TEAM_OPTIONS,
 )
 from roles import get_user_group_sync
-from organization import is_management_group
+from organization import is_admin_mode, is_management_group
 
 
 def get_registration_group_keyboard() -> ReplyKeyboardMarkup:
@@ -19,8 +19,8 @@ def get_registration_group_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def get_main_keyboard(user_id: int, group: str | None = None) -> ReplyKeyboardMarkup:
-    if user_id == ADMIN_ID:
+def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool = False) -> ReplyKeyboardMarkup:
+    if user_id == ADMIN_ID and admin_mode:
         keyboard = [
             ["Новый расчет"],
             ["Мой KPI", "Справочник KPI"],
@@ -46,6 +46,10 @@ def get_main_keyboard(user_id: int, group: str | None = None) -> ReplyKeyboardMa
         # Legacy users may predate group registration; keep them active without re-registration.
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["📝 Оставить заявку"]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+def get_context_keyboard(user_id: int, context, group: str | None = None) -> ReplyKeyboardMarkup:
+    return get_main_keyboard(user_id, group, admin_mode=is_admin_mode(user_id, context))
 
 
 def get_data_keyboard() -> ReplyKeyboardMarkup:

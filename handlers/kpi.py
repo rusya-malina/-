@@ -17,10 +17,11 @@ from services import (
     notify_user_kpi_updated,
 )
 from roles import get_user_group
+from organization import is_admin_mode
 
 
 async def open_kpi_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -95,7 +96,7 @@ async def set_plan_retrafic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "✅ **Общие планы успешно обновлены!**",
-        reply_markup=get_main_keyboard(user_id_num),
+        reply_markup=get_main_keyboard(user_id_num, admin_mode=True),
         parse_mode="Markdown",
     )
     return ConversationHandler.END
@@ -118,7 +119,7 @@ async def get_manual_kpi_inline_markup() -> InlineKeyboardMarkup:
 
 
 async def start_manual_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
 
@@ -169,7 +170,7 @@ async def manual_kpi_select_employee(update: Update, context: ContextTypes.DEFAU
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text="❌ Действие отменено.",
-            reply_markup=get_main_keyboard(user_id_num),
+            reply_markup=get_main_keyboard(user_id_num, admin_mode=True),
         )
         return ConversationHandler.END
 
@@ -231,7 +232,7 @@ async def select_previous_employee_handler(update: Update, context: ContextTypes
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text="❌ Действие отменено.",
-            reply_markup=get_main_keyboard(user_id_num),
+            reply_markup=get_main_keyboard(user_id_num, admin_mode=True),
         )
         return ConversationHandler.END
 
@@ -275,7 +276,7 @@ async def delete_employee_confirm(update: Update, context: ContextTypes.DEFAULT_
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text="❌ Действие отменено.",
-            reply_markup=get_main_keyboard(user_id_num),
+            reply_markup=get_main_keyboard(user_id_num, admin_mode=True),
         )
         return ConversationHandler.END
 
@@ -324,7 +325,7 @@ async def delete_employee_confirm(update: Update, context: ContextTypes.DEFAULT_
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text=status_text,
-            reply_markup=get_main_keyboard(user_id_num),
+            reply_markup=get_main_keyboard(user_id_num, admin_mode=True),
             parse_mode="Markdown",
         )
         return ConversationHandler.END
@@ -451,7 +452,7 @@ async def manual_kpi_get_field_hours(update: Update, context: ContextTypes.DEFAU
 
     await update.message.reply_text(
         f"✅ **KPI успешно сохранены для {target_name}!**",
-        reply_markup=get_main_keyboard(user_id_num),
+        reply_markup=get_main_keyboard(user_id_num, admin_mode=True),
         parse_mode="Markdown",
     )
     return ConversationHandler.END
@@ -463,15 +464,16 @@ async def my_kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = await load_json(USERS_FILE)
     group = await get_user_group(user_id_num)
 
-    if user_id not in users and user_id_num != ADMIN_ID:
+    admin_mode = is_admin_mode(user_id_num, context)
+    if user_id not in users and not admin_mode:
         await update.message.reply_text("⚠️ Вы еще не зарегистрированы. Нажмите /start.")
         return
-    if user_id_num != ADMIN_ID and group not in TEAM_OPTIONS:
+    if not admin_mode and group not in TEAM_OPTIONS:
         await update.message.reply_text("⚠️ Ваша группа ещё не подтверждена. Нажмите /start.")
         return
 
     inline_keyboard = [[InlineKeyboardButton("📊 KPI", callback_data="my_kpi_show_kpi")]]
-    if user_id_num == ADMIN_ID or group in GROUPS_WITH_HOURS:
+    if admin_mode or group in GROUPS_WITH_HOURS:
         inline_keyboard.append([InlineKeyboardButton("⏱️ Часы", callback_data="my_kpi_show_hours")])
     await update.message.reply_text(
         "📌 **Раздел «Мой KPI»**\n\nВыберите интересующий раздел:",
@@ -488,7 +490,8 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = await load_json(USERS_FILE)
     group = await get_user_group(user_id_num)
 
-    if data == "my_kpi_show_hours" and user_id_num != ADMIN_ID and group not in GROUPS_WITH_HOURS:
+    admin_mode = is_admin_mode(user_id_num, context)
+    if data == "my_kpi_show_hours" and not admin_mode and group not in GROUPS_WITH_HOURS:
         await query.answer("Раздел «Часы» недоступен для вашей группы.", show_alert=True)
         return
 
@@ -496,7 +499,7 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "my_kpi_back":
         inline_keyboard = [[InlineKeyboardButton("📊 KPI", callback_data="my_kpi_show_kpi")]]
-        if user_id_num == ADMIN_ID or group in GROUPS_WITH_HOURS:
+        if admin_mode or group in GROUPS_WITH_HOURS:
             inline_keyboard.append([InlineKeyboardButton("⏱️ Часы", callback_data="my_kpi_show_hours")])
         await query.message.edit_text(
             "📌 **Раздел «Мой KPI»**\n\nВыберите интересующий раздел:",
@@ -505,7 +508,7 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    user_name = users.get(user_id, "Администратор" if user_id_num == ADMIN_ID else "")
+    user_name = users.get(user_id, "Администратор" if admin_mode else "")
     lookup_name = user_name.strip().lower()
     kpi_data = await load_json(KPI_FILE)
 
@@ -573,10 +576,11 @@ async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     users = await load_json(USERS_FILE)
     group = await get_user_group(user_id)
-    if user_id not in users and user_id != str(ADMIN_ID):
+    admin_mode = is_admin_mode(update.effective_user.id, context)
+    if user_id not in users and not admin_mode:
         await update.message.reply_text("⚠️ Вы еще не зарегистрированы. Нажмите /start.")
         return
-    if user_id != str(ADMIN_ID) and group not in GROUPS_WITH_BALANCES:
+    if not admin_mode and group not in GROUPS_WITH_BALANCES:
         await update.message.reply_text("⚠️ Остатки недоступны для вашей группы.")
         return
 
@@ -611,14 +615,14 @@ async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"ℹ️ Микроакты = LAS (`{_format_quantity(balances['las_done'])}`) + "
         f"LAU (`{_format_quantity(balances['lau_done'])}`)."
     )
-    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=get_main_keyboard(update.effective_user.id))
+    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=get_main_keyboard(update.effective_user.id, group=group, admin_mode=admin_mode))
 
 
 async def kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     users = await load_json(USERS_FILE)
     group = await get_user_group(user_id)
-    if user_id != ADMIN_ID and (str(user_id) not in users or group not in TEAM_OPTIONS):
+    if not is_admin_mode(user_id, context) and (str(user_id) not in users or group not in TEAM_OPTIONS):
         await update.message.reply_text("⚠️ Сначала завершите регистрацию через /start.")
         return
 
@@ -646,7 +650,7 @@ async def kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "🔄 **KPI: Re-trafic** (План: 15, Вес: 20%)"
     elif data == "kpi_close":
         await query.message.delete()
-        await context.bot.send_message(chat_id=query.message.chat_id, text="🏠 Главное меню:", reply_markup=get_main_keyboard(user_id_num))
+        await context.bot.send_message(chat_id=query.message.chat_id, text="🏠 Главное меню:", reply_markup=get_main_keyboard(user_id_num, group=await get_user_group(user_id_num), admin_mode=is_admin_mode(user_id_num, context)))
         return
 
     try:

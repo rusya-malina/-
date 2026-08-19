@@ -15,6 +15,7 @@ from keyboards import (
 )
 
 
+from organization import is_admin_mode
 from services import (
     _format_quantity,
     _find_column,
@@ -41,7 +42,7 @@ async def _get_issuance_users_markup(context: ContextTypes.DEFAULT_TYPE) -> Inli
 
 
 async def issuance_menu_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -67,7 +68,7 @@ async def issuance_menu_message(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def export_issuance_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -120,7 +121,7 @@ async def export_issuance_statistics(update: Update, context: ContextTypes.DEFAU
 
 
 async def issuance_type_message(update: Update, context: ContextTypes.DEFAULT_TYPE, issuance_type: str):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -139,7 +140,7 @@ async def issuance_type_message(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def start_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
 
@@ -199,7 +200,7 @@ async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text="🏠 Главное меню:",
-        reply_markup=get_main_keyboard(ADMIN_ID),
+        reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True),
     )
     context.user_data.pop("issuance_type", None)
     context.user_data.pop("issuance_user_id", None)
@@ -210,7 +211,7 @@ async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID:
+    if not is_admin_mode(query.from_user.id, context):
         await query.message.edit_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -237,7 +238,7 @@ async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text="❌ Выдача отменена.",
-            reply_markup=get_main_keyboard(ADMIN_ID),
+            reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True),
         )
         return ConversationHandler.END
 
@@ -281,7 +282,7 @@ async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def process_issuance_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not is_admin_mode(update.effective_user.id, context):
         await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
 
@@ -301,7 +302,7 @@ async def process_issuance_amount(update: Update, context: ContextTypes.DEFAULT_
     users = await load_json(USERS_FILE)
     user_name = users.get(user_id)
     if not user_id or not issuance_type or not user_name:
-        await update.message.reply_text("❌ Сессия выдачи устарела. Начните выдачу заново.", reply_markup=get_main_keyboard(ADMIN_ID))
+        await update.message.reply_text("❌ Сессия выдачи устарела. Начните выдачу заново.", reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True))
         return ConversationHandler.END
 
     type_label = "MINTS" if issuance_type == "mints" else "стиков"

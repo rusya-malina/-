@@ -67,7 +67,7 @@ async def test_user_list_groups_and_data_sources() -> None:
     try:
         message = SimpleNamespace(reply_text=AsyncMock())
         update = SimpleNamespace(effective_user=SimpleNamespace(id=admin_handlers.ADMIN_ID), message=message)
-        context = SimpleNamespace(user_data={})
+        context = SimpleNamespace(user_data={"admin_mode": True})
         result = await admin_handlers.show_registered_users(update, context)
         assert result == admin_handlers.EXTRA_MENU_STATE
         text = message.reply_text.await_args.args[0]
