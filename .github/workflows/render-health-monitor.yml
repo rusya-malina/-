@@ -2,8 +2,12 @@ name: Render health monitor
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
+
+concurrency:
+  group: render-health-monitor
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -15,7 +19,7 @@ jobs:
     timeout-minutes: 2
     env:
       HEALTH_URL: https://test-project-0seb.onrender.com/healthz
-      MONITOR_UNTIL: "2026-08-20T13:41:32Z"
+      MONITOR_UNTIL: "2026-08-20T19:00:53Z"
 
     steps:
       - name: Stop after the 24-hour window
