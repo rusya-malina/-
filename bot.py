@@ -1,9 +1,11 @@
 import logging
 import os
 import json
+import math
 import warnings
 import asyncio
 import threading
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pandas as pd
 from dotenv import load_dotenv
@@ -46,6 +48,7 @@ USERS_FILE = "users.json"
 KPI_FILE = "kpi_data.json"
 PLANS_FILE = "plans_config.json"
 PENDING_FILE = "pending_requests.json"
+ISSUANCE_FILE = "issuance_data.json"
 
 # Состояния разговора
 (
@@ -74,7 +77,9 @@ PENDING_FILE = "pending_requests.json"
     DELETE_BY_NUM_STATE,
     KPI_MENU_STATE,
     PENDING_REQUESTS_STATE,
-) = range(25)
+    ISSUANCE_USER,
+    ISSUANCE_AMOUNT,
+) = range(27)
 
 
 # === ДИНАМИЧЕСКИЕ КЛАВИАТУРЫ ===
@@ -83,11 +88,13 @@ def get_main_keyboard(user_id: int) -> ReplyKeyboardMarkup:
     keyboard = [
         ["Новый расчет"],
         ["Мой KPI", "Справочник KPI"],
+        ["Остатки"],
         ["Сменить имя"],
     ]
 
     if user_id == ADMIN_ID:
         keyboard.append(["Загрузить данные"])
+        keyboard.append(["Выдача"])
         keyboard.append(["📢 Рассылка", "⚙️ Дополнительно"])
 
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -111,6 +118,14 @@ def get_extra_keyboard() -> ReplyKeyboardMarkup:
         ["⬅️ Назад"],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+def get_issuance_keyboard() -> ReplyKeyboardMarkup:
+    """Клавиатура выбора типа выдачи для администратора."""
+    return ReplyKeyboardMarkup(
+        [["MINTS", "Стики"], ["⬅️ Назад"]],
+        resize_keyboard=True,
+    )
 
 
 cancel_keyboard = ReplyKeyboardMarkup([["⬅️ Назад"]], resize_keyboard=True)
@@ -232,6 +247,195 @@ async def open_kpi_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         parse_mode="Markdown",
     )
     return KPI_MENU_STATE
+
+
+# === ВЫДАЧА MINTS И СТИКОВ (ТОЛЬКО АДМИН) ===
+def _format_quantity(value: float) -> str:
+    value = float(value or 0)
+    return f"{value:.0f}" if value.is_integer() else f"{value:.2f}".rstrip("0").rstrip(".")
+
+
+def calculate_balances(user_kpi: dict, issuance_record: dict) -> dict:
+    """Возвращает выданное, использованное и остаток по двум типам продукции."""
+    mints_issued = float(issuance_record.get("mints_issued", 0) or 0)
+    sticks_issued = float(issuance_record.get("sticks_issued", 0) or 0)
+    las_done = float(user_kpi.get("micro_las_fact", 0) or 0)
+    lau_done = float(user_kpi.get("micro_lau_fact", 0) or 0)
+    gt_done = float(user_kpi.get("gt_fact", 0) or 0)
+    microacts_done = las_done + lau_done
+    return {
+        "mints_issued": mints_issued,
+        "mints_used": microacts_done,
+        "mints_balance": mints_issued - microacts_done,
+        "sticks_issued": sticks_issued,
+        "sticks_used": gt_done,
+        "sticks_balance": sticks_issued - gt_done,
+        "las_done": las_done,
+        "lau_done": lau_done,
+    }
+
+
+async def _get_issuance_users_markup(context: ContextTypes.DEFAULT_TYPE) -> InlineKeyboardMarkup:
+    users = await load_json(USERS_FILE)
+    valid_users = [
+        (str(user_id), str(name).strip())
+        for user_id, name in users.items()
+        if str(user_id).isdigit() and str(name).strip() and str(name).strip().lower() != "nan"
+    ]
+    valid_users.sort(key=lambda item: item[1].lower())
+
+    keyboard = []
+    for user_id, name in valid_users:
+        keyboard.append([InlineKeyboardButton(name, callback_data=f"issue_user:{user_id}")])
+    keyboard.append([InlineKeyboardButton("⬅️ Отмена", callback_data="issue_cancel")])
+    return InlineKeyboardMarkup(keyboard)
+
+
+async def issuance_type_message(update: Update, context: ContextTypes.DEFAULT_TYPE, issuance_type: str):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
+        return ConversationHandler.END
+
+    if issuance_type not in {"mints", "sticks"}:
+        await update.message.reply_text("❌ Неизвестный тип выдачи.")
+        return ISSUANCE_USER
+
+    context.user_data["issuance_type"] = issuance_type
+    type_label = "MINTS" if issuance_type == "mints" else "стиков"
+    await update.message.reply_text(
+        f"👥 **Выдача {type_label}**\n\nВыберите пользователя:",
+        reply_markup=await _get_issuance_users_markup(context),
+        parse_mode="Markdown",
+    )
+    return ISSUANCE_USER
+
+
+async def start_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
+        return ConversationHandler.END
+
+    context.user_data.pop("issuance_type", None)
+    context.user_data.pop("issuance_user_id", None)
+    await update.message.reply_text(
+        "📦 **Выдача**\n\nВыберите, что выдать:",
+        reply_markup=get_issuance_keyboard(),
+        parse_mode="Markdown",
+    )
+    return ISSUANCE_USER
+
+
+async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        await query.message.edit_text("⛔️ У вас нет доступа к этому разделу.")
+        return ConversationHandler.END
+
+    data = query.data
+    if data == "issue_cancel":
+        await query.message.delete()
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="❌ Выдача отменена.",
+            reply_markup=get_main_keyboard(ADMIN_ID),
+        )
+        return ConversationHandler.END
+
+    if data.startswith("issue_type:"):
+        issuance_type = data.split(":", 1)[1]
+        if issuance_type not in {"mints", "sticks"}:
+            await query.message.edit_text("❌ Неизвестный тип выдачи.")
+            return ISSUANCE_USER
+        context.user_data["issuance_type"] = issuance_type
+        type_label = "MINTS" if issuance_type == "mints" else "стиков"
+        await query.message.edit_text(
+            f"👥 **Выдача {type_label}**\n\nВыберите пользователя:",
+            reply_markup=await _get_issuance_users_markup(context),
+            parse_mode="Markdown",
+        )
+        return ISSUANCE_USER
+
+    if data.startswith("issue_user:"):
+        user_id = data.split(":", 1)[1]
+        users = await load_json(USERS_FILE)
+        user_name = users.get(user_id)
+        if not user_id.isdigit() or not user_name:
+            await query.message.edit_text("❌ Пользователь не найден.")
+            return ISSUANCE_USER
+
+        context.user_data["issuance_user_id"] = user_id
+        issuance_type = context.user_data.get("issuance_type")
+        type_label = "MINTS" if issuance_type == "mints" else "стиков"
+        await query.message.edit_text(
+            f"👤 Пользователь: **{user_name}**\n\nВведите количество {type_label} для выдачи:",
+            parse_mode="Markdown",
+        )
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="Введите число больше нуля или нажмите «Назад».",
+            reply_markup=cancel_keyboard,
+        )
+        return ISSUANCE_AMOUNT
+
+    return ISSUANCE_USER
+
+
+async def process_issuance_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
+        return ConversationHandler.END
+
+    raw_amount = update.message.text.strip().replace(",", ".")
+    try:
+        amount = float(raw_amount)
+    except ValueError:
+        await update.message.reply_text("❌ Введите корректное число, например `10`.", parse_mode="Markdown")
+        return ISSUANCE_AMOUNT
+
+    if not math.isfinite(amount) or amount <= 0:
+        await update.message.reply_text("❌ Количество должно быть конечным числом больше нуля.")
+        return ISSUANCE_AMOUNT
+
+    user_id = context.user_data.get("issuance_user_id")
+    issuance_type = context.user_data.get("issuance_type")
+    users = await load_json(USERS_FILE)
+    user_name = users.get(user_id)
+    if not user_id or not issuance_type or not user_name:
+        await update.message.reply_text("❌ Сессия выдачи устарела. Начните выдачу заново.", reply_markup=get_main_keyboard(ADMIN_ID))
+        return ConversationHandler.END
+
+    issuance_data = await load_json(ISSUANCE_FILE)
+    record = issuance_data.setdefault(
+        str(user_id),
+        {"name": user_name, "mints_issued": 0.0, "sticks_issued": 0.0, "history": []},
+    )
+    record["name"] = user_name
+    record.setdefault("mints_issued", 0.0)
+    record.setdefault("sticks_issued", 0.0)
+    record.setdefault("history", [])
+    field = "mints_issued" if issuance_type == "mints" else "sticks_issued"
+    record[field] = float(record[field]) + amount
+    record["history"].append(
+        {
+            "type": issuance_type,
+            "amount": amount,
+            "admin_id": ADMIN_ID,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    await save_json(issuance_data, ISSUANCE_FILE)
+
+    type_label = "MINTS" if issuance_type == "mints" else "стиков"
+    await update.message.reply_text(
+        f"✅ Выдано **{_format_quantity(amount)} {type_label}** пользователю **{user_name}**.\n"
+        f"Всего выдано: **{_format_quantity(record[field])}**.",
+        reply_markup=get_main_keyboard(ADMIN_ID),
+        parse_mode="Markdown",
+    )
+    context.user_data.pop("issuance_type", None)
+    context.user_data.pop("issuance_user_id", None)
+    return ConversationHandler.END
 
 
 # === РАЗДЕЛ ДОПОЛНИТЕЛЬНО (ТОЛЬКО АДМИН) ===
@@ -1361,6 +1565,48 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+# === ОСТАТКИ ПОЛЬЗОВАТЕЛЯ ===
+async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    users = await load_json(USERS_FILE)
+    if user_id not in users:
+        await update.message.reply_text("⚠️ Вы еще не зарегистрированы. Нажмите /start.")
+        return
+
+    user_name = users[user_id]
+    lookup_name = user_name.strip().lower()
+    kpi_data = await load_json(KPI_FILE)
+    user_kpi = kpi_data.get(lookup_name, {})
+    issuance_data = await load_json(ISSUANCE_FILE)
+    issued = issuance_data.get(user_id, {})
+
+    balances = calculate_balances(user_kpi, issued)
+    mints_issued = balances["mints_issued"]
+    sticks_issued = balances["sticks_issued"]
+    microacts_done = balances["mints_used"]
+    gt_done = balances["sticks_used"]
+    mints_balance = balances["mints_balance"]
+    sticks_balance = balances["sticks_balance"]
+
+    def balance_line(label: str, issued_value: float, spent_value: float, balance: float) -> str:
+        warning = " ⚠️" if balance < 0 else ""
+        return (
+            f"{label}: **{_format_quantity(balance)}**{warning}\n"
+            f"  Выдано: `{_format_quantity(issued_value)}` − использовано: `{_format_quantity(spent_value)}`"
+        )
+
+    text = (
+        f"📦 **Остатки**\n"
+        f"👤 Сотрудник: *{user_name}*\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{balance_line('MINTS', mints_issued, microacts_done, mints_balance)}\n\n"
+        f"{balance_line('Стики', sticks_issued, gt_done, sticks_balance)}\n\n"
+        f"ℹ️ Микроакты = LAS (`{_format_quantity(balances['las_done'])}`) + "
+        f"LAU (`{_format_quantity(balances['lau_done'])}`)."
+    )
+    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=get_main_keyboard(update.effective_user.id))
+
+
 # === СПРАВОЧНИК KPI ===
 async def kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     inline_keyboard = [
@@ -1543,6 +1789,7 @@ def main():
             MessageHandler(filters.Regex(r"^📢 Рассылка$"), start_broadcast),
             MessageHandler(filters.Regex(r"^Загрузить данные$"), open_kpi_admin_menu),
             MessageHandler(filters.Regex(r"^⚙️ Дополнительно$"), open_extra_menu),
+            MessageHandler(filters.Regex(r"^Выдача$"), start_issuance),
         ],
         states={
             REG_FIRST_NAME: [
@@ -1644,6 +1891,14 @@ def main():
             PENDING_REQUESTS_STATE: [
                 CallbackQueryHandler(pending_requests_callback, pattern=r"^(pend_accept:|pend_accept_all|pend_back)$"),
             ],
+            ISSUANCE_USER: [
+                CallbackQueryHandler(issuance_callback, pattern=r"^(issue_(type|user):|issue_cancel$)"),
+                MessageHandler(filters.Regex(r"^MINTS$"), lambda update, context: issuance_type_message(update, context, "mints")),
+                MessageHandler(filters.Regex(r"^Стики$"), lambda update, context: issuance_type_message(update, context, "sticks")),
+            ],
+            ISSUANCE_AMOUNT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, process_issuance_amount),
+            ],
         },
         fallbacks=[MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action)],
         per_chat=True,
@@ -1654,6 +1909,7 @@ def main():
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(admin_moderation_callback, pattern=r"^adm_(accept|reject):"))
     app.add_handler(MessageHandler(filters.Regex(r"^Мой KPI$"), my_kpi_menu))
+    app.add_handler(MessageHandler(filters.Regex(r"^Остатки$"), show_balances))
     app.add_handler(CallbackQueryHandler(my_kpi_callback, pattern=r"^my_kpi_"))
     app.add_handler(MessageHandler(filters.Regex(r"^Справочник KPI$"), kpi_menu))
     app.add_handler(CallbackQueryHandler(kpi_callback, pattern=r"^kpi_"))
