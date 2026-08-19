@@ -1,5 +1,5 @@
 """Асинхронный адаптер JSON-хранилищ бота."""
-from bot_context import asyncio, json, logging, os
+from bot_context import ISSUANCE_FILE, asyncio, json, logging, os
 
 
 def _sync_load_json(filepath: str) -> dict:
