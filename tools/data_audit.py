@@ -8,6 +8,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 JSON_FILES = [
     "users.json",
+    "groups.json",
+    "registration_drafts.json",
     "kpi_data.json",
     "plans_config.json",
     "pending_requests.json",
@@ -38,6 +40,16 @@ def main() -> None:
         if filename in {"team_requests.json", "teams.json"}:
             labels = [record.get("team") for record in data.values() if isinstance(record, dict)]
             print(f"  team_labels={sorted(set(labels))}")
+        if filename == "groups.json":
+            allowed = {"A LAMP", "R LAMP", "coor A", "coor R", "SPV", "MNG"}
+            invalid = [
+                user_id for user_id, record in data.items()
+                if not isinstance(record, dict) or record.get("group") not in allowed or not record.get("name")
+            ]
+            print(f"  group_schema_invalid={len(invalid)}")
+        if filename == "registration_drafts.json":
+            invalid = [user_id for user_id, record in data.items() if not isinstance(record, dict) or not record.get("name")]
+            print(f"  draft_schema_invalid={len(invalid)}")
 
     workbook = ROOT / "XLS Worksheet.xlsx"
     if workbook.exists():

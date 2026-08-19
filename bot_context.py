@@ -48,11 +48,14 @@ PLANS_FILE = "plans_config.json"
 PENDING_FILE = "pending_requests.json"
 TEAM_REQUESTS_FILE = "team_requests.json"
 USER_REQUESTS_FILE = "user_requests.json"
+GROUPS_FILE = "groups.json"
+REGISTRATION_DRAFTS_FILE = "registration_drafts.json"
 TEAMS_FILE = "teams.json"
 ISSUANCE_FILE = "issuance_data.json"
 ISSUANCE_SCHEMA_VERSION = 2
 
 (
+    REG_GROUP,
     REG_FIRST_NAME,
     REG_LAST_NAME,
     LAS,
@@ -84,6 +87,8 @@ ISSUANCE_SCHEMA_VERSION = 2
     ISSUANCE_EXCEL_UPLOAD,
     TEAM_SELECTION,
     USER_REQUEST,
-) = range(31)
+) = range(32)
 
 TEAM_OPTIONS = ("A LAMP", "R LAMP", "coor A", "coor R", "SPV", "MNG")
+GROUPS_WITH_BALANCES = frozenset({"A LAMP", "R LAMP", "coor A", "coor R"})
+GROUPS_WITH_HOURS = frozenset({"A LAMP", "R LAMP"})

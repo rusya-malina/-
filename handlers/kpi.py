@@ -16,6 +16,7 @@ from services import (
     notify_user_bot_stopped,
     notify_user_kpi_updated,
 )
+from roles import get_user_group
 
 
 async def open_kpi_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -460,15 +461,18 @@ async def my_kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id_num = update.effective_user.id
     user_id = str(user_id_num)
     users = await load_json(USERS_FILE)
+    group = await get_user_group(user_id_num)
 
-    if user_id not in users:
+    if user_id not in users and user_id_num != ADMIN_ID:
         await update.message.reply_text("⚠️ Вы еще не зарегистрированы. Нажмите /start.")
         return
+    if user_id_num != ADMIN_ID and group not in TEAM_OPTIONS:
+        await update.message.reply_text("⚠️ Ваша группа ещё не подтверждена. Нажмите /start.")
+        return
 
-    inline_keyboard = [
-        [InlineKeyboardButton("📊 KPI", callback_data="my_kpi_show_kpi")],
-        [InlineKeyboardButton("⏱️ Часы", callback_data="my_kpi_show_hours")],
-    ]
+    inline_keyboard = [[InlineKeyboardButton("📊 KPI", callback_data="my_kpi_show_kpi")]]
+    if user_id_num == ADMIN_ID or group in GROUPS_WITH_HOURS:
+        inline_keyboard.append([InlineKeyboardButton("⏱️ Часы", callback_data="my_kpi_show_hours")])
     await update.message.reply_text(
         "📌 **Раздел «Мой KPI»**\n\nВыберите интересующий раздел:",
         reply_markup=InlineKeyboardMarkup(inline_keyboard),
@@ -478,12 +482,30 @@ async def my_kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     data = query.data
     user_id_num = query.from_user.id
     user_id = str(user_id_num)
     users = await load_json(USERS_FILE)
-    user_name = users.get(user_id, "")
+    group = await get_user_group(user_id_num)
+
+    if data == "my_kpi_show_hours" and user_id_num != ADMIN_ID and group not in GROUPS_WITH_HOURS:
+        await query.answer("Раздел «Часы» недоступен для вашей группы.", show_alert=True)
+        return
+
+    await query.answer()
+
+    if data == "my_kpi_back":
+        inline_keyboard = [[InlineKeyboardButton("📊 KPI", callback_data="my_kpi_show_kpi")]]
+        if user_id_num == ADMIN_ID or group in GROUPS_WITH_HOURS:
+            inline_keyboard.append([InlineKeyboardButton("⏱️ Часы", callback_data="my_kpi_show_hours")])
+        await query.message.edit_text(
+            "📌 **Раздел «Мой KPI»**\n\nВыберите интересующий раздел:",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard),
+            parse_mode="Markdown",
+        )
+        return
+
+    user_name = users.get(user_id, "Администратор" if user_id_num == ADMIN_ID else "")
     lookup_name = user_name.strip().lower()
     kpi_data = await load_json(KPI_FILE)
 
@@ -545,26 +567,20 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         inline_keyboard = [[InlineKeyboardButton("⬅️ Назад к меню", callback_data="my_kpi_back")]]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard), parse_mode="Markdown")
 
-    elif data == "my_kpi_back":
-        inline_keyboard = [
-            [InlineKeyboardButton("📊 KPI", callback_data="my_kpi_show_kpi")],
-            [InlineKeyboardButton("⏱️ Часы", callback_data="my_kpi_show_hours")],
-        ]
-        await query.message.edit_text(
-            "📌 **Раздел «Мой KPI»**\n\nВыберите интересующий раздел:",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard),
-            parse_mode="Markdown",
-        )
 
 
 async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     users = await load_json(USERS_FILE)
-    if user_id not in users:
+    group = await get_user_group(user_id)
+    if user_id not in users and user_id != str(ADMIN_ID):
         await update.message.reply_text("⚠️ Вы еще не зарегистрированы. Нажмите /start.")
         return
+    if user_id != str(ADMIN_ID) and group not in GROUPS_WITH_BALANCES:
+        await update.message.reply_text("⚠️ Остатки недоступны для вашей группы.")
+        return
 
-    user_name = users[user_id]
+    user_name = users.get(user_id, "Администратор")
     lookup_name = user_name.strip().lower()
     kpi_data = await load_json(KPI_FILE)
     user_kpi = kpi_data.get(lookup_name, {})
@@ -599,6 +615,13 @@ async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    users = await load_json(USERS_FILE)
+    group = await get_user_group(user_id)
+    if user_id != ADMIN_ID and (str(user_id) not in users or group not in TEAM_OPTIONS):
+        await update.message.reply_text("⚠️ Сначала завершите регистрацию через /start.")
+        return
+
     inline_keyboard = [
         [InlineKeyboardButton("📈 GT", callback_data="kpi_gt")],
         [InlineKeyboardButton("🎯 Микроакты", callback_data="kpi_microacts")],

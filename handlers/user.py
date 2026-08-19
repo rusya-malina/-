@@ -1,8 +1,9 @@
 """Пользовательские сценарии: регистрация, расчёты и возврат в меню."""
 from bot_context import *
 from storage import load_json, save_json, load_pending, save_pending
-from keyboards import cancel_keyboard, get_main_keyboard
+from keyboards import cancel_keyboard, get_main_keyboard, get_registration_group_keyboard
 from services import notify_user_bot_stopped
+from roles import get_user_group
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -12,15 +13,34 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if user_id in users:
         context.user_data["name"] = users[user_id]
+        group = await get_user_group(user_id_num)
         await update.message.reply_text(
             f"👋 С возвращением, {users[user_id]}!",
-            reply_markup=get_main_keyboard(user_id_num),
+            reply_markup=get_main_keyboard(user_id_num, group),
         )
         return ConversationHandler.END
 
+    context.user_data.pop("reg_group", None)
+    context.user_data.pop("reg_first_name", None)
     await update.message.reply_text(
-        "👋 Здравствуйте!\n\n"
-        "Для начала регистрации введите ваше **Имя**:",
+        "👋 Здравствуйте!\n\nВыберите вашу группу для регистрации:",
+        reply_markup=get_registration_group_keyboard(),
+    )
+    return REG_GROUP
+
+
+async def reg_get_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    selected_group = update.message.text.strip()
+    if selected_group not in TEAM_OPTIONS:
+        await update.message.reply_text(
+            "⚠️ Выберите группу кнопкой из списка.",
+            reply_markup=get_registration_group_keyboard(),
+        )
+        return REG_GROUP
+
+    context.user_data["reg_group"] = selected_group
+    await update.message.reply_text(
+        f"✅ Группа выбрана: {selected_group}\n\nТеперь введите ваше **Имя**:",
         reply_markup=cancel_keyboard,
         parse_mode="Markdown",
     )
@@ -52,14 +72,28 @@ async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     full_name = f"{first_name} {last_name}"
     user_id_num = update.effective_user.id
 
+    selected_group = context.user_data.get("reg_group")
+    if selected_group not in TEAM_OPTIONS:
+        await update.message.reply_text(
+            "⚠️ Сначала выберите группу для регистрации.",
+            reply_markup=get_registration_group_keyboard(),
+        )
+        return REG_GROUP
+
     context.user_data["pending_full_name"] = full_name
+    context.user_data["pending_group"] = selected_group
 
     pending = await load_pending()
-    pending[str(user_id_num)] = full_name
+    pending[str(user_id_num)] = {
+        "name": full_name,
+        "group": selected_group,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
     await save_pending(pending)
 
     await update.message.reply_text(
         "⏳ **Заявка отправлена администратору.**\n\n"
+        f"Группа: **{selected_group}**\n"
         "Пожалуйста, дождитесь подтверждения регистрации.",
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown",
@@ -67,7 +101,7 @@ async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     inline_keyboard = [
         [
-            InlineKeyboardButton("✅ Принять", callback_data=f"adm_accept:{user_id_num}:{full_name}"),
+            InlineKeyboardButton("✅ Принять", callback_data=f"adm_accept:{user_id_num}"),
             InlineKeyboardButton("❌ Отклонить", callback_data=f"adm_reject:{user_id_num}"),
         ]
     ]
@@ -78,6 +112,7 @@ async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=(
                 f"🔔 **Новая заявка на регистрацию!**\n\n"
                 f"👤 ФИО: *{full_name}*\n"
+                f"👥 Группа: **{selected_group}**\n"
                 f"🆔 Telegram ID: `{user_id_num}`"
             ),
             reply_markup=InlineKeyboardMarkup(inline_keyboard),
@@ -95,11 +130,10 @@ async def change_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if user_id not in users:
         await update.message.reply_text(
-            "⚠️ Вы еще не зарегистрированы. Введите ваше **Имя**:",
-            reply_markup=cancel_keyboard,
-            parse_mode="Markdown",
+            "⚠️ Вы еще не зарегистрированы. Сначала выберите группу:",
+            reply_markup=get_registration_group_keyboard(),
         )
-        return REG_FIRST_NAME
+        return REG_GROUP
 
     await update.message.reply_text(
         "✏️ Введите ваше новое **Имя**:",
@@ -152,9 +186,13 @@ async def new_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = await load_json(USERS_FILE)
     user_id = str(update.effective_user.id)
 
-    if user_id not in users:
-        await update.message.reply_text("⚠️ Сначала зарегистрируйтесь:", reply_markup=cancel_keyboard)
-        return REG_FIRST_NAME
+    group = await get_user_group(user_id)
+    if user_id not in users or group not in TEAM_OPTIONS:
+        await update.message.reply_text(
+            "⚠️ Сначала завершите регистрацию: выберите группу.",
+            reply_markup=get_registration_group_keyboard(),
+        )
+        return REG_GROUP
 
     context.user_data["name"] = users[user_id]
     await update.message.reply_text("📊 **Новый расчет**\n\nВведите количество **LAS**:", reply_markup=cancel_keyboard, parse_mode="Markdown")
@@ -197,7 +235,8 @@ async def get_lau(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             result += "✅ **Показатель в норме!**"
 
-        await update.message.reply_text(result, reply_markup=get_main_keyboard(update.effective_user.id), parse_mode="Markdown")
+        group = await get_user_group(update.effective_user.id)
+        await update.message.reply_text(result, reply_markup=get_main_keyboard(update.effective_user.id, group), parse_mode="Markdown")
         return ConversationHandler.END
     except ValueError:
         await update.message.reply_text("❌ Ошибка. Введите положительное число для LAU:")
@@ -207,5 +246,6 @@ async def get_lau(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cancel_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for key in ("issuance_type", "issuance_user_id", "issuance_amount"):
         context.user_data.pop(key, None)
-    await update.message.reply_text("❌ Действие отменено.", reply_markup=get_main_keyboard(update.effective_user.id))
+    group = await get_user_group(update.effective_user.id)
+    await update.message.reply_text("❌ Действие отменено.", reply_markup=get_main_keyboard(update.effective_user.id, group))
     return ConversationHandler.END

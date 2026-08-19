@@ -31,6 +31,7 @@ def build_application(token: str) -> Application:
             MessageHandler(filters.Regex(r"^📝 Оставить заявку$"), start_user_request),
         ],
         states={
+            REG_GROUP: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, reg_get_group)],
             REG_FIRST_NAME: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, reg_get_first_name)],
             REG_LAST_NAME: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, reg_get_last_name)],
             LAS: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, get_las)],

@@ -1,7 +1,7 @@
 """Единый inbox заявок пользователей для администратора."""
 from bot_context import *
 from storage import load_json, save_json, load_pending, save_pending
-from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard
+from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard, get_registration_group_keyboard
 
 
 def _request_title(request: dict) -> str:
@@ -27,15 +27,18 @@ async def load_request_inbox() -> list[dict]:
     inbox: list[dict] = []
 
     pending = await load_pending()
-    for user_id, full_name in pending.items():
+    for user_id, raw_request in pending.items():
+        request = dict(raw_request) if isinstance(raw_request, dict) else {"name": str(raw_request)}
+        group = request.get("group", "—")
         inbox.append(
             {
                 "id": f"registration:{user_id}",
                 "kind": "registration",
                 "user_id": str(user_id),
-                "name": str(full_name),
-                "text": "Запрос на регистрацию в боте.",
-                "created_at": "",
+                "name": str(request.get("name", user_id)),
+                "group": group,
+                "text": f"Выбранная группа: {group}.",
+                "created_at": request.get("created_at", ""),
             }
         )
 
@@ -170,6 +173,7 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         detail = (
             f"📥 {_request_title(request)}\n"
             f"👤 Пользователь: {_request_name(request)}\n"
+            f"👥 Группа: {request.get('group', '—')}\n"
             f"🆔 Telegram ID: {request.get('user_id', '—')}\n\n"
             f"📝 {request.get('text', 'Без текста') or 'Без текста'}"
         )
@@ -194,13 +198,25 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pending = await load_pending()
         pending.pop(user_id, None)
         await save_pending(pending)
+        group = request.get("group")
         if accepted:
             users = await load_json(USERS_FILE)
             users[user_id] = name
             await save_json(users, USERS_FILE)
-            user_text = f"🎉 Ваша заявка одобрена!\n\nДобро пожаловать, {name}!"
+            groups = await load_json(GROUPS_FILE)
+            groups[user_id] = {
+                "name": name,
+                "group": group,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            await save_json(groups, GROUPS_FILE)
+            user_text = f"🎉 Ваша заявка одобрена!\n\nДобро пожаловать, {name}!\nГруппа: {group}"
         else:
-            user_text = "❌ Ваша заявка на регистрацию отклонена администратором."
+            groups = await load_json(GROUPS_FILE)
+            groups.pop(user_id, None)
+            await save_json(groups, GROUPS_FILE)
+            user_text = "❌ Заявка отклонена. Выберите группу заново, чтобы отправить новую заявку."
+
     elif kind == "team":
         team_requests = await load_json(TEAM_REQUESTS_FILE)
         team_requests.pop(user_id, None)
@@ -228,8 +244,12 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 chat_id=int(user_id),
                 text=user_text,
-                reply_markup=get_main_keyboard(int(user_id)),
-                    )
+                reply_markup=(
+                    get_main_keyboard(int(user_id), request.get("group"))
+                    if accepted
+                    else get_registration_group_keyboard()
+                ),
+            )
         except Exception as error:
             logging.warning("Не удалось уведомить пользователя по заявке %s: %s", user_id, error)
 

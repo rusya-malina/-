@@ -1,7 +1,7 @@
 """Административные разделы: пользователи, заявки и удаление сотрудников."""
 from bot_context import *
 from storage import load_json, save_json, load_pending, save_pending
-from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard
+from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard, get_registration_group_keyboard
 from services import notify_user_bot_stopped
 
 
@@ -283,44 +283,69 @@ async def process_delete_user_by_number(update: Update, context: ContextTypes.DE
 async def admin_moderation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    data = query.data
+    if query.from_user.id != ADMIN_ID:
+        await query.answer("⛔️ Нет доступа.", show_alert=True)
+        return
 
-    if data.startswith("adm_accept:"):
-        _, target_id_str, full_name = data.split(":", 2)
-        target_id = int(target_id_str)
+    action, target_id_str = query.data.split(":", 1)
+    target_id = int(target_id_str)
+    pending = await load_pending()
+    request = pending.get(target_id_str)
+    if not request:
+        await query.answer("Заявка уже обработана или устарела.", show_alert=True)
+        return
+
+    if isinstance(request, dict):
+        full_name = str(request.get("name", "Пользователь"))
+        group = str(request.get("group", ""))
+    else:
+        full_name = str(request)
+        group = ""
+
+    if action == "adm_accept":
         users = await load_json(USERS_FILE)
-        users[str(target_id)] = full_name
+        users[target_id_str] = full_name
         await save_json(users, USERS_FILE)
-        pending = await load_pending()
-        if str(target_id) in pending:
-            del pending[str(target_id)]
-            await save_pending(pending)
+
+        groups = await load_json(GROUPS_FILE)
+        groups[target_id_str] = {
+            "name": full_name,
+            "group": group,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await save_json(groups, GROUPS_FILE)
+        pending.pop(target_id_str, None)
+        await save_pending(pending)
+
         await query.message.edit_text(
-            f"✅ **Заявка одобрена.**\nПользователь *{full_name}* успешно зарегистрирован.",
+            f"✅ **Заявка одобрена.**\nПользователь *{full_name}* зарегистрирован.\nГруппа: **{group}**",
             parse_mode="Markdown",
         )
         try:
             await context.bot.send_message(
                 chat_id=target_id,
-                text=f"🎉 **Ваша заявка одобрена!**\n\nДобро пожаловать, {full_name}!",
-                reply_markup=get_main_keyboard(target_id),
+                text=f"🎉 **Ваша заявка одобрена!**\n\nДобро пожаловать, {full_name}!\nГруппа: **{group}**",
+                reply_markup=get_main_keyboard(target_id, group),
                 parse_mode="Markdown",
             )
         except Exception as e:
             logging.error(f"Не удалось отправить уведомление пользователю {target_id}: {e}")
-    elif data.startswith("adm_reject:"):
-        _, target_id_str = data.split(":", 1)
-        target_id = int(target_id_str)
-        pending = await load_pending()
-        if str(target_id) in pending:
-            del pending[str(target_id)]
-            await save_pending(pending)
-        await query.message.edit_text("❌ **Заявка отклонена.**", parse_mode="Markdown")
+    elif action == "adm_reject":
+        pending.pop(target_id_str, None)
+        await save_pending(pending)
+        groups = await load_json(GROUPS_FILE)
+        groups.pop(target_id_str, None)
+        await save_json(groups, GROUPS_FILE)
+
+        await query.message.edit_text(
+            f"❌ **Заявка отклонена.**\nПользователь *{full_name}* должен выбрать группу заново.",
+            parse_mode="Markdown",
+        )
         try:
             await context.bot.send_message(
                 chat_id=target_id,
-                text="❌ К сожалению, ваша заявка на регистрацию была отклонена администратором.",
-                reply_markup=ReplyKeyboardRemove(),
+                text="❌ Заявка отклонена. Выберите группу заново, чтобы отправить новую заявку:",
+                reply_markup=get_registration_group_keyboard(),
             )
         except Exception as e:
             logging.error(f"Не удалось отправить уведомление об отказе пользователю {target_id}: {e}")

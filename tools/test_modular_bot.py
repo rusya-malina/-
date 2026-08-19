@@ -14,7 +14,7 @@ import bot
 from app_factory import build_application
 from bot_context import TEAM_OPTIONS, ThreadingHTTPServer
 from handlers.requests import build_requests_markup
-from keyboards import get_issuance_confirmation_markup, get_main_keyboard
+from keyboards import get_issuance_confirmation_markup, get_main_keyboard, get_registration_group_keyboard
 from health import HealthHandler
 from services import calculate_balances
 
@@ -22,6 +22,7 @@ from services import calculate_balances
 MODULES = [
     "bot_context",
     "storage",
+    "roles",
     "keyboards",
     "services",
     "health",
@@ -46,6 +47,16 @@ def main() -> None:
     main_keyboard = get_main_keyboard(14599689)
     assert main_keyboard.keyboard
     assert any(button.text == "📝 Оставить заявку" for row in main_keyboard.keyboard for button in row)
+    registration_keyboard = get_registration_group_keyboard()
+    registration_buttons = {button.text for row in registration_keyboard.keyboard for button in row}
+    assert registration_buttons == set(TEAM_OPTIONS)
+    r_lamp_buttons = {button.text for row in get_main_keyboard(100, "R LAMP").keyboard for button in row}
+    coor_buttons = {button.text for row in get_main_keyboard(101, "coor A").keyboard for button in row}
+    spv_buttons = {button.text for row in get_main_keyboard(102, "SPV").keyboard for button in row}
+    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки"}.issubset(r_lamp_buttons)
+    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки"}.issubset(coor_buttons)
+    assert {"Новый расчет", "Мой KPI", "Справочник KPI"}.issubset(spv_buttons)
+    assert "Остатки" not in spv_buttons
     assert "R LAMP" in TEAM_OPTIONS
     assert "К LAMP" not in TEAM_OPTIONS
     assert get_issuance_confirmation_markup().inline_keyboard

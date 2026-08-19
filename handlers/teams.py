@@ -7,9 +7,9 @@ from keyboards import cancel_keyboard, get_main_keyboard, get_team_keyboard
 async def start_team_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     users = await load_json(USERS_FILE)
-    if user_id not in users:
+    if user_id not in users and update.effective_user.id != ADMIN_ID:
         await update.message.reply_text(
-            "⚠️ Сначала дождитесь подтверждения регистрации администратором.",
+            "⚠️ Сначала завершите регистрацию через /start.",
             reply_markup=get_main_keyboard(update.effective_user.id),
         )
         return ConversationHandler.END
@@ -30,7 +30,7 @@ async def process_team_selection(update: Update, context: ContextTypes.DEFAULT_T
         return TEAM_SELECTION
 
     users = await load_json(USERS_FILE)
-    user_name = users.get(user_id)
+    user_name = users.get(user_id, "Руслан Малинин" if update.effective_user.id == ADMIN_ID else "")
     if not user_name:
         await update.message.reply_text("⚠️ Пользователь ещё не зарегистрирован.", reply_markup=get_main_keyboard(update.effective_user.id))
         return ConversationHandler.END
@@ -107,7 +107,7 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
             await context.bot.send_message(
                 chat_id=int(user_id),
                 text=f"✅ Администратор подтвердил вашу команду: **{selected_team}**.",
-                reply_markup=get_main_keyboard(int(user_id)),
+                reply_markup=get_main_keyboard(int(user_id), selected_team),
                 parse_mode="Markdown",
             )
         except Exception as error:
@@ -122,7 +122,7 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
         try:
             await context.bot.send_message(
                 chat_id=int(user_id),
-                text="❌ Запрос на выбранную команду отклонён администратором. Вы можете отправить новый запрос через «Определить команду».",
+                text="❌ Запрос на выбранную команду отклонён администратором. Выберите новую группу через /start.",
                 reply_markup=get_main_keyboard(int(user_id)),
             )
         except Exception as error:

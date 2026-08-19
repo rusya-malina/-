@@ -1,25 +1,46 @@
-"""Клавиатуры и callback-разметка меню."""
 from bot_context import (
     ADMIN_ID,
+    GROUPS_WITH_BALANCES,
+    GROUPS_WITH_HOURS,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
     TEAM_OPTIONS,
 )
+from roles import get_user_group_sync
 
 
-def get_main_keyboard(user_id: int) -> ReplyKeyboardMarkup:
-    keyboard = [
-        ["Новый расчет"],
-        ["Мой KPI", "Справочник KPI"],
-        ["Остатки"],
-        ["Определить команду"],
-        ["📝 Оставить заявку"],
-    ]
+def get_registration_group_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [["A LAMP", "R LAMP"], ["coor A", "coor R"], ["SPV", "MNG"]],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+
+def get_main_keyboard(user_id: int, group: str | None = None) -> ReplyKeyboardMarkup:
     if user_id == ADMIN_ID:
-        keyboard.append(["Загрузить данные"])
-        keyboard.append(["Выдача"])
-        keyboard.append(["📢 Рассылка", "⚙️ Дополнительно"])
+        keyboard = [
+            ["Новый расчет"],
+            ["Мой KPI", "Справочник KPI"],
+            ["Остатки"],
+            ["Определить команду"],
+            ["📝 Оставить заявку"],
+            ["Загрузить данные"],
+            ["Выдача"],
+            ["📢 Рассылка", "⚙️ Дополнительно"],
+        ]
+        return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+    group = group or get_user_group_sync(user_id)
+    if group in GROUPS_WITH_HOURS:
+        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["Остатки"], ["📝 Оставить заявку"]]
+    elif group in GROUPS_WITH_BALANCES:
+        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["Остатки"], ["📝 Оставить заявку"]]
+    elif group in TEAM_OPTIONS:
+        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["📝 Оставить заявку"]]
+    else:
+        keyboard = [["📝 Оставить заявку"]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
