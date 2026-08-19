@@ -25,7 +25,13 @@ async def show_my_team(update: Update, context: ContextTypes.DEFAULT_TYPE):
     groups = await load_json(GROUPS_FILE)
     kpi_data = await load_json(KPI_FILE)
     issuance_data = await load_json(ISSUANCE_FILE)
-    visible_users = get_visible_users(user_id, users, groups, admin_mode=admin_mode)
+    visible_users = get_visible_users(
+        user_id,
+        users,
+        groups,
+        admin_mode=admin_mode,
+        exclude_user_id=user_id,
+    )
 
     title = "MNG" if admin_mode else group
     lines = [
@@ -44,10 +50,13 @@ async def show_my_team(update: Update, context: ContextTypes.DEFAULT_TYPE):
             micro_fact = float(kpi.get("micro_las_fact", 0) or 0) + float(kpi.get("micro_lau_fact", 0) or 0)
             gt_percent = (gt_fact / gt_plan * 100) if gt_plan else 0
             micro_percent = (micro_fact / micro_plan * 100) if micro_plan else 0
+            retrafic_plan = float(kpi.get("retrafic_plan", 0) or 0)
+            retrafic_fact = float(kpi.get("retrafic_fact", 0) or 0)
+            retrafic_percent = (retrafic_fact / retrafic_plan * 100) if retrafic_plan else 0
             balances = calculate_balances(kpi, issuance_data.get(person["user_id"], {}))
             lines.append(
                 f"{index}. *{person['name']}* — {person['group']}\n"
-                f"   ID: `{person['user_id']}` | GT: {gt_percent:.0f}% | Микроакты: {micro_percent:.0f}%\n"
+                f"   GT: {gt_percent:.0f}% | Микроакты: {micro_percent:.0f}% | Re-trafic: {retrafic_percent:.0f}%\n"
                 f"   Остаток MINTS: {_format_quantity(balances['mints_balance'])} | "
                 f"стиков: {_format_quantity(balances['sticks_balance'])}"
             )

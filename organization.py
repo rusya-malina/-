@@ -49,6 +49,7 @@ def get_visible_users(
     users: dict,
     groups: dict,
     admin_mode: bool = False,
+    exclude_user_id: int | str | None = None,
 ) -> list[dict]:
     """Возвращает только numeric Telegram users в зоне ответственности актёра."""
     if str(actor_id) == str(ADMIN_ID) and admin_mode:
@@ -61,6 +62,8 @@ def get_visible_users(
     visible = []
     for user_id, name in users.items():
         user_id = str(user_id)
+        if exclude_user_id is not None and user_id == str(exclude_user_id):
+            continue
         if not user_id.isdigit():
             continue
         record = groups.get(user_id, {})

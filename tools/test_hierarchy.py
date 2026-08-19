@@ -28,8 +28,9 @@ async def test_scope_and_team_view() -> None:
         "12": {"group": "R LAMP"},
         "13": {"group": "SPV"},
     }
-    visible = get_visible_users(10, users, groups)
-    assert [item["user_id"] for item in visible] == ["11", "10"]
+    visible = get_visible_users(10, users, groups, exclude_user_id=10)
+    assert [item["user_id"] for item in visible] == ["11"]
+    assert "10" not in {item["user_id"] for item in visible}
     assert "12" not in {item["user_id"] for item in visible}
 
     coor_buttons = {button.text for row in get_main_keyboard(10, "coor A").keyboard for button in row}
@@ -55,6 +56,8 @@ async def test_scope_and_team_view() -> None:
                     "micro_plan": 100,
                     "micro_las_fact": 40,
                     "micro_lau_fact": 30,
+                    "retrafic_plan": 100,
+                    "retrafic_fact": 75,
                 },
                 "r user": {
                     "original_name": "R User",
@@ -77,6 +80,7 @@ async def test_scope_and_team_view() -> None:
         assert "A User" in text
         assert "R User" not in text
         assert "Режим просмотра" in text
+        assert "A User" in text and "ID:" not in text and "Re-trafic: 75%" in text
     finally:
         teams_handler.get_user_group = original_group
         teams_handler.load_json = original_load_json
