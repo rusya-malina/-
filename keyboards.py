@@ -25,7 +25,6 @@ def get_main_keyboard(user_id: int, group: str | None = None) -> ReplyKeyboardMa
             ["Мой KPI", "Справочник KPI"],
             ["Остатки"],
             ["Загрузить данные"],
-            ["Выдача"],
             ["📢 Рассылка", "⚙️ Дополнительно"],
         ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -38,15 +37,28 @@ def get_main_keyboard(user_id: int, group: str | None = None) -> ReplyKeyboardMa
     elif group in TEAM_OPTIONS:
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["📝 Оставить заявку"]]
     else:
-        keyboard = [["📝 Оставить заявку"]]
+        # Legacy users may predate group registration; keep them active without re-registration.
+        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["📝 Оставить заявку"]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
-def get_kpi_menu_keyboard() -> ReplyKeyboardMarkup:
+def get_data_keyboard() -> ReplyKeyboardMarkup:
+    """Единое меню загрузки KPI, выдач и статистики для администратора."""
     return ReplyKeyboardMarkup(
-        [["📥 Загрузить KPI (Excel)"], ["⬅️ Назад"]],
+        [
+            ["📥 Загрузить KPI (Excel)"],
+            ["MINTS", "Стики"],
+            ["📥 Загрузить выдачи (Excel)"],
+            ["📊 Выгрузка статистики"],
+            ["⬅️ Назад"],
+        ],
         resize_keyboard=True,
     )
+
+
+def get_kpi_menu_keyboard() -> ReplyKeyboardMarkup:
+    """Backward-compatible alias for the unified data menu."""
+    return get_data_keyboard()
 
 
 def get_extra_keyboard() -> ReplyKeyboardMarkup:
@@ -57,10 +69,8 @@ def get_extra_keyboard() -> ReplyKeyboardMarkup:
 
 
 def get_issuance_keyboard() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        [["MINTS", "Стики"], ["📥 Загрузить выдачи (Excel)"], ["📊 Выгрузка статистики"], ["⬅️ Назад"]],
-        resize_keyboard=True,
-    )
+    """Backward-compatible alias for the unified data menu."""
+    return get_data_keyboard()
 
 
 cancel_keyboard = ReplyKeyboardMarkup([["⬅️ Назад"]], resize_keyboard=True)

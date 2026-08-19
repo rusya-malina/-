@@ -14,7 +14,7 @@ import bot
 from app_factory import build_application
 from bot_context import EXTRA_MENU_STATE, PENDING_REQUESTS_STATE, TEAM_OPTIONS, ThreadingHTTPServer
 from handlers.requests import build_requests_markup
-from keyboards import get_issuance_confirmation_markup, get_kpi_menu_keyboard, get_main_keyboard, get_registration_group_keyboard
+from keyboards import get_data_keyboard, get_issuance_confirmation_markup, get_kpi_menu_keyboard, get_main_keyboard, get_registration_group_keyboard
 from health import HealthHandler
 from services import calculate_balances, find_telegram_user_ids_by_name
 
@@ -56,7 +56,10 @@ def main() -> None:
     assert main_keyboard.keyboard
     admin_buttons = {button.text for row in main_keyboard.keyboard for button in row}
     assert "📝 Оставить заявку" not in admin_buttons
-    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Загрузить данные", "Выдача", "📢 Рассылка", "⚙️ Дополнительно"}.issubset(admin_buttons)
+    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Загрузить данные", "📢 Рассылка", "⚙️ Дополнительно"}.issubset(admin_buttons)
+    assert "Выдача" not in admin_buttons
+    data_buttons = {button.text for row in get_data_keyboard().keyboard for button in row}
+    assert {"📥 Загрузить KPI (Excel)", "MINTS", "Стики", "📥 Загрузить выдачи (Excel)", "📊 Выгрузка статистики"}.issubset(data_buttons)
     assert "Определить команду" not in admin_buttons
     kpi_admin_buttons = {button.text for row in get_kpi_menu_keyboard().keyboard for button in row}
     assert "📥 Загрузить KPI (Excel)" in kpi_admin_buttons
@@ -90,6 +93,10 @@ def main() -> None:
     )
     assert balances["mints_balance"] == 5
     assert balances["sticks_balance"] == 5
+    users_data = __import__("json").loads((ROOT / "users.json").read_text(encoding="utf-8"))
+    kpi_data = __import__("json").loads((ROOT / "kpi_data.json").read_text(encoding="utf-8"))
+    assert users_data, "users.json must not be cleared by a code fix"
+    assert kpi_data, "kpi_data.json must not be cleared by a code fix"
     assert Path("handlers/uploads.py").exists()
     assert hasattr(app_factory, "process_excel_file")
     assert hasattr(app_factory, "process_issuance_excel_file")

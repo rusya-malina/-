@@ -1,13 +1,9 @@
 """Асинхронный адаптер JSON-хранилищ бота."""
 from bot_context import (
-    GROUPS_FILE,
-    REGISTRATION_DRAFTS_FILE,
-    USERS_FILE,
     ISSUANCE_FILE,
     ISSUANCE_SCHEMA_VERSION,
     PENDING_FILE,
     PLANS_FILE,
-    ADMIN_ID,
     TEAM_REQUESTS_FILE,
     TEAMS_FILE,
     asyncio,
@@ -92,44 +88,6 @@ def _migrate_team_label() -> None:
                 changed = True
         if changed:
             _sync_save_json(data, filepath)
-
-
-def _registration_files() -> tuple[str, ...]:
-    return (
-        USERS_FILE,
-        GROUPS_FILE,
-        PENDING_FILE,
-        REGISTRATION_DRAFTS_FILE,
-        TEAM_REQUESTS_FILE,
-        TEAMS_FILE,
-    )
-
-
-def remove_admin_registration_records_sync() -> dict[str, int]:
-    """Удаляет ADMIN_ID из регистрационных хранилищ до запуска event loop."""
-    admin_key = str(ADMIN_ID)
-    removed: dict[str, int] = {}
-    for filepath in _registration_files():
-        data = _sync_load_json(filepath)
-        if admin_key in data:
-            data.pop(admin_key, None)
-            _sync_save_json(data, filepath)
-            removed[filepath] = 1
-        else:
-            removed[filepath] = 0
-    return removed
-
-
-async def remove_admin_registration_records() -> dict[str, int]:
-    """Удаляет ADMIN_ID из регистрационных хранилищ под per-file locks."""
-    admin_key = str(ADMIN_ID)
-    removed: dict[str, int] = {}
-    for filepath in _registration_files():
-        def remove_admin(data):
-            return 1 if data.pop(admin_key, None) is not None else 0
-
-        removed[filepath] = await update_json(filepath, remove_admin)
-    return removed
 
 
 async def load_pending() -> dict:

@@ -27,7 +27,6 @@ def build_application(token: str) -> Application:
             MessageHandler(filters.Regex(r"^📢 Рассылка$"), start_broadcast),
             MessageHandler(filters.Regex(r"^Загрузить данные$"), open_kpi_admin_menu),
             MessageHandler(filters.Regex(r"^⚙️ Дополнительно$"), open_extra_menu),
-            MessageHandler(filters.Regex(r"^Выдача$"), start_issuance),
             MessageHandler(filters.Regex(r"^📝 Оставить заявку$"), start_user_request),
         ],
         states={
@@ -39,7 +38,11 @@ def build_application(token: str) -> Application:
             CHANGE_NAME: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, save_new_first_name)],
             CHANGE_LAST_NAME: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, save_new_full_name)],
             BROADCAST: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.PHOTO, send_broadcast), MessageHandler(filters.TEXT & ~filters.COMMAND, send_broadcast)],
-            KPI_MENU_STATE: [MessageHandler(filters.Regex(r"^📥 Загрузить KPI \(Excel\)$"), start_excel_upload), MessageHandler(filters.Regex(r"^✏️ Ввести KPI вручную$"), start_manual_kpi), MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action)],
+            KPI_MENU_STATE: [
+                MessageHandler(filters.Regex(r"^📥 Загрузить KPI \(Excel\)$"), start_excel_upload),
+                MessageHandler(filters.Regex(r"^(MINTS|Стики|📥 Загрузить выдачи \(Excel\)|📊 Выгрузка статистики)$"), issuance_menu_message),
+                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
+            ],
             UPLOAD_EXCEL: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.Document.ALL, process_excel_file)],
             MANUAL_KPI_NAME: [CallbackQueryHandler(manual_kpi_select_employee, pattern=r"^manual_emp_")],
             SELECT_PREVIOUS_EMP: [CallbackQueryHandler(select_previous_employee_handler, pattern=r"^(sel_emp:|manual_emp_)")],

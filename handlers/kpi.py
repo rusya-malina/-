@@ -7,7 +7,7 @@ from bot_context import *
 from storage import load_json, save_json, get_default_plans
 
 
-from keyboards import cancel_keyboard, get_main_keyboard, get_kpi_menu_keyboard
+from keyboards import cancel_keyboard, get_data_keyboard, get_main_keyboard
 
 
 from services import (
@@ -25,8 +25,8 @@ async def open_kpi_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ConversationHandler.END
 
     await update.message.reply_text(
-        "📊 **Управление KPI**\n\nВыберите способ внесения данных:",
-        reply_markup=get_kpi_menu_keyboard(),
+        "📥 **Загрузка данных**\n\nВыберите действие: загрузка KPI, выдача MINTS/стиков или выгрузка статистики.",
+        reply_markup=get_data_keyboard(),
         parse_mode="Markdown",
     )
     return KPI_MENU_STATE
