@@ -3,6 +3,8 @@ import os
 import json
 import warnings
 import asyncio
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -1490,6 +1492,26 @@ async def send_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+class HealthHandler(BaseHTTPRequestHandler):
+    """Минимальный endpoint для health check Render Web Service."""
+
+    def do_GET(self):
+        if self.path not in ("/", "/healthz"):
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        body = b"OK"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        return
+
+
 # === MAIN ===
 def main():
     token = os.getenv("BOT_TOKEN")
@@ -1498,6 +1520,12 @@ def main():
             "Переменная окружения BOT_TOKEN не задана. "
             "Добавьте её в настройках Render или локального окружения."
         )
+
+    # Render Web Service требует открытый порт даже для polling-приложения.
+    port = int(os.getenv("PORT", "10000"))
+    health_server = ThreadingHTTPServer(("0.0.0.0", port), HealthHandler)
+    health_thread = threading.Thread(target=health_server.serve_forever, daemon=True)
+    health_thread.start()
 
     # Настраиваем таймауты сетевых запросов, чтобы бот не зависал при проблемах с сетью
     request = HTTPXRequest(connect_timeout=30.0, read_timeout=30.0)
@@ -1630,7 +1658,10 @@ def main():
     app.add_handler(CallbackQueryHandler(kpi_callback, pattern=r"^kpi_"))
 
     print("🚀 Бот успешно запущен и оптимизирован!")
-    app.run_polling()
+    try:
+        app.run_polling()
+    finally:
+        health_server.shutdown()
 
 
 if __name__ == "__main__":
