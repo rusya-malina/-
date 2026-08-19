@@ -4,6 +4,9 @@ import json
 import warnings
 import asyncio
 import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from telegram import (
     Update,
@@ -35,7 +38,6 @@ logging.basicConfig(
 )
 
 # === НАСТРОЙКИ ===
-TOKEN = os.getenv("BOT_TOKEN", "8768439751:AAFlK2BeYJCbTzqT14zduunQ4ZktDfC50bI")
 ADMIN_ID = 14599689
 USERS_FILE = "users.json"
 KPI_FILE = "kpi_data.json"
@@ -733,9 +735,9 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id_num = update.effective_user.id
     document = update.message.document
 
-    if not document.file_name.endswith((".xlsx", ".xls")):
+    if not document.file_name.lower().endswith(".xlsx"):
         await update.message.reply_text(
-            "⚠️ Пожалуйста, отправьте файл в формате Excel (`.xlsx` или `.xls`).",
+            "⚠️ Пожалуйста, отправьте файл в формате Excel (`.xlsx`).",
             parse_mode="Markdown",
         )
         return UPLOAD_EXCEL
@@ -1490,9 +1492,16 @@ async def send_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === MAIN ===
 def main():
+    token = os.getenv("BOT_TOKEN")
+    if not token:
+        raise RuntimeError(
+            "Переменная окружения BOT_TOKEN не задана. "
+            "Добавьте её в настройках Render или локального окружения."
+        )
+
     # Настраиваем таймауты сетевых запросов, чтобы бот не зависал при проблемах с сетью
     request = HTTPXRequest(connect_timeout=30.0, read_timeout=30.0)
-    app = Application.builder().token(TOKEN).request(request).build()
+    app = Application.builder().token(token).request(request).build()
 
     if app.job_queue:
         app.job_queue.run_repeating(check_pending_requests_job, interval=300, first=60)

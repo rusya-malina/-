@@ -1,7 +1,0 @@
-@echo off
-chcp 65001 > nul
-:loop
-python main.py
-echo Бот упал. Перезапуск через 5 секунд...
-timeout /t 5
-goto loop
