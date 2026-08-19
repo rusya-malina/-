@@ -1961,11 +1961,11 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         micro_details = (
             f"🎯 **Микроакты:** План: `{micro_plan:.0f}` | Факт: `{micro_fact:.0f}` (`{micro_pct:.1f}%`)\n"
-            f"  ├ Факт LAS: `{las_fact:.0f}` | Факт LAU: `{lau_fact:.0f}`\n"
+            f"  ├ Факт по LAS: `{las_fact:.0f}` | Факт по LAU: `{lau_fact:.0f}`\n"
             f"  ├ Итоговый LAS %: `{las_percent:.2f}%`\n"
         )
         if need_las > 0:
-            micro_details += f"  └ ⚠️ **Рекомендация:** Добавить LAS: `{need_las}`\n"
+            micro_details += f"  └ ⚠️ **Рекомендация:** Добавить микроакты LAS: `{need_las}`\n"
         else:
             micro_details += f"  └ ✅ **Показатель LAS в норме!**\n"
 
