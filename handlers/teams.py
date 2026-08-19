@@ -1,14 +1,13 @@
 """Выбор команды сотрудником и административное подтверждение."""
 from bot_context import *
 from storage import load_json, save_json
-from keyboards import cancel_keyboard, get_main_keyboard, get_team_keyboard
+from keyboards import cancel_keyboard, get_main_keyboard, get_team_keyboard, get_team_menu_keyboard
 from organization import get_visible_users, is_admin_mode, is_management_group
 from roles import get_user_group
 from services import _format_quantity, calculate_balances, _normalize_person_name
 
 
-async def show_my_team(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показывает руководителю только его зону ответственности; режим read-only."""
+async def _get_team_context(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     group = await get_user_group(user_id)
     admin_mode = is_admin_mode(user_id, context)
@@ -19,7 +18,7 @@ async def show_my_team(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⛔️ Раздел «Моя команда» доступен только MNG, SPV, coor A и coor R.",
             reply_markup=get_main_keyboard(user_id, group),
         )
-        return ConversationHandler.END
+        return None
 
     users = await load_json(USERS_FILE)
     groups = await load_json(GROUPS_FILE)
@@ -32,12 +31,30 @@ async def show_my_team(update: Update, context: ContextTypes.DEFAULT_TYPE):
         admin_mode=admin_mode,
         exclude_user_id=user_id,
     )
+    return user_id, group, visible_users, kpi_data, issuance_data
 
-    title = "MNG" if admin_mode else group
+
+async def open_my_team_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    team_context = await _get_team_context(update, context)
+    if team_context is None:
+        return ConversationHandler.END
+    await update.message.reply_text(
+        "👥 **Моя команда**\n\nВыберите, что показать:",
+        reply_markup=get_team_menu_keyboard(),
+        parse_mode="Markdown",
+    )
+    return TEAM_MENU_STATE
+
+
+async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    team_context = await _get_team_context(update, context)
+    if team_context is None:
+        return ConversationHandler.END
+    user_id, group, visible_users, kpi_data, _issuance_data = team_context
+    title = "MNG" if is_admin_mode(user_id, context) else group
     lines = [
-        f"👥 **Моя команда — {title}**",
-        "🔒 Режим просмотра: изменение KPI и выдач из этого раздела недоступно.",
-        f"👤 Сотрудников в зоне ответственности: **{len(visible_users)}**\n",
+        f"📊 **KPI команды — {title}**",
+        f"👤 Сотрудников: **{len(visible_users)}**\n",
     ]
     if not visible_users:
         lines.append("_В вашей зоне ответственности пока нет зарегистрированных пользователей._")
@@ -48,25 +65,50 @@ async def show_my_team(update: Update, context: ContextTypes.DEFAULT_TYPE):
             gt_fact = float(kpi.get("gt_fact", 0) or 0)
             micro_plan = float(kpi.get("micro_plan", 0) or 0)
             micro_fact = float(kpi.get("micro_las_fact", 0) or 0) + float(kpi.get("micro_lau_fact", 0) or 0)
-            gt_percent = (gt_fact / gt_plan * 100) if gt_plan else 0
-            micro_percent = (micro_fact / micro_plan * 100) if micro_plan else 0
             retrafic_plan = float(kpi.get("retrafic_plan", 0) or 0)
             retrafic_fact = float(kpi.get("retrafic_fact", 0) or 0)
+            gt_percent = (gt_fact / gt_plan * 100) if gt_plan else 0
+            micro_percent = (micro_fact / micro_plan * 100) if micro_plan else 0
             retrafic_percent = (retrafic_fact / retrafic_plan * 100) if retrafic_plan else 0
+            lines.append(
+                f"{index}. *{person['name']}* — {person['group']}\n"
+                f"   GT: {gt_percent:.0f}% | Микроакты: {micro_percent:.0f}% | Re-trafic: {retrafic_percent:.0f}%"
+            )
+    await update.message.reply_text(
+        "\n".join(lines),
+        reply_markup=get_team_menu_keyboard(),
+        parse_mode="Markdown",
+    )
+    return TEAM_MENU_STATE
+
+
+async def show_team_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    team_context = await _get_team_context(update, context)
+    if team_context is None:
+        return ConversationHandler.END
+    user_id, group, visible_users, kpi_data, issuance_data = team_context
+    title = "MNG" if is_admin_mode(user_id, context) else group
+    lines = [
+        f"📦 **Остатки команды — {title}**",
+        f"👤 Сотрудников: **{len(visible_users)}**\n",
+    ]
+    if not visible_users:
+        lines.append("_В вашей зоне ответственности пока нет зарегистрированных пользователей._")
+    else:
+        for index, person in enumerate(visible_users, start=1):
+            kpi = kpi_data.get(_normalize_person_name(person["name"]), {})
             balances = calculate_balances(kpi, issuance_data.get(person["user_id"], {}))
             lines.append(
                 f"{index}. *{person['name']}* — {person['group']}\n"
-                f"   GT: {gt_percent:.0f}% | Микроакты: {micro_percent:.0f}% | Re-trafic: {retrafic_percent:.0f}%\n"
                 f"   Остаток MINTS: {_format_quantity(balances['mints_balance'])} | "
                 f"стиков: {_format_quantity(balances['sticks_balance'])}"
             )
-
     await update.message.reply_text(
         "\n".join(lines),
-        reply_markup=get_main_keyboard(user_id, group),
+        reply_markup=get_team_menu_keyboard(),
         parse_mode="Markdown",
     )
-    return ConversationHandler.END
+    return TEAM_MENU_STATE
 
 
 async def start_team_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):

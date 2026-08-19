@@ -71,6 +71,13 @@ def get_kpi_menu_keyboard() -> ReplyKeyboardMarkup:
     return get_data_keyboard()
 
 
+def get_team_menu_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [["📊 KPI команды"], ["📦 Остатки команды"], ["⬅️ Назад"]],
+        resize_keyboard=True,
+    )
+
+
 def get_extra_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [["👥 Пользователи"], ["📥 Заявки"], ["🗑 Удалить по номеру"], ["⬅️ Назад"]],

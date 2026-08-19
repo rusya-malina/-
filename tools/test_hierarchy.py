@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import handlers.teams as teams_handler
-from bot_context import ConversationHandler
+from bot_context import ConversationHandler, TEAM_MENU_STATE
 from keyboards import get_main_keyboard
 from organization import get_scope_groups, get_visible_users
 
@@ -74,13 +74,23 @@ async def test_scope_and_team_view() -> None:
         message = SimpleNamespace(reply_text=AsyncMock())
         update = SimpleNamespace(effective_user=SimpleNamespace(id=10), message=message)
         context = SimpleNamespace(user_data={})
-        result = await teams_handler.show_my_team(update, context)
-        assert result == ConversationHandler.END
+        result = await teams_handler.show_team_kpi(update, context)
+        assert result == TEAM_MENU_STATE
         text = message.reply_text.await_args.args[0]
         assert "A User" in text
         assert "R User" not in text
-        assert "Режим просмотра" in text
-        assert "A User" in text and "ID:" not in text and "Re-trafic: 75%" in text
+        assert "KPI команды" in text
+        assert "ID:" not in text and "Re-trafic: 75%" in text
+
+        message.reply_text.reset_mock()
+        result = await teams_handler.show_team_balances(update, context)
+        assert result == TEAM_MENU_STATE
+        balance_text = message.reply_text.await_args.args[0]
+        assert "A User" in balance_text
+        assert "R User" not in balance_text
+        assert "Остатки команды" in balance_text
+        assert "Остаток MINTS" in balance_text
+        assert "GT:" not in balance_text
     finally:
         teams_handler.get_user_group = original_group
         teams_handler.load_json = original_load_json

@@ -87,7 +87,8 @@ ISSUANCE_SCHEMA_VERSION = 2
     ISSUANCE_EXCEL_UPLOAD,
     TEAM_SELECTION,
     USER_REQUEST,
-) = range(32)
+    TEAM_MENU_STATE,
+) = range(33)
 
 TEAM_OPTIONS = ("A LAMP", "R LAMP", "coor A", "coor R", "SPV", "MNG")
 GROUPS_WITH_BALANCES = frozenset({"A LAMP", "R LAMP", "coor A", "coor R"})
