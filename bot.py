@@ -2153,32 +2153,44 @@ async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔️ У вас нет доступа.")
         return ConversationHandler.END
 
-    await update.message.reply_text("📢 Отправьте фото с подписью для рассылки:", reply_markup=cancel_keyboard)
+    await update.message.reply_text(
+        "📢 Отправьте фото с подписью или обычный текст для рассылки:",
+        reply_markup=cancel_keyboard,
+    )
     return BROADCAST
 
 
 async def send_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.photo:
-        await update.message.reply_text("⚠️ Отправьте фотографию.")
+    message = update.message
+    has_photo = bool(message.photo)
+    text = (message.text or message.caption or "").strip()
+    if not has_photo and not text:
+        await message.reply_text("⚠️ Отправьте фото с подписью или текстовое сообщение.")
         return BROADCAST
 
-    photo_id = update.message.photo[-1].file_id
-    caption = update.message.caption or ""
+    photo_id = message.photo[-1].file_id if has_photo else None
     users = await load_json(USERS_FILE)
     sent, failed = 0, 0
-
-    status_msg = await update.message.reply_text("⏳ Идет рассылка...")
+    status_msg = await message.reply_text("⏳ Идет рассылка...")
 
     for user_id in users.keys():
-        if not user_id.isdigit(): continue
+        if not str(user_id).isdigit():
+            continue
         try:
-            await context.bot.send_photo(chat_id=int(user_id), photo=photo_id, caption=caption)
+            if has_photo:
+                await context.bot.send_photo(chat_id=int(user_id), photo=photo_id, caption=text or None)
+            else:
+                await context.bot.send_message(chat_id=int(user_id), text=text)
             sent += 1
-        except Exception:
+        except Exception as error:
             failed += 1
+            logging.warning("Рассылка не доставлена пользователю %s: %s", user_id, error)
 
-    await status_msg.edit_text(f"✅ Рассылка завершена!\nУспешно: `{sent}` | Ошибок: `{failed}`", parse_mode="Markdown")
-    await update.message.reply_text("Главное меню:", reply_markup=get_main_keyboard(update.effective_user.id))
+    await status_msg.edit_text(
+        f"✅ Рассылка завершена!\nУспешно: `{sent}` | Ошибок: `{failed}`",
+        parse_mode="Markdown",
+    )
+    await message.reply_text("Главное меню:", reply_markup=get_main_keyboard(update.effective_user.id))
     return ConversationHandler.END
 
 
@@ -2263,6 +2275,7 @@ def main():
             BROADCAST: [
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
                 MessageHandler(filters.PHOTO, send_broadcast),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, send_broadcast),
             ],
             KPI_MENU_STATE: [
                 MessageHandler(filters.Regex(r"^📥 Загрузить KPI \(Excel\)$"), start_excel_upload),
@@ -2359,6 +2372,7 @@ def main():
         per_chat=True,
         per_user=True,
         per_message=False,
+        allow_reentry=True,
     )
 
     app.add_handler(conv_handler)
