@@ -31,3 +31,4 @@ GROUPS_WITH_BALANCES = frozenset({"A LAMP", "R LAMP", "coor A", "coor R"})
 GROUPS_WITH_HOURS = frozenset({"A LAMP", "R LAMP"})
 
 BASE_DIR = Path(os.getenv("BOT_DATA_DIR", ".")).expanduser()
+ADMIN_SESSION_FILE = str(BASE_DIR / "admin_session.json")

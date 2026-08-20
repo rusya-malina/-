@@ -44,7 +44,7 @@ async def enter_admin_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔️ Команда доступна только администратору.")
         return ConversationHandler.END
-    set_admin_mode(context, True)
+    set_admin_mode(context, True, user_id=update.effective_user.id)
     await update.message.reply_text(
         "🛡 **Режим администратора включён.**\nДля возврата в режим coor R используйте /coor.",
         reply_markup=main_menu_markup(ADMIN_ID, context),
@@ -57,7 +57,7 @@ async def exit_admin_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔️ Команда доступна только администратору.")
         return ConversationHandler.END
-    set_admin_mode(context, False)
+    set_admin_mode(context, False, user_id=update.effective_user.id)
     group = await get_user_group(ADMIN_ID) or "coor R"
     await update.message.reply_text(
         "👥 **Режим coor R включён.**\nДля возврата к административным функциям используйте /admin.",

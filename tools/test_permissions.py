@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+import permissions
 from config import ADMIN_ID
 from permissions import (
     Permission,
@@ -49,6 +51,29 @@ def test_coor_mode_cannot_inherit_admin_permission() -> None:
     }
 
 
+def test_persisted_admin_mode_restores_on_fresh_context() -> None:
+    with tempfile.NamedTemporaryFile(prefix="permissions_", suffix=".json", delete=False) as session_file:
+        session_path = session_file.name
+    original_path = permissions.ADMIN_SESSION_FILE
+    original_loaded = permissions._PERSISTENCE_LOADED
+    original_mode = permissions._PERSISTED_ADMIN_MODE
+    try:
+        permissions.ADMIN_SESSION_FILE = session_path
+        permissions._PERSISTENCE_LOADED = False
+        permissions._PERSISTED_ADMIN_MODE = False
+        first_context = SimpleNamespace(user_data={})
+        set_admin_mode(first_context, True, user_id=ADMIN_ID)
+        fresh_context = SimpleNamespace(user_data={})
+        assert get_mode(ADMIN_ID, fresh_context) == "admin"
+        set_admin_mode(fresh_context, False, user_id=ADMIN_ID)
+        assert get_mode(ADMIN_ID, fresh_context) == "coor"
+    finally:
+        permissions.ADMIN_SESSION_FILE = original_path
+        permissions._PERSISTENCE_LOADED = original_loaded
+        permissions._PERSISTED_ADMIN_MODE = original_mode
+        Path(session_path).unlink(missing_ok=True)
+
+
 def test_disabling_admin_mode_keeps_context_but_removes_permissions() -> None:
     context = SimpleNamespace(user_data={"admin_mode": True, "name": "Admin"})
     set_admin_mode(context, False)
@@ -60,5 +85,6 @@ def test_disabling_admin_mode_keeps_context_but_removes_permissions() -> None:
 if __name__ == "__main__":
     test_admin_mode_is_identity_bound()
     test_coor_mode_cannot_inherit_admin_permission()
+    test_persisted_admin_mode_restores_on_fresh_context()
     test_disabling_admin_mode_keeps_context_but_removes_permissions()
     print("PERMISSIONS PASS")

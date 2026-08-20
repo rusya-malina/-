@@ -9,10 +9,16 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any, Literal
 
-from config import ADMIN_ID
+from bot_context import logging
+from config import ADMIN_ID, ADMIN_SESSION_FILE
+from errors import StorageError
+from storage import load_json_sync, save_json_sync
 
 ADMIN_MODE_KEY = "admin_mode"
+PERSISTED_MODE_SCHEMA_VERSION = 1
 Mode = Literal["admin", "coor"]
+_PERSISTENCE_LOADED = False
+_PERSISTED_ADMIN_MODE = False
 
 
 class Permission(StrEnum):
@@ -39,15 +45,59 @@ def _user_data(context: Any) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def set_admin_mode(context: Any, enabled: bool) -> None:
-    """Устанавливает режим администратора без удаления остальных user_data."""
+def load_persisted_admin_mode() -> bool:
+    """Загружает admin/coor mode из tiny atomic session metadata один раз."""
+    global _PERSISTENCE_LOADED, _PERSISTED_ADMIN_MODE
+    if _PERSISTENCE_LOADED:
+        return _PERSISTED_ADMIN_MODE
+    try:
+        record = load_json_sync(ADMIN_SESSION_FILE)
+        _PERSISTED_ADMIN_MODE = (
+            record.get("schema_version") == PERSISTED_MODE_SCHEMA_VERSION
+            and str(record.get("admin_id")) == str(ADMIN_ID)
+            and bool(record.get(ADMIN_MODE_KEY))
+        )
+    except StorageError:
+        logging.exception("Не удалось восстановить admin mode из %s", ADMIN_SESSION_FILE)
+        _PERSISTED_ADMIN_MODE = False
+    _PERSISTENCE_LOADED = True
+    return _PERSISTED_ADMIN_MODE
+
+
+def _persist_admin_mode(enabled: bool) -> None:
+    global _PERSISTENCE_LOADED, _PERSISTED_ADMIN_MODE
+    try:
+        save_json_sync(
+            {
+                "schema_version": PERSISTED_MODE_SCHEMA_VERSION,
+                "admin_id": str(ADMIN_ID),
+                ADMIN_MODE_KEY: bool(enabled),
+            },
+            ADMIN_SESSION_FILE,
+        )
+        _PERSISTED_ADMIN_MODE = bool(enabled)
+        _PERSISTENCE_LOADED = True
+    except StorageError:
+        logging.exception("Не удалось сохранить admin mode в %s", ADMIN_SESSION_FILE)
+
+
+def set_admin_mode(context: Any, enabled: bool, user_id: int | str | None = None) -> None:
+    """Устанавливает режим и сохраняет его только для реального администратора."""
     data = _user_data(context)
     data[ADMIN_MODE_KEY] = bool(enabled)
+    if user_id is not None and is_admin_user(user_id):
+        _persist_admin_mode(enabled)
 
 
 def get_mode(user_id: int | str | None, context: Any) -> Mode:
     """Возвращает эффективный режим: admin возможен только для ADMIN_ID."""
-    if is_admin_user(user_id) and bool(_user_data(context).get(ADMIN_MODE_KEY)):
+    if not is_admin_user(user_id):
+        return "coor"
+    data = _user_data(context)
+    if ADMIN_MODE_KEY in data:
+        return "admin" if bool(data[ADMIN_MODE_KEY]) else "coor"
+    if load_persisted_admin_mode():
+        data[ADMIN_MODE_KEY] = True
         return "admin"
     return "coor"
 
@@ -103,6 +153,7 @@ __all__ = [
     "has_permission",
     "is_admin_mode",
     "is_admin_user",
+    "load_persisted_admin_mode",
     "main_menu_kwargs",
     "permission_denied_text",
     "set_admin_mode",

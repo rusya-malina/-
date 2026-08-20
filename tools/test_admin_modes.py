@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -11,6 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 import handlers.admin as admin_handler
 import handlers.user as user_handler
+import permissions
 from bot_context import ADMIN_ID, EXTRA_MENU_STATE, ConversationHandler
 from keyboards import get_main_keyboard, get_team_menu_keyboard
 
@@ -20,6 +22,11 @@ def labels(markup):
 
 
 async def main() -> None:
+    with tempfile.NamedTemporaryFile(prefix="admin_session_", suffix=".json", delete=False) as session_file:
+        session_path = session_file.name
+    permissions.ADMIN_SESSION_FILE = session_path
+    permissions._PERSISTENCE_LOADED = False
+    permissions._PERSISTED_ADMIN_MODE = False
     context = SimpleNamespace(user_data={})
     message = SimpleNamespace(reply_text=AsyncMock())
     update = SimpleNamespace(effective_user=SimpleNamespace(id=ADMIN_ID), message=message)
@@ -67,6 +74,7 @@ async def main() -> None:
     assert "📊 KPI команды" in team_menu_labels
     assert "📦 Остатки команды" in team_menu_labels
 
+    Path(session_path).unlink(missing_ok=True)
     print('admin mode and SPV team menu tests passed')
 
 

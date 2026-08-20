@@ -7,6 +7,7 @@ from app_factory import build_application
 from bot_context import ThreadingHTTPServer, logging, os, threading
 from github_sync import restore_kpi_state_sync
 from health import HealthHandler
+from permissions import load_persisted_admin_mode
 from storage import _migrate_team_label, _reset_issuance_if_legacy, migrate_json_schemas
 
 POLLING_RETRY_DELAY = 15
@@ -17,6 +18,7 @@ def main() -> None:
     migrate_json_schemas()
     _reset_issuance_if_legacy()
     _migrate_team_label()
+    load_persisted_admin_mode()
     token = os.getenv("BOT_TOKEN")
     if not token:
         raise RuntimeError(

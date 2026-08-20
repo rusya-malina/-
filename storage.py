@@ -81,6 +81,11 @@ def load_json_sync(filepath: str) -> dict:
     return _sync_load_json(filepath)
 
 
+def save_json_sync(data: dict, filepath: str) -> None:
+    """Synchronous atomic write for tiny startup/session metadata files."""
+    _sync_save_json(data, filepath)
+
+
 async def load_json(filepath: str) -> dict:
     return await asyncio.to_thread(_sync_load_json, filepath)
 
