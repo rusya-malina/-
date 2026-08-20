@@ -25,9 +25,9 @@ from keyboards import (
     get_extra_keyboard,
     get_main_keyboard,
 )
-from organization import is_admin_mode
+from organization import build_employee_registry, is_admin_mode
 from roles import get_user_group
-from services import _normalize_person_name, notify_user_bot_stopped
+from services import notify_user_bot_stopped
 from states import (
     DELETE_BY_NUM_STATE,
     EXTRA_MENU_STATE,
@@ -92,90 +92,29 @@ async def show_registered_users(update: Update, context: ContextTypes.DEFAULT_TY
     kpi_data = await load_json(KPI_FILE)
     issuance_data = await load_json(ISSUANCE_FILE)
 
-    registered = []
-    registered_names = set()
-    service_ids_by_name = {}
-    data_people = {}
-
-    def add_data_person(name, source):
-        display_name = str(name or "").strip()
-        normalized_name = _normalize_person_name(display_name)
-        if not normalized_name or normalized_name == "nan":
-            return
-        person = data_people.setdefault(
-            normalized_name,
-            {"name": display_name, "sources": set(), "service_id": None},
-        )
-        person["sources"].add(source)
-
-    for uid, name in users_data.items():
-        uid = str(uid)
-        display_name = str(name or "").strip()
-        if uid.isdigit():
-            group_record = groups_data.get(uid, {})
-            group = group_record.get("group", "—") if isinstance(group_record, dict) else "—"
-            registered.append({"uid": uid, "name": display_name, "group": group})
-            registered_names.add(_normalize_person_name(display_name))
-        else:
-            normalized_name = _normalize_person_name(display_name)
-            service_ids_by_name.setdefault(normalized_name, uid)
-            add_data_person(display_name, "данные")
-
-    for record in kpi_data.values():
-        if isinstance(record, dict):
-            add_data_person(record.get("original_name"), "KPI")
-
-    for uid, record in issuance_data.items():
-        if str(uid).startswith("_") or not isinstance(record, dict):
-            continue
-        add_data_person(record.get("name"), "выдачи")
-
-    unregistered = []
-    for normalized_name, person in data_people.items():
-        if normalized_name in registered_names:
-            continue
-        person["service_id"] = service_ids_by_name.get(normalized_name)
-        unregistered.append(person)
-
-    registered.sort(key=lambda item: item["name"].casefold())
-    unregistered.sort(key=lambda item: item["name"].casefold())
-
-    response_parts = [
-        f"👥 **Зарегистрированные пользователи ({len(registered)}):**\n"
-    ]
+    registry = build_employee_registry(users_data, groups_data, kpi_data, issuance_data)
+    registered_ids = {str(user_id) for user_id in users_data if str(user_id).isdigit()}
+    response_parts = [f"👥 **Все пользователи ({len(registry)}):**\n"]
     user_index_map = {}
-    current_index = 1
 
-    if registered:
-        for person in registered:
+    if registry:
+        for current_index, employee in enumerate(registry, start=1):
+            aliases = {str(alias) for alias in employee.get("aliases", [])}
+            registered_id = next((alias for alias in aliases if alias in registered_ids), None)
+            is_registered = registered_id is not None
+            marker = "✅" if is_registered else "❌"
+            display_id = registered_id or employee.get("user_id") or "—"
+            group = employee.get("group") or "—"
             user_index_map[current_index] = {
-                "uid": person["uid"],
-                "name": person["name"],
-                "registered": True,
+                "uid": registered_id or employee.get("user_id"),
+                "name": employee["name"],
+                "registered": is_registered,
             }
             response_parts.append(
-                f"{current_index}. *{person['name']}* — ID: `{person['uid']}` — Группа: **{person['group']}**"
+                f"{current_index}. {marker} *{employee['name']}* — ID: `{display_id}` — Группа: **{group}**"
             )
-            current_index += 1
     else:
-        response_parts.append("_Зарегистрированных пользователей нет._")
-
-    response_parts.append(f"\n🕒 **Ещё не зарегистрированы ({len(unregistered)}):**\n")
-    if unregistered:
-        for person in unregistered:
-            service_id = person.get("service_id")
-            user_index_map[current_index] = {
-                "uid": service_id,
-                "name": person["name"],
-                "registered": False,
-            }
-            sources = ", ".join(sorted(person["sources"]))
-            response_parts.append(
-                f"{current_index}. *{person['name']}* — источник: {sources}"
-            )
-            current_index += 1
-    else:
-        response_parts.append("_Все сотрудники из KPI и выдач зарегистрированы._")
+        response_parts.append("_Список пользователей пуст._")
 
     context.user_data["user_index_map"] = user_index_map
     await update.message.reply_text(

@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import handlers.admin as admin_handler
+import handlers.user as user_handler
 from bot_context import ADMIN_ID, EXTRA_MENU_STATE, ConversationHandler
 from keyboards import get_main_keyboard, get_team_menu_keyboard
 
@@ -36,6 +37,14 @@ async def main() -> None:
     result = await admin_handler.open_extra_menu(update, context)
     assert result == EXTRA_MENU_STATE
     assert message.reply_text.await_count == 1
+
+    message.reply_text.reset_mock()
+    result = await user_handler.cancel_action(update, context)
+    assert result == ConversationHandler.END
+    back_admin_labels = labels(message.reply_text.await_args.kwargs['reply_markup'])
+    assert 'Загрузить данные' in back_admin_labels
+    assert '⚙️ Дополнительно' in back_admin_labels
+    assert 'Моя команда' not in back_admin_labels
 
     context.user_data['admin_mode'] = False
     message.reply_text.reset_mock()

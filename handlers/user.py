@@ -333,7 +333,15 @@ async def get_lau(update: Update, context: ContextTypes.DEFAULT_TYPE):
             result += "✅ **Показатель в норме!**"
 
         group = await get_user_group(update.effective_user.id)
-        await update.message.reply_text(result, reply_markup=get_main_keyboard(update.effective_user.id, group), parse_mode="Markdown")
+        await update.message.reply_text(
+            result,
+            reply_markup=get_main_keyboard(
+                update.effective_user.id,
+                group=group,
+                admin_mode=is_admin_mode(update.effective_user.id, context),
+            ),
+            parse_mode="Markdown",
+        )
         return ConversationHandler.END
     except ValueError:
         await update.message.reply_text("❌ Ошибка. Введите положительное число для LAU:")
@@ -344,5 +352,12 @@ async def cancel_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for key in ("issuance_type", "issuance_user_id", "issuance_amount"):
         context.user_data.pop(key, None)
     group = await get_user_group(update.effective_user.id)
-    await update.message.reply_text("❌ Действие отменено.", reply_markup=get_main_keyboard(update.effective_user.id, group))
+    await update.message.reply_text(
+        "❌ Действие отменено.",
+        reply_markup=get_main_keyboard(
+            update.effective_user.id,
+            group=group,
+            admin_mode=is_admin_mode(update.effective_user.id, context),
+        ),
+    )
     return ConversationHandler.END

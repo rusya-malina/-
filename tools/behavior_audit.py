@@ -61,13 +61,12 @@ async def test_user_list_groups_and_data_sources() -> None:
         result = await admin_handlers.show_registered_users(update, context)
         assert result == admin_handlers.EXTRA_MENU_STATE
         text = message.reply_text.await_args.args[0]
-        assert "Зарегистрированные пользователи (1)" in text
-        assert "ID: `100`" in text
+        assert "Все пользователи (4)" in text
+        assert "✅ *Реальный Пользователь*" in text
         assert "Группа: **A LAMP**" in text
-        assert "Ещё не зарегистрированы (3)" in text
-        assert "Сотрудник из файла" in text
-        assert "Новый KPI" in text
-        assert "Выдача без регистрации" in text
+        assert "❌ *Сотрудник из файла*" in text
+        assert "❌ *Новый KPI*" in text
+        assert "❌ *Выдача без регистрации*" in text
         assert any(item.get("registered") is True for item in context.user_data["user_index_map"].values())
         assert any(item.get("registered") is False for item in context.user_data["user_index_map"].values())
     finally:
