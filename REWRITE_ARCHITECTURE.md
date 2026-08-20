@@ -50,7 +50,7 @@ integrations/
   excel_gateway.py
   github_gateway.py
 presentation/
-  router.py                     # explicit route registry
+  router.py                     # explicit route registry for user/coor/admin flows
   navigation.py
   keyboards.py
   handlers/
@@ -104,6 +104,10 @@ Excel flow состоит из пяти фаз: download, parse, validate, previ
 ## Migration strategy
 
 Переписывание выполняется вертикальными срезами. На каждом срезе старый handler и новый service сравниваются на одинаковом snapshot данных. Только после совпадения результатов новый adapter становится активным. Рабочие JSON не меняются во время extraction и shadow validation; перед любой миграцией создаётся backup.
+
+## Current migration status
+
+The first vertical slice is active: registration approval mutations now run through `application/registration_service.py`, the unified employee registry is available through `application/employee_service.py`, and `presentation/router.py` owns ConversationHandler composition. Legacy handler functions remain as Telegram adapters until each domain flow receives its own application service and shadow test.
 
 ## Acceptance criteria
 
