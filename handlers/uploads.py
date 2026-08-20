@@ -1,6 +1,7 @@
 """Тяжёлые операции с Excel, изолированные от меню и основного роутера."""
 from telegram.error import TelegramError
 
+from application.import_service import ImportService
 from bot_context import (
     ContextTypes,
     ConversationHandler,
@@ -8,23 +9,12 @@ from bot_context import (
     InlineKeyboardMarkup,
     Update,
     asyncio,
-    datetime,
     logging,
     os,
     pd,
     tempfile,
-    timezone,
 )
-from config import (
-    ADMIN_ID,
-    ISSUANCE_FILE,
-    KPI_FILE,
-    LATEST_ISSUANCE_FILE,
-    LATEST_KPI_FILE,
-    UPLOADED_DATA_DIR,
-    USERS_FILE,
-)
-from data_models import make_user_record, normalize_issuance_record, user_name
+from config import ADMIN_ID, UPLOADED_DATA_DIR
 from errors import StorageError
 from github_sync import sync_kpi_state
 from keyboards import cancel_keyboard, get_data_keyboard, get_issuance_keyboard
@@ -32,7 +22,6 @@ from navigation import clear_pending_import
 from permissions import Permission, has_permission
 from services import (
     _find_column,
-    _normalize_person_name,
     _parse_nonnegative_quantity,
     notify_user_kpi_updated,
 )
@@ -42,7 +31,6 @@ from states import (
     KPI_MENU_STATE,
     UPLOAD_EXCEL,
 )
-from storage import load_json, replace_latest_file, update_many_json
 
 
 def _excel_preview_markup() -> InlineKeyboardMarkup:
@@ -125,50 +113,12 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 os.remove(file_path)
             return UPLOAD_EXCEL
 
-        # Последний корректный Excel является полной заменой KPI-снимка.
-        # Старые сотрудники, которых нет в новом файле, удаляются из KPI-отчётов.
-        kpi_data = {}
-        users_data = await load_json(USERS_FILE)
-        existing_user_names = {_normalize_person_name(user_name(v)) for v in users_data.values()}
-        updated_names = []
-        new_names = []
-        updated_name_keys = set()
-
-        for _, row in df.iterrows():
-            emp_name = str(row["full_name"]).strip()
-            clean_name = _normalize_person_name(emp_name)
-            
-            kpi_data[clean_name] = {
-                "original_name": emp_name,
-                "gt_plan": float(row["gt_plan"]),
-                "gt_fact": float(row["gt_fact"]),
-                "micro_plan": float(row["micro_plan"]),
-                "micro_las_fact": float(row["micro_las_fact"]),
-                "micro_lau_fact": float(row["micro_lau_fact"]),
-                "retrafic_plan": float(row["retrafic_plan"]),
-                "retrafic_fact": float(row["retrafic_fact"]),
-                "office_hours": float(row["office_hours"]),
-                "field_hours": float(row["field_hours"]),
-            }
-            if clean_name not in updated_name_keys:
-                updated_names.append(emp_name)
-                updated_name_keys.add(clean_name)
-
-            if clean_name not in existing_user_names:
-                fake_uid = f"excel_{clean_name}"
-                users_data[fake_uid] = make_user_record(emp_name)
-                existing_user_names.add(clean_name)
-                new_names.append(emp_name)
-
-        context.user_data["pending_excel_import"] = {
-            "kind": "kpi",
-            "temp_path": file_path,
-            "kpi_data": kpi_data,
-            "users_data": users_data,
-            "updated_names": updated_names,
-            "new_names": new_names,
-            "row_count": len(df),
-        }
+        service = ImportService.from_default_storage()
+        staged = await service.prepare_kpi_import(df.to_dict("records"))
+        staged["temp_path"] = file_path
+        context.user_data["pending_excel_import"] = staged
+        updated_names = staged["updated_names"]
+        new_names = staged["new_names"]
         sample = ", ".join(updated_names[:8])
         if len(updated_names) > 8:
             sample += ", …"
@@ -243,19 +193,8 @@ async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def _apply_kpi_import(staged: dict, context: ContextTypes.DEFAULT_TYPE) -> None:
-    kpi_data = staged["kpi_data"]
-    users_data = staged["users_data"]
-
-    def persist(files: dict[str, dict]) -> None:
-        files[KPI_FILE].clear()
-        files[KPI_FILE].update(kpi_data)
-        for employee_id, record in users_data.items():
-            files[USERS_FILE].setdefault(employee_id, record)
-
-    await update_many_json((KPI_FILE, USERS_FILE), persist)
     source_path = staged["temp_path"]
-    os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
-    replace_latest_file(source_path, LATEST_KPI_FILE)
+    await ImportService.from_default_storage().apply_kpi_import(staged, source_path)
     staged["temp_path"] = None
     await sync_kpi_state()
     for name in staged.get("updated_names", []):
@@ -263,17 +202,8 @@ async def _apply_kpi_import(staged: dict, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def _apply_issuance_import(staged: dict) -> None:
-    users_data = staged["users_data"]
-    issuance_data = staged["issuance_data"]
-
-    def persist(files: dict[str, dict]) -> None:
-        for employee_id, record in users_data.items():
-            files[USERS_FILE].setdefault(employee_id, record)
-        for employee_id, record in issuance_data.items():
-            files[ISSUANCE_FILE][employee_id] = record
-
-    await update_many_json((USERS_FILE, ISSUANCE_FILE), persist)
-    replace_latest_file(staged["temp_path"], LATEST_ISSUANCE_FILE)
+    source_path = staged["temp_path"]
+    await ImportService.from_default_storage().apply_issuance_import(staged, source_path)
     staged["temp_path"] = None
 
 
@@ -337,47 +267,11 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
             await update.message.reply_text("❌ В Excel нет заполненных строк с сотрудниками.", reply_markup=get_issuance_keyboard())
             return ISSUANCE_MENU
 
-        users_data = await load_json(USERS_FILE)
-        issuance_data = await load_json(ISSUANCE_FILE)
-        name_to_user_id = {
-            _normalize_person_name(user_name(name)): str(user_id)
-            for user_id, name in users_data.items()
-            if user_name(name) and _normalize_person_name(user_name(name)) != "nan"
-        }
-        added_without_telegram = []
-        timestamp = datetime.now(timezone.utc).isoformat()
-        for employee_name, mints_amount, sticks_amount in rows:
-            normalized_name = _normalize_person_name(employee_name)
-            user_id = name_to_user_id.get(normalized_name)
-            if not user_id:
-                user_id = f"excel_{normalized_name.replace(' ', '_')}"
-                suffix = 2
-                while user_id in users_data and _normalize_person_name(user_name(users_data[user_id])) != normalized_name:
-                    user_id = f"excel_{normalized_name.replace(' ', '_')}_{suffix}"
-                    suffix += 1
-                users_data[user_id] = make_user_record(employee_name)
-                name_to_user_id[normalized_name] = user_id
-                added_without_telegram.append(employee_name)
-
-            record = normalize_issuance_record(issuance_data.get(user_id), name=employee_name)
-            if mints_amount:
-                record["mints_issued"] = float(record["mints_issued"]) + mints_amount
-                record["history"].append({"type": "mints_excel", "amount": mints_amount, "admin_id": ADMIN_ID, "created_at": timestamp})
-            if sticks_amount:
-                record["sticks_issued"] = float(record["sticks_issued"]) + sticks_amount
-                record["history"].append({"type": "sticks_excel", "amount": sticks_amount, "admin_id": ADMIN_ID, "created_at": timestamp})
-            issuance_data[user_id] = record
-
-        context.user_data["pending_excel_import"] = {
-            "kind": "issuance",
-            "temp_path": temp_path,
-            "users_data": users_data,
-            "issuance_data": issuance_data,
-            "row_count": len(rows),
-            "added_without_telegram": added_without_telegram,
-            "mints_total": sum(item[1] for item in rows),
-            "sticks_total": sum(item[2] for item in rows),
-        }
+        service = ImportService.from_default_storage()
+        staged = await service.prepare_issuance_import(rows, ADMIN_ID)
+        staged["temp_path"] = temp_path
+        context.user_data["pending_excel_import"] = staged
+        added_without_telegram = staged["added_without_telegram"]
         temp_path = None
         preview = (
             "🔎 **Предпросмотр импорта выдач**\n\n"
