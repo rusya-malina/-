@@ -40,7 +40,12 @@ def build_application(token: str) -> Application:
             LAU: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, get_lau)],
             CHANGE_NAME: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, save_new_first_name)],
             CHANGE_LAST_NAME: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, save_new_full_name)],
-            BROADCAST: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.PHOTO, send_broadcast), MessageHandler(filters.TEXT & ~filters.COMMAND, send_broadcast)],
+            BROADCAST: [
+                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
+                MessageHandler(filters.PHOTO, send_broadcast),
+                MessageHandler(filters.Document.ALL, send_broadcast),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, send_broadcast),
+            ],
             KPI_MENU_STATE: [
                 MessageHandler(filters.Regex(r"^📥 Загрузить KPI \(Excel\)$"), start_excel_upload),
                 MessageHandler(filters.Regex(r"^(MINTS|Стики|📥 Загрузить выдачи \(Excel\)|📊 Выгрузка статистики)$"), issuance_menu_message),
