@@ -1,6 +1,7 @@
 """Загрузка, ручное редактирование и просмотр KPI."""
 import contextlib
 
+from application.report_service import ReportService
 from bot_context import (
     BadRequest,
     ContextTypes,
@@ -619,11 +620,14 @@ async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     employee = get_employee_by_id(user_id, users, groups, kpi_data, issuance_data)
     user_name_value = employee["name"] if employee else user_name(users.get(user_id), "Администратор")
-    lookup_name = employee.get("name_key") if employee else user_name_value.strip().lower()
-    user_kpi = kpi_data.get(lookup_name, {})
-    issued = merge_employee_issuance(employee, issuance_data)
-
-    balances = calculate_balances(user_kpi, issued)
+    if employee:
+        report = await ReportService.from_default_storage().personal_report(employee)
+        balances = report["balances"]
+    else:
+        lookup_name = user_name_value.strip().lower()
+        user_kpi = kpi_data.get(lookup_name, {})
+        issued = merge_employee_issuance(employee, issuance_data)
+        balances = calculate_balances(user_kpi, issued)
     mints_issued = balances["mints_issued"]
     sticks_issued = balances["sticks_issued"]
     microacts_done = balances["mints_used"]

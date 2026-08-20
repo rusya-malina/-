@@ -15,6 +15,7 @@ import handlers.admin as admin_handlers
 import handlers.requests as request_handlers
 import services
 import storage
+from organization import build_employee_registry
 
 
 async def test_request_inbox() -> None:
@@ -37,23 +38,28 @@ async def test_request_inbox() -> None:
 
 
 async def test_user_list_groups_and_data_sources() -> None:
-    original_load_json = admin_handlers.load_json
+    original_employee_factory = admin_handlers.EmployeeService.from_default_storage
 
-    async def fake_load_json(path):
-        if path == admin_handlers.USERS_FILE:
+    class FixtureRepository:
+        async def load(self):
             return {"100": "Реальный Пользователь", "excel_legacy": "Сотрудник из файла"}
-        if path == admin_handlers.GROUPS_FILE:
-            return {"100": {"name": "Реальный Пользователь", "group": "A LAMP"}}
-        if path == admin_handlers.KPI_FILE:
-            return {
-                "реальный пользователь": {"original_name": "Реальный Пользователь"},
-                "новый kpi": {"original_name": "Новый KPI"},
-            }
-        if path == admin_handlers.ISSUANCE_FILE:
-            return {"_schema_version": 2, "200": {"name": "Выдача без регистрации"}}
-        return {}
 
-    admin_handlers.load_json = fake_load_json
+    class FixtureEmployeeService:
+        def __init__(self):
+            self.users = FixtureRepository()
+
+        async def list_registry(self):
+            return build_employee_registry(
+                {"100": "Реальный Пользователь", "excel_legacy": "Сотрудник из файла"},
+                {"100": {"name": "Реальный Пользователь", "group": "A LAMP"}},
+                {
+                    "реальный пользователь": {"original_name": "Реальный Пользователь"},
+                    "новый kpi": {"original_name": "Новый KPI"},
+                },
+                {"_schema_version": 2, "200": {"name": "Выдача без регистрации"}},
+            )
+
+    admin_handlers.EmployeeService.from_default_storage = lambda: FixtureEmployeeService()
     try:
         message = SimpleNamespace(reply_text=AsyncMock())
         update = SimpleNamespace(effective_user=SimpleNamespace(id=admin_handlers.ADMIN_ID), message=message)
@@ -70,7 +76,7 @@ async def test_user_list_groups_and_data_sources() -> None:
         assert any(item.get("registered") is True for item in context.user_data["user_index_map"].values())
         assert any(item.get("registered") is False for item in context.user_data["user_index_map"].values())
     finally:
-        admin_handlers.load_json = original_load_json
+        admin_handlers.EmployeeService.from_default_storage = original_employee_factory
 
 
 async def test_request_reminder_throttle() -> None:

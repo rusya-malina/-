@@ -1,19 +1,15 @@
 """Административные разделы: пользователи, заявки и удаление сотрудников."""
 from telegram.error import TelegramError
 
+from application.admin_service import EmployeeAdminService
+from application.employee_service import EmployeeService
 from bot_context import (
     ContextTypes,
     ConversationHandler,
     Update,
     logging,
 )
-from config import (
-    ADMIN_ID,
-    GROUPS_FILE,
-    ISSUANCE_FILE,
-    KPI_FILE,
-    USERS_FILE,
-)
+from config import ADMIN_ID
 from handlers.requests import (
     _show_requests_after_callback,
     process_registration_approval,
@@ -22,7 +18,6 @@ from handlers.requests import (
 )
 from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard
 from navigation import main_menu_markup
-from organization import build_employee_registry
 from permissions import Permission, has_permission, set_admin_mode
 from roles import get_user_group
 from services import notify_user_bot_stopped
@@ -31,7 +26,7 @@ from states import (
     EXTRA_MENU_STATE,
     PENDING_REQUESTS_STATE,
 )
-from storage import load_json, load_pending, update_many_json
+from storage import load_pending
 
 
 def _pending_request_name(raw_request) -> str:
@@ -85,12 +80,9 @@ async def show_registered_users(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
 
-    users_data = await load_json(USERS_FILE)
-    groups_data = await load_json(GROUPS_FILE)
-    kpi_data = await load_json(KPI_FILE)
-    issuance_data = await load_json(ISSUANCE_FILE)
-
-    registry = build_employee_registry(users_data, groups_data, kpi_data, issuance_data)
+    employee_service = EmployeeService.from_default_storage()
+    users_data = await employee_service.users.load()
+    registry = await employee_service.list_registry()
     registered_ids = {str(user_id) for user_id in users_data if str(user_id).isdigit()}
     response_parts = [f"👥 **Все пользователи ({len(registry)}):**\n"]
     user_index_map = {}
@@ -244,13 +236,16 @@ async def process_delete_user_by_number(update: Update, context: ContextTypes.DE
 
     await notify_user_bot_stopped(context, target_uid)
 
-    clean_name = target_name.strip().lower()
-
-    def remove_user_and_kpi(files: dict[str, dict]) -> None:
-        files[USERS_FILE].pop(target_uid, None)
-        files[KPI_FILE].pop(clean_name, None)
-
-    await update_many_json((USERS_FILE, KPI_FILE), remove_user_and_kpi)
+    operation = await EmployeeAdminService.from_default_storage().delete_registered(
+        target_uid,
+        update.effective_user.id,
+    )
+    if not operation.ok:
+        await update.message.reply_text(
+            "⚠️ Пользователь уже удалён или больше не зарегистрирован.",
+            reply_markup=get_extra_keyboard(),
+        )
+        return EXTRA_MENU_STATE
 
     del user_map[num]
     context.user_data["user_index_map"] = user_map

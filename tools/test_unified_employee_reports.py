@@ -15,6 +15,7 @@ from organization import (
     get_visible_users,
     merge_employee_issuance,
 )
+from services import calculate_balances
 
 USERS = {
     "10": "Алиса Смирнова",
@@ -70,6 +71,7 @@ async def main() -> None:
     original_team_load = teams_handler.load_json
     original_kpi_group = kpi_handler.get_user_group
     original_kpi_load = kpi_handler.load_json
+    original_report_factory = kpi_handler.ReportService.from_default_storage
 
     async def team_load(path):
         if path == teams_handler.USERS_FILE:
@@ -93,11 +95,17 @@ async def main() -> None:
             return ISSUANCE
         return {}
 
+    class FixtureReportService:
+        async def personal_report(self, employee):
+            issued = merge_employee_issuance(employee, ISSUANCE)
+            return {"balances": calculate_balances(KPI["алиса смирнова"], issued)}
+
     try:
         teams_handler.get_user_group = AsyncMock(return_value="coor A")
         teams_handler.load_json = team_load
         kpi_handler.get_user_group = AsyncMock(return_value="A LAMP")
         kpi_handler.load_json = kpi_load
+        kpi_handler.ReportService.from_default_storage = lambda: FixtureReportService()
         context = SimpleNamespace(user_data={})
 
         personal_kpi_query = SimpleNamespace(
@@ -135,6 +143,7 @@ async def main() -> None:
         teams_handler.load_json = original_team_load
         kpi_handler.get_user_group = original_kpi_group
         kpi_handler.load_json = original_kpi_load
+        kpi_handler.ReportService.from_default_storage = original_report_factory
 
 
 if __name__ == "__main__":
