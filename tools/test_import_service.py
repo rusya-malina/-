@@ -20,8 +20,18 @@ def test_import_service() -> None:
         kpi_path = root / "kpi.json"
         issuance_path = root / "issuance.json"
         users_path = root / "users.json"
-        for path in (kpi_path, issuance_path, users_path):
+        for path in (kpi_path, issuance_path):
             path.write_text("{}", encoding="utf-8")
+        users_path.write_text(
+            json.dumps(
+                {
+                    "excel_old employee": {"name": "Old Employee"},
+                    "excel_nan": {"name": "nan"},
+                    "123": {"name": "Test Employee"},
+                }
+            ),
+            encoding="utf-8",
+        )
         service = ImportService(
             JsonRepository(str(kpi_path)),
             JsonRepository(str(issuance_path)),
@@ -45,10 +55,13 @@ def test_import_service() -> None:
                     }
                 ]
             )
-            assert kpi["new_names"] == ["Test Employee"]
+            assert kpi["new_names"] == []
+            assert kpi["removed_names"] == ["Old Employee", "nan"]
             await service.apply_kpi_import(kpi)
             assert "test employee" in json.loads(kpi_path.read_text(encoding="utf-8"))
-            assert any(key.startswith("excel_") for key in json.loads(users_path.read_text(encoding="utf-8")))
+            users = json.loads(users_path.read_text(encoding="utf-8"))
+            assert "excel_old employee" not in users
+            assert users["123"]["name"] == "Test Employee"
 
             issuance = await service.prepare_issuance_import([("Test Employee", 10.0, 2.0)], 99)
             await service.apply_issuance_import(issuance)

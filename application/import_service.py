@@ -30,14 +30,31 @@ class ImportService:
 
     async def prepare_kpi_import(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
         users_data = await self.users.load()
+        valid_rows: list[dict[str, Any]] = []
+        for row in rows:
+            employee_name = str(row.get("full_name", "")).strip()
+            normalized_name = _normalize_person_name(employee_name)
+            if not normalized_name or normalized_name in {"nan", "none"}:
+                continue
+            valid_rows.append(row)
+        latest_names = {_normalize_person_name(row["full_name"]) for row in valid_rows}
+        removed_user_ids: list[str] = []
+        removed_names: list[str] = []
+        for employee_id, record in list(users_data.items()):
+            employee_name = user_name(record)
+            if str(employee_id).startswith("excel_") and _normalize_person_name(employee_name) not in latest_names:
+                removed_user_ids.append(str(employee_id))
+                removed_names.append(employee_name)
+                users_data.pop(employee_id, None)
+
         existing_names = {_normalize_person_name(user_name(value)) for value in users_data.values()}
         kpi_data: dict[str, dict[str, Any]] = {}
         updated_names: list[str] = []
         new_names: list[str] = []
         updated_keys: set[str] = set()
 
-        for row in rows:
-            employee_name = str(row.get("full_name", "")).strip()
+        for row in valid_rows:
+            employee_name = str(row["full_name"]).strip()
             clean_name = _normalize_person_name(employee_name)
             kpi_data[clean_name] = {
                 "original_name": employee_name,
@@ -66,7 +83,9 @@ class ImportService:
             "users_data": users_data,
             "updated_names": updated_names,
             "new_names": new_names,
-            "row_count": len(rows),
+            "removed_user_ids": removed_user_ids,
+            "removed_names": removed_names,
+            "row_count": len(valid_rows),
         }
 
     async def prepare_issuance_import(
@@ -127,6 +146,8 @@ class ImportService:
         def persist(files: dict[str, dict[str, Any]]) -> None:
             files[self.kpi.path].clear()
             files[self.kpi.path].update(kpi_data)
+            for employee_id in staged.get("removed_user_ids", []):
+                files[self.users.path].pop(employee_id, None)
             for employee_id, record in users_data.items():
                 files[self.users.path].setdefault(employee_id, record)
 
