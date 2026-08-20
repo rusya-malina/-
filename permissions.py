@@ -1,37 +1,23 @@
 """Единый слой разрешений и режима работы бота.
 
-Модуль не зависит от Telegram handlers и поэтому может использоваться из
-keyboards, handlers и тестов без циклических импортов. Единственным источником
-истины для режима администратора является ``context.user_data['admin_mode']``.
+Модуль не зависит от Telegram handlers и используется как совместимый adapter
+для нового pure domain permission policy. Режим администратора хранится в session
+context и в отдельном persistent session metadata.
 """
 from __future__ import annotations
 
-from enum import StrEnum
-from typing import Any, Literal
+from typing import Any
 
 from bot_context import logging
 from config import ADMIN_ID, ADMIN_SESSION_FILE
+from domain.models import Mode, Permission
 from errors import StorageError
 from storage import load_json_sync, save_json_sync
 
 ADMIN_MODE_KEY = "admin_mode"
 PERSISTED_MODE_SCHEMA_VERSION = 1
-Mode = Literal["admin", "coor"]
 _PERSISTENCE_LOADED = False
 _PERSISTED_ADMIN_MODE = False
-
-
-class Permission(StrEnum):
-    """Прикладные разрешения, которые требуют включённого /admin режима."""
-
-    ADMIN_PANEL = "admin_panel"
-    USER_MANAGEMENT = "user_management"
-    REGISTRATION_REQUESTS = "registration_requests"
-    TEAM_APPROVAL = "team_approval"
-    DATA_UPLOAD = "data_upload"
-    BROADCAST = "broadcast"
-    ISSUANCE = "issuance"
-    KPI_MANAGEMENT = "kpi_management"
 
 
 def is_admin_user(user_id: int | str | None) -> bool:

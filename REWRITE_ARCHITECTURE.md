@@ -10,7 +10,7 @@
 |---|---|---|
 | `runtime/` | startup, health server, polling supervisor, signals, Render recovery | бизнес-правила пользователей и KPI |
 | `application/` | use cases: регистрация, одобрение, KPI, выдача, импорт, отчёты | Telegram `Update`, `Message`, `CallbackQuery` |
-| `domain/` | чистые модели, статусы, permissions, расчёты и invariants | JSON, Telegram API, GitHub API |
+| `domain/` | чистые модели, статусы, permissions, расчёты и invariants; единственные `Permission`/`Mode` contracts | JSON, Telegram API, GitHub API |
 | `repositories/` | чтение/запись users, groups, requests, teams, KPI и issuance | форматирование Telegram-сообщений |
 | `integrations/` | Telegram delivery, GitHub sync, Excel parser, Render health | прямые изменения domain state |
 | `presentation/` | thin Telegram handlers, keyboards, navigation, response mapping | расчёты и multi-file persistence |
@@ -91,7 +91,7 @@ Telegram handler только преобразует `Update` в command, про
 
 ## Permission policy
 
-Проверка строится в три шага: идентичность Telegram ID, назначенная роль/группа и активный режим. Handler не может сам решать, что пользователь является admin. `PermissionPolicy.require(actor, permission, mode)` возвращает typed denial либо разрешает use case. `/admin` и `/coor` являются командами смены режима, а не обходом permission checks.
+Проверка строится в три шага: идентичность Telegram ID, назначенная роль/группа и активный режим. `domain.models.Permission` и `domain.models.Mode` являются едиными contracts; текущий `permissions.py` только адаптирует их к Telegram context и session persistence. Handler не может сам решать, что пользователь является admin. `PermissionPolicy.require(actor, permission, mode)` возвращает typed denial либо разрешает use case. `/admin` и `/coor` являются командами смены режима, а не обходом permission checks.
 
 ## Navigation policy
 
