@@ -4,6 +4,7 @@ from pathlib import Path
 
 from telegram.error import TelegramError
 
+from application.issuance_service import IssuanceService
 from bot_context import (
     ContextTypes,
     ConversationHandler,
@@ -11,13 +12,11 @@ from bot_context import (
     InlineKeyboardMarkup,
     Update,
     asyncio,
-    datetime,
     logging,
     math,
     os,
     pd,
     tempfile,
-    timezone,
 )
 from config import (
     ADMIN_ID,
@@ -25,7 +24,7 @@ from config import (
     KPI_FILE,
     USERS_FILE,
 )
-from data_models import normalize_issuance_record, user_name
+from data_models import user_name
 from errors import StorageError
 from keyboards import cancel_keyboard, get_issuance_confirmation_markup, get_issuance_keyboard
 from navigation import main_menu_markup
@@ -41,7 +40,7 @@ from states import (
     ISSUANCE_MENU,
     ISSUANCE_USER,
 )
-from storage import load_json, update_json
+from storage import load_json
 
 
 async def _get_issuance_users_markup(context: ContextTypes.DEFAULT_TYPE) -> InlineKeyboardMarkup:
@@ -189,29 +188,22 @@ async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("issuance_amount", None)
         return ConversationHandler.END
 
-    record: dict = {}
-    field = "mints_issued" if issuance_type == "mints" else "sticks_issued"
+    result = await IssuanceService.from_default_storage().issue(
+        user_id,
+        user_name_value,
+        issuance_type,
+        amount,
+        ADMIN_ID,
+    )
+    if not result.ok:
+        await query.message.edit_text("❌ Не удалось сохранить выдачу. Начните операцию заново.")
+        return ConversationHandler.END
 
-    def update_issuance(data: dict) -> None:
-        nonlocal record
-        record = normalize_issuance_record(data.get(str(user_id)), name=user_name_value)
-        record[field] += float(amount)
-        record["history"].append(
-            {
-                "type": issuance_type,
-                "amount": float(amount),
-                "admin_id": ADMIN_ID,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-        )
-        data[str(user_id)] = record
-
-    await update_json(ISSUANCE_FILE, update_issuance)
-
+    total = result.details["total"]
     type_label = "MINTS" if issuance_type == "mints" else "стиков"
     await query.message.edit_text(
         f"✅ Выдано **{_format_quantity(float(amount))} {type_label}** пользователю **{user_name_value}**.\n"
-        f"Всего выдано: **{_format_quantity(record[field])}**.",
+        f"Всего выдано: **{_format_quantity(total)}**.",
         parse_mode="Markdown",
     )
     await context.bot.send_message(

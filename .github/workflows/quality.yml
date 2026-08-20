@@ -45,6 +45,7 @@ jobs:
             tools/test_rewrite_contracts.py \
             tools/test_runtime_contracts.py \
             tools/test_kpi_service.py \
+            tools/test_issuance_service.py \
             tools/test_excel_preview.py \
             tools/test_broadcast_media.py \
             tools/test_concurrent_latest_files.py \
