@@ -1,6 +1,7 @@
 """Загрузка, ручное редактирование и просмотр KPI."""
 import contextlib
 
+from application.kpi_service import KpiService
 from application.report_service import ReportService
 from bot_context import (
     BadRequest,
@@ -17,7 +18,6 @@ from config import (
     GROUPS_WITH_HOURS,
     ISSUANCE_FILE,
     KPI_FILE,
-    PLANS_FILE,
     TEAM_OPTIONS,
     USERS_FILE,
 )
@@ -48,7 +48,7 @@ from states import (
     SET_PLAN_MICRO,
     SET_PLAN_RETRAFIC,
 )
-from storage import get_default_plans, load_json, update_json, update_many_json
+from storage import get_default_plans, load_json, update_many_json
 
 
 async def open_kpi_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -123,7 +123,10 @@ async def set_plan_retrafic(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "micro_plan": context.user_data["new_plan_micro"],
         "retrafic_plan": val,
     }
-    await update_json(PLANS_FILE, lambda data: data.update(plans))
+    result = await KpiService.from_default_storage().set_default_plans(plans)
+    if not result.ok:
+        await update.message.reply_text("❌ Не удалось сохранить общие планы.")
+        return SET_PLAN_RETRAFIC
 
     await update.message.reply_text(
         "✅ **Общие планы успешно обновлены!**",
@@ -452,30 +455,22 @@ async def manual_kpi_get_field_hours(update: Update, context: ContextTypes.DEFAU
     lau_fact = context.user_data["manual_micro_lau_fact"]
     gt_fact = context.user_data["manual_gt_fact"]
     target_name = context.user_data["manual_kpi_name"]
-    clean_name = target_name.strip().lower()
 
-    plans = await get_default_plans()
-    kpi_data = await load_json(KPI_FILE)
+    result = await KpiService.from_default_storage().save_manual_entry(
+        target_name,
+        {
+            "gt_fact": gt_fact,
+            "micro_las_fact": las_fact,
+            "micro_lau_fact": lau_fact,
+            "retrafic_fact": retrafic_fact,
+            "office_hours": office_hours,
+            "field_hours": field_hours,
+        },
+    )
+    if not result.ok:
+        await update.message.reply_text("❌ Не удалось сохранить KPI. Проверьте введённые значения.")
+        return MANUAL_KPI_FIELD_HOURS
 
-    existing_user_data = kpi_data.get(clean_name, {})
-    gt_plan = existing_user_data.get("gt_plan", plans["gt_plan"])
-    micro_plan = existing_user_data.get("micro_plan", plans["micro_plan"])
-    retrafic_plan = existing_user_data.get("retrafic_plan", plans["retrafic_plan"])
-
-    kpi_data[clean_name] = {
-        "original_name": target_name,
-        "gt_plan": gt_plan,
-        "gt_fact": gt_fact,
-        "micro_plan": micro_plan,
-        "micro_las_fact": las_fact,
-        "micro_lau_fact": lau_fact,
-        "retrafic_plan": retrafic_plan,
-        "retrafic_fact": retrafic_fact,
-        "office_hours": office_hours,
-        "field_hours": field_hours,
-    }
-
-    await update_json(KPI_FILE, lambda data: data.update(kpi_data))
     await notify_user_kpi_updated(context, target_name)
 
     await update.message.reply_text(
