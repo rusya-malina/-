@@ -61,7 +61,7 @@ jobs:
           exit 1
 
       - name: Notify Telegram about failure or test
-        if: failure() || inputs.test_alert == 'true'
+        if: ${{ failure() || inputs.test_alert }}
         continue-on-error: true
         env:
           MONITOR_BOT_TOKEN: ${{ secrets.MONITOR_BOT_TOKEN }}
