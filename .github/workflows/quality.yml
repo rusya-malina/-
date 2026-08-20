@@ -45,6 +45,7 @@ jobs:
             tools/test_rewrite_contracts.py \
             tools/test_runtime_contracts.py \
             tools/test_kpi_service.py \
+            tools/test_plan_projection.py \
             tools/test_issuance_service.py \
             tools/test_import_service.py \
             tools/test_team_service.py \

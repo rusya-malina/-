@@ -1,10 +1,13 @@
 """Application use cases for manual KPI editing and default plans."""
 from __future__ import annotations
 
+import calendar
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from config import KPI_FILE, PLANS_FILE
+from config import BOT_TIMEZONE, KPI_FILE, PLANS_FILE
 from domain.models import OperationResult
 from repositories.json_repository import JsonRepository
 
@@ -17,6 +20,9 @@ KPI_FIELDS = (
     "field_hours",
 )
 PLAN_FIELDS = ("gt_plan", "micro_plan", "retrafic_plan")
+WORKING_WEEKDAYS = frozenset({3, 4, 5, 6})  # Thursday through Sunday
+PLAN_TARGETS = (1.0, 1.11)
+DEFAULT_TIMEZONE = BOT_TIMEZONE
 
 
 def clean_name(name: str) -> str:
@@ -29,6 +35,71 @@ def _nonnegative(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if number >= 0 else None
+
+
+def remaining_workdays(as_of: date, period_end: date) -> int:
+    """Count working days from today through period end, inclusive."""
+    if as_of > period_end:
+        return 0
+    total = 0
+    current = as_of
+    while current <= period_end:
+        if current.weekday() in WORKING_WEEKDAYS:
+            total += 1
+        current += timedelta(days=1)
+    return total
+
+
+def _ceil_nonnegative(value: float) -> int:
+    return max(0, int(value + 0.999999999))
+
+
+def build_plan_projection(
+    record: dict[str, Any],
+    as_of: date | None = None,
+    hours_per_workday: int = 4,
+) -> dict[str, Any]:
+    """Build hourly GT and total-microacts targets for 100% and 111%."""
+    if hours_per_workday <= 0:
+        raise ValueError("hours_per_workday must be positive")
+    current_date = as_of or datetime.now(ZoneInfo(DEFAULT_TIMEZONE)).date()
+    period_end = date(
+        current_date.year,
+        current_date.month,
+        calendar.monthrange(current_date.year, current_date.month)[1],
+    )
+    workdays_left = remaining_workdays(current_date, period_end)
+    hours_left = workdays_left * hours_per_workday
+    gt_fact = float(record.get("gt_fact", 0) or 0)
+    micro_fact = float(record.get("micro_las_fact", 0) or 0) + float(record.get("micro_lau_fact", 0) or 0)
+    rows: list[dict[str, Any]] = []
+    for multiplier in PLAN_TARGETS:
+        gt_target = float(record.get("gt_plan", 0) or 0) * multiplier
+        micro_target = float(record.get("micro_plan", 0) or 0) * multiplier
+        gt_remaining = max(0.0, gt_target - gt_fact)
+        micro_remaining = max(0.0, micro_target - micro_fact)
+        rows.append(
+            {
+                "target_percent": int(multiplier * 100),
+                "gt_target": gt_target,
+                "gt_remaining": gt_remaining,
+                "gt_per_hour": gt_remaining / hours_left if hours_left else 0.0,
+                "gt_per_hour_rounded": _ceil_nonnegative(gt_remaining / hours_left) if hours_left else 0,
+                "micro_target": micro_target,
+                "micro_remaining": micro_remaining,
+                "micro_per_hour": micro_remaining / hours_left if hours_left else 0.0,
+                "micro_per_hour_rounded": _ceil_nonnegative(micro_remaining / hours_left) if hours_left else 0,
+            }
+        )
+    return {
+        "as_of": current_date.isoformat(),
+        "period_end": period_end.isoformat(),
+        "workdays_left": workdays_left,
+        "hours_per_workday": hours_per_workday,
+        "hours_left": hours_left,
+        "working_weekdays": sorted(WORKING_WEEKDAYS),
+        "rows": rows,
+    }
 
 
 @dataclass
@@ -96,4 +167,12 @@ class KpiService:
         return OperationResult(True, "saved", "kpi_saved", (key,), {"name": original_name, "record": record})
 
 
-__all__ = ["KPI_FIELDS", "PLAN_FIELDS", "KpiService", "clean_name"]
+__all__ = [
+    "DEFAULT_TIMEZONE",
+    "KPI_FIELDS",
+    "PLAN_FIELDS",
+    "KpiService",
+    "build_plan_projection",
+    "clean_name",
+    "remaining_workdays",
+]

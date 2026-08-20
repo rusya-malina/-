@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from bot_context import Application, CallbackQueryHandler, HTTPXRequest, MessageHandler, filters
-from handlers.kpi import kpi_callback, kpi_menu, my_kpi_callback, my_kpi_menu, show_balances
+from handlers.kpi import kpi_callback, kpi_menu, my_kpi_callback, my_kpi_menu, show_balances, show_plan
 from handlers.requests import requests_callback
 from handlers.teams import team_moderation_callback
 from handlers.uploads import process_excel_file, process_issuance_excel_file  # noqa: F401
@@ -24,6 +24,7 @@ def build_application(token: str) -> Application:
     app.add_handler(CallbackQueryHandler(team_moderation_callback, pattern=r"^team_(accept|reject):"))
     app.add_handler(CallbackQueryHandler(requests_callback, pattern=r"^req_"))
     app.add_handler(MessageHandler(filters.Regex(r"^Мой KPI$"), my_kpi_menu))
+    app.add_handler(MessageHandler(filters.Regex(r"^📅 План$"), show_plan))
     app.add_handler(MessageHandler(filters.Regex(r"^Остатки$"), show_balances))
     app.add_handler(CallbackQueryHandler(my_kpi_callback, pattern=r"^my_kpi_"))
     app.add_handler(MessageHandler(filters.Regex(r"^Справочник KPI$"), kpi_menu))

@@ -1,7 +1,7 @@
 """Загрузка, ручное редактирование и просмотр KPI."""
 import contextlib
 
-from application.kpi_service import KpiService
+from application.kpi_service import KpiService, build_plan_projection
 from application.report_service import ReportService
 from bot_context import (
     BadRequest,
@@ -16,6 +16,7 @@ from config import (
     GROUPS_FILE,
     GROUPS_WITH_BALANCES,
     GROUPS_WITH_HOURS,
+    GROUPS_WITH_PLAN,
     ISSUANCE_FILE,
     KPI_FILE,
     TEAM_OPTIONS,
@@ -596,6 +597,62 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         inline_keyboard = [[InlineKeyboardButton("⬅️ Назад к меню", callback_data="my_kpi_back")]]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard), parse_mode="Markdown")
 
+
+
+def _plan_number(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else f"{value:.1f}"
+
+
+async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    users = await load_json(USERS_FILE)
+    groups = await load_json(GROUPS_FILE)
+    kpi_data = await load_json(KPI_FILE)
+    issuance_data = await load_json(ISSUANCE_FILE)
+    group = await get_user_group(update.effective_user.id)
+    admin_mode = is_admin_mode(update.effective_user.id, context)
+    if user_id not in users and not admin_mode:
+        await update.message.reply_text("⚠️ Вы еще не зарегистрированы. Нажмите /start.")
+        return
+    if not admin_mode and group not in GROUPS_WITH_PLAN:
+        await update.message.reply_text("⚠️ Раздел «План» доступен только сотрудникам A LAMP и R LAMP.")
+        return
+
+    employee = get_employee_by_id(user_id, users, groups, kpi_data, issuance_data)
+    if not employee:
+        await update.message.reply_text("ℹ️ Данные сотрудника для расчёта плана не найдены.")
+        return
+    entry = kpi_data.get(employee.get("name_key", ""), {})
+    projection = build_plan_projection(entry)
+    workdays_left = projection["workdays_left"]
+    hours_left = projection["hours_left"]
+    header = (
+        f"📅 **План до конца месяца**\\n"
+        f"👤 Сотрудник: *{employee['name']}*\\n"
+        f"📆 На дату: `{projection['as_of']}`\\n"
+        f"🗓 **Осталось рабочих дней — {workdays_left}**\\n"
+        f"⏱️ Рабочий график: чт–вс, 4 часа в день\\n"
+        f"⌛ Осталось рабочих часов: `{hours_left}`\\n"
+        "━━━━━━━━━━━━━━━━━━\\n"
+    )
+    if not workdays_left:
+        text = header + "\\nℹ️ Рабочий период текущего месяца завершён."
+    else:
+        lines = [header]
+        for row in projection["rows"]:
+            lines.extend(
+                [
+                    f"\\n🎯 **Цель {row['target_percent']}%**",
+                    f"📈 GT: осталось `{_plan_number(row['gt_remaining'])}` | минимум `{row['gt_per_hour_rounded']}` в час",
+                    f"🎯 Общие микроакты: осталось `{_plan_number(row['micro_remaining'])}` | минимум `{row['micro_per_hour_rounded']}` в час",
+                ]
+            )
+        text = "\\n".join(lines)
+    await update.message.reply_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=get_main_keyboard(update.effective_user.id, group=group, admin_mode=admin_mode),
+    )
 
 
 async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):

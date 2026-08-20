@@ -7,6 +7,7 @@ from bot_context import (
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
 )
+from config import GROUPS_WITH_PLAN
 from organization import is_management_group
 from permissions import is_admin_mode
 from roles import get_user_group_sync
@@ -38,8 +39,12 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
             keyboard.append(["Остатки"])
     elif group in GROUPS_WITH_HOURS or group in GROUPS_WITH_BALANCES:
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["Остатки"]]
+        if group in GROUPS_WITH_PLAN:
+            keyboard.insert(0, ["📅 План"])
     elif group in TEAM_OPTIONS:
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
+        if group in GROUPS_WITH_PLAN:
+            keyboard.insert(0, ["📅 План"])
     else:
         # Legacy users may predate group registration; keep them active without re-registration.
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
