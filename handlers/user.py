@@ -17,6 +17,7 @@ from config import (
     TEAM_OPTIONS,
     USERS_FILE,
 )
+from data_models import make_user_record, user_name
 from keyboards import (
     cancel_keyboard,
     get_main_keyboard,
@@ -33,7 +34,7 @@ from states import (
     REG_GROUP,
     REG_LAST_NAME,
 )
-from storage import load_json, load_pending, save_json, update_pending
+from storage import load_json, load_pending, update_json, update_pending
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -42,7 +43,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(user_id_num)
 
     if user_id_num == ADMIN_ID:
-        context.user_data["name"] = users.get(user_id, "Руслан Малинин")
+        context.user_data["name"] = user_name(users.get(user_id), "Руслан Малинин")
         admin_mode = bool(context.user_data.get("admin_mode"))
         group = await get_user_group(user_id_num) or "coor R"
         await update.message.reply_text(
@@ -52,10 +53,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     if user_id in users:
-        context.user_data["name"] = users[user_id]
+        name = user_name(users[user_id])
+        context.user_data["name"] = name
         group = await get_user_group(user_id_num)
         await update.message.reply_text(
-            f"👋 С возвращением, {users[user_id]}!",
+            f"👋 С возвращением, {name}!",
             reply_markup=get_main_keyboard(user_id_num, group),
         )
         return ConversationHandler.END
@@ -254,9 +256,12 @@ async def save_new_full_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
     new_full_name = f"{first_name} {last_name}"
     user_id_num = update.effective_user.id
 
-    users = await load_json(USERS_FILE)
-    users[str(user_id_num)] = new_full_name
-    await save_json(users, USERS_FILE)
+    def update_user(data: dict) -> None:
+        previous = data.get(str(user_id_num))
+        created_at = previous.get("created_at") if isinstance(previous, dict) else None
+        data[str(user_id_num)] = make_user_record(new_full_name, created_at=created_at)
+
+    await update_json(USERS_FILE, update_user)
 
     context.user_data["name"] = new_full_name
 
@@ -284,7 +289,7 @@ async def new_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return REG_GROUP
 
-    context.user_data["name"] = users[user_id]
+    context.user_data["name"] = user_name(users[user_id])
     await update.message.reply_text("📊 **Новый расчет**\n\nВведите количество **LAS**:", reply_markup=cancel_keyboard, parse_mode="Markdown")
     return LAS
 

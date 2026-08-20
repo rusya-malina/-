@@ -50,7 +50,6 @@ async def verify_registration_accept() -> None:
         'load_request_inbox': request_handlers.load_request_inbox,
         'update_many_json': request_handlers.update_many_json,
         'load_json': request_handlers.load_json,
-        'save_json': request_handlers.save_json,
     }
     request_handlers.load_request_inbox = AsyncMock(return_value=[{
         'id': 'registration:100',
@@ -79,7 +78,6 @@ async def verify_registration_accept() -> None:
         return {}
 
     request_handlers.load_json = load_json
-    request_handlers.save_json = AsyncMock()
     try:
         query = FakeQuery('req_accept:registration:100')
         context = FakeContext()
@@ -101,7 +99,7 @@ async def verify_registration_accept() -> None:
 async def verify_team_accept() -> None:
     original = {
         'load_json': team_handlers.load_json,
-        'save_json': team_handlers.save_json,
+        'update_many_json': team_handlers.update_many_json,
     }
 
     async def load_json(path):
@@ -111,8 +109,15 @@ async def verify_team_accept() -> None:
             return {}
         return {}
 
+    async def update_many_json(filepaths, mutator):
+        files = {
+            TEAM_REQUESTS_FILE: {'100': {'name': 'Тест Пользователь', 'team': 'R LAMP'}},
+            TEAMS_FILE: {},
+        }
+        return mutator(files)
+
     team_handlers.load_json = load_json
-    team_handlers.save_json = AsyncMock()
+    team_handlers.update_many_json = update_many_json
     try:
         query = FakeQuery('team_accept:100')
         context = FakeContext()

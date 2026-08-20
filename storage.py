@@ -14,6 +14,18 @@ from bot_context import (
     logging,
     os,
 )
+from data_models import (
+    group_name,
+    make_group_record,
+    make_team_record,
+    make_user_record,
+    normalize_issuance_record,
+    registration_request,
+    team_request,
+    user_name,
+    user_request,
+)
+from errors import StorageError
 
 _JSON_LOCKS: dict[str, asyncio.Lock] = {}
 
@@ -39,9 +51,9 @@ def _sync_load_json(filepath: str) -> dict:
                 logging.error("Ожидался JSON-объект в %s, получен %s", filepath, type(data).__name__)
                 return {}
             return data
-    except (json.JSONDecodeError, OSError) as e:
-        logging.error("Ошибка чтения файла %s: %s", filepath, e)
-        return {}
+    except (json.JSONDecodeError, OSError) as error:
+        logging.error("Ошибка чтения файла %s: %s", filepath, error)
+        raise StorageError(f"Не удалось прочитать JSON-хранилище: {filepath}") from error
 
 
 def _sync_save_json(data: dict, filepath: str) -> None:
@@ -54,13 +66,14 @@ def _sync_save_json(data: dict, filepath: str) -> None:
             f.flush()
             os.fsync(f.fileno())
         os.replace(temp_file, filepath)
-    except OSError as e:
-        logging.error("Ошибка сохранения файла %s: %s", filepath, e)
+    except OSError as error:
+        logging.error("Ошибка сохранения файла %s: %s", filepath, error)
         try:
             if os.path.exists(temp_file):
                 os.remove(temp_file)
         except OSError:
             pass
+        raise StorageError(f"Не удалось сохранить JSON-хранилище: {filepath}") from error
 
 
 def load_json_sync(filepath: str) -> dict:
@@ -100,6 +113,66 @@ async def update_many_json(filepaths: Iterable[str], mutator: Callable[[dict[str
         for filepath in paths:
             await save_json(data[filepath], filepath)
         return result
+
+
+def migrate_json_schemas() -> None:
+    """Upgrade legacy JSON values to canonical schema-versioned records."""
+    users = _sync_load_json("users.json")
+    migrated_users = {}
+    for user_id, record in users.items():
+        if isinstance(record, dict) and record.get("schema_version") == 1 and record.get("name"):
+            migrated_users[str(user_id)] = record
+        else:
+            migrated_users[str(user_id)] = make_user_record(user_name(record, str(user_id)))
+    if migrated_users != users:
+        _sync_save_json(migrated_users, "users.json")
+
+    groups = _sync_load_json("groups.json")
+    migrated_groups = {}
+    for user_id, record in groups.items():
+        group = group_name(record)
+        name = user_name(record, user_name(migrated_users.get(str(user_id)), str(user_id)))
+        migrated_groups[str(user_id)] = make_group_record(name, group or "")
+    if migrated_groups != groups:
+        _sync_save_json(migrated_groups, "groups.json")
+
+    for filepath, normalizer in (
+        (PENDING_FILE, registration_request),
+        (TEAM_REQUESTS_FILE, team_request),
+        ("user_requests.json", user_request),
+    ):
+        data = _sync_load_json(filepath)
+        migrated = {str(key): normalizer(record, user_id=key) for key, record in data.items()}
+        if migrated != data:
+            _sync_save_json(migrated, filepath)
+
+    drafts = _sync_load_json("registration_drafts.json")
+    migrated_drafts = {
+        str(key): {
+            "schema_version": 1,
+            "name": user_name(record, str(key)),
+            "updated_at": (record.get("updated_at") if isinstance(record, dict) else None) or "",
+        }
+        for key, record in drafts.items()
+    }
+    if migrated_drafts != drafts:
+        _sync_save_json(migrated_drafts, "registration_drafts.json")
+
+    teams = _sync_load_json(TEAMS_FILE)
+    migrated_teams = {
+        str(key): make_team_record(user_name(record, str(key)), group_name(record) or "")
+        for key, record in teams.items()
+    }
+    if migrated_teams != teams:
+        _sync_save_json(migrated_teams, TEAMS_FILE)
+
+    issuance = _sync_load_json(ISSUANCE_FILE)
+    migrated_issuance = {"_schema_version": ISSUANCE_SCHEMA_VERSION}
+    for key, record in issuance.items():
+        if key != "_schema_version":
+            migrated_issuance[str(key)] = normalize_issuance_record(record)
+    if migrated_issuance != issuance:
+        _sync_save_json(migrated_issuance, ISSUANCE_FILE)
 
 
 def _reset_issuance_if_legacy() -> None:

@@ -4,6 +4,7 @@ import re
 from collections import OrderedDict
 
 from bot_context import ADMIN_ID, TEAM_OPTIONS
+from data_models import group_name, normalize_issuance_record, user_name
 
 ORG_STRUCTURE = {
     "MNG": {"level": 1, "parent": None, "children": ("SPV",)},
@@ -23,9 +24,7 @@ def normalize_employee_name(value) -> str:
 
 
 def _record_group(record) -> str | None:
-    if isinstance(record, dict):
-        return record.get("group") or record.get("team")
-    return record or None
+    return group_name(record)
 
 
 def _is_numeric_id(user_id: str) -> bool:
@@ -83,9 +82,14 @@ def build_employee_registry(
     # a Telegram account wins over an earlier Excel-only placeholder.
     user_items = sorted(
         users.items(),
-        key=lambda item: (not _is_numeric_id(str(item[0])), normalize_employee_name(item[1]), str(item[0])),
+        key=lambda item: (
+            not _is_numeric_id(str(item[0])),
+            normalize_employee_name(user_name(item[1])),
+            str(item[0]),
+        ),
     )
-    for user_id, name in user_items:
+    for user_id, raw_name in user_items:
+        name = user_name(raw_name)
         group = _record_group(groups.get(str(user_id)))
         add_record(user_id, name, group)
 
@@ -95,7 +99,7 @@ def build_employee_registry(
         if str(user_id).startswith("_"):
             continue
         group = _record_group(group_record)
-        name = group_record.get("name") if isinstance(group_record, dict) else None
+        name = user_name(group_record)
         if name:
             add_record(user_id, name, group)
 
@@ -109,7 +113,7 @@ def build_employee_registry(
     for user_id, issuance_record in (issuance_data or {}).items():
         if str(user_id).startswith("_") or not isinstance(issuance_record, dict):
             continue
-        add_record(user_id, issuance_record.get("name"), _record_group(groups.get(str(user_id))))
+        add_record(user_id, user_name(issuance_record), _record_group(groups.get(str(user_id))))
 
     return sorted(records.values(), key=lambda item: item["name"].casefold())
 
@@ -137,9 +141,10 @@ def merge_employee_issuance(employee: dict | None, issuance_data: dict) -> dict:
         record = issuance_data.get(str(alias), {})
         if not isinstance(record, dict):
             continue
-        merged["mints_issued"] += float(record.get("mints_issued", 0) or 0)
-        merged["sticks_issued"] += float(record.get("sticks_issued", 0) or 0)
-        merged["history"].extend(record.get("history", []) or [])
+        normalized = normalize_issuance_record(record)
+        merged["mints_issued"] += normalized["mints_issued"]
+        merged["sticks_issued"] += normalized["sticks_issued"]
+        merged["history"].extend(normalized["history"])
     return merged
 
 

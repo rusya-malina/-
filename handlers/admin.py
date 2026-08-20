@@ -33,7 +33,7 @@ from states import (
     EXTRA_MENU_STATE,
     PENDING_REQUESTS_STATE,
 )
-from storage import load_json, load_pending, save_json
+from storage import load_json, load_pending, update_many_json
 
 
 def _pending_request_name(raw_request) -> str:
@@ -307,16 +307,13 @@ async def process_delete_user_by_number(update: Update, context: ContextTypes.DE
 
     await notify_user_bot_stopped(context, target_uid)
 
-    users_data = await load_json(USERS_FILE)
-    if target_uid in users_data:
-        del users_data[target_uid]
-        await save_json(users_data, USERS_FILE)
-
-    kpi_data = await load_json(KPI_FILE)
     clean_name = target_name.strip().lower()
-    if clean_name in kpi_data:
-        del kpi_data[clean_name]
-        await save_json(kpi_data, KPI_FILE)
+
+    def remove_user_and_kpi(files: dict[str, dict]) -> None:
+        files[USERS_FILE].pop(target_uid, None)
+        files[KPI_FILE].pop(clean_name, None)
+
+    await update_many_json((USERS_FILE, KPI_FILE), remove_user_and_kpi)
 
     del user_map[num]
     context.user_data["user_index_map"] = user_map

@@ -3,9 +3,8 @@ from bot_context import (
     GROUPS_FILE,
     REGISTRATION_DRAFTS_FILE,
     TEAM_OPTIONS,
-    datetime,
-    timezone,
 )
+from data_models import make_group_record, make_user_record
 from storage import load_json, load_json_sync, update_json
 
 
@@ -36,11 +35,7 @@ async def save_user_group(user_id: int | str, name: str, group: str) -> None:
         raise ValueError(f"Неизвестная группа: {group}")
 
     def mutate(groups: dict) -> None:
-        groups[str(user_id)] = {
-            "name": name,
-            "group": normalized,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
+        groups[str(user_id)] = make_group_record(name, normalized)
 
     await update_json(GROUPS_FILE, mutate)
 
@@ -60,10 +55,7 @@ async def get_registration_draft(user_id: int | str) -> dict | None:
 
 async def save_registration_draft(user_id: int | str, name: str) -> None:
     def mutate(drafts: dict) -> None:
-        drafts[str(user_id)] = {
-            "name": name,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
+        drafts[str(user_id)] = make_user_record(name)
 
     await update_json(REGISTRATION_DRAFTS_FILE, mutate)
 

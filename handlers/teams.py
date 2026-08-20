@@ -7,9 +7,7 @@ from bot_context import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Update,
-    datetime,
     logging,
-    timezone,
 )
 from config import (
     ADMIN_ID,
@@ -21,6 +19,7 @@ from config import (
     TEAMS_FILE,
     USERS_FILE,
 )
+from data_models import make_team_record, team_request, user_name
 from keyboards import (
     get_main_keyboard,
     get_team_keyboard,
@@ -38,7 +37,7 @@ from states import (
     TEAM_MENU_STATE,
     TEAM_SELECTION,
 )
-from storage import load_json, save_json
+from storage import load_json, update_json, update_many_json
 
 
 async def _get_team_context(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -198,19 +197,17 @@ async def process_team_selection(update: Update, context: ContextTypes.DEFAULT_T
         return TEAM_SELECTION
 
     users = await load_json(USERS_FILE)
-    user_name = users.get(user_id, "Руслан Малинин" if update.effective_user.id == ADMIN_ID else "")
-    if not user_name:
+    user_name_value = user_name(users.get(user_id), "Руслан Малинин" if update.effective_user.id == ADMIN_ID else "")
+    if not user_name_value:
         await update.message.reply_text("⚠️ Пользователь ещё не зарегистрирован.", reply_markup=get_main_keyboard(update.effective_user.id))
         return ConversationHandler.END
 
-    team_requests = await load_json(TEAM_REQUESTS_FILE)
-    team_requests[user_id] = {
-        "user_id": user_id,
-        "name": user_name,
-        "team": selected_team,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    await save_json(team_requests, TEAM_REQUESTS_FILE)
+    request_record = team_request({"user_id": user_id, "name": user_name_value, "team": selected_team}, user_id=user_id)
+
+    def save_request(data: dict) -> None:
+        data[user_id] = request_record
+
+    await update_json(TEAM_REQUESTS_FILE, save_request)
 
     await update.message.reply_text(
         f"⏳ Заявка на команду **{selected_team}** отправлена администратору.\n"
@@ -228,7 +225,7 @@ async def process_team_selection(update: Update, context: ContextTypes.DEFAULT_T
             chat_id=ADMIN_ID,
             text=(
                 "🔔 **Запрос на определение команды**\n\n"
-                f"👤 Сотрудник: *{user_name}*\n"
+                f"👤 Сотрудник: *{user_name_value}*\n"
                 f"🆔 Telegram ID: `{user_id}`\n"
                 f"👥 Команда: **{selected_team}**"
             ),
@@ -260,20 +257,17 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
         )
         return ConversationHandler.END
 
-    selected_team = request["team"]
-    user_name = request["name"]
+    canonical_request = team_request(request, user_id=user_id)
+    selected_team = canonical_request["team"]
+    user_name_value = user_name(canonical_request)
     if action == "team_accept":
-        teams = await load_json(TEAMS_FILE)
-        teams[user_id] = {
-            "name": user_name,
-            "team": selected_team,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        await save_json(teams, TEAMS_FILE)
-        del team_requests[user_id]
-        await save_json(team_requests, TEAM_REQUESTS_FILE)
+        def accept_team(files: dict[str, dict]) -> None:
+            files[TEAMS_FILE][user_id] = make_team_record(user_name_value, selected_team)
+            files[TEAM_REQUESTS_FILE].pop(user_id, None)
+
+        await update_many_json((TEAMS_FILE, TEAM_REQUESTS_FILE), accept_team)
         await query.message.edit_text(
-            f"✅ **Команда подтверждена**\n\n{user_name} → **{selected_team}**",
+            f"✅ **Команда подтверждена**\n\n{user_name_value} → **{selected_team}**",
             parse_mode="Markdown",
         )
         try:
@@ -286,10 +280,12 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
         except TelegramError as error:
             logging.error("Не удалось уведомить пользователя о команде: %s", error)
     elif action == "team_reject":
-        del team_requests[user_id]
-        await save_json(team_requests, TEAM_REQUESTS_FILE)
+        def reject_team(data: dict) -> None:
+            data.pop(user_id, None)
+
+        await update_json(TEAM_REQUESTS_FILE, reject_team)
         await query.message.edit_text(
-            f"❌ **Запрос на команду отклонён**\n\n{user_name} → **{selected_team}**",
+            f"❌ **Запрос на команду отклонён**\n\n{user_name_value} → **{selected_team}**",
             parse_mode="Markdown",
         )
         try:

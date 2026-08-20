@@ -26,6 +26,12 @@ def main() -> None:
         path = ROOT / filename
         data = json.loads(path.read_text(encoding="utf-8"))
         print(f"{filename}: records={len(data)} type={type(data).__name__}")
+        if filename == "users.json":
+            invalid = [
+                user_id for user_id, record in data.items()
+                if not isinstance(record, dict) or record.get("schema_version") != 1 or not record.get("name")
+            ]
+            print(f"  user_schema_invalid={len(invalid)}")
         if filename == "kpi_data.json":
             bad = []
             required = {"gt_plan", "gt_fact", "micro_las_fact", "micro_lau_fact", "retrafic_plan", "retrafic_fact"}
@@ -35,8 +41,24 @@ def main() -> None:
             print(f"  KPI schema invalid={len(bad)}")
         if filename == "issuance_data.json":
             print(f"  schema_version={data.get('_schema_version')}")
-            bad = [key for key, record in data.items() if key != "_schema_version" and not isinstance(record, dict)]
+            bad = [
+                key for key, record in data.items()
+                if key != "_schema_version" and (not isinstance(record, dict) or record.get("schema_version") != 1)
+            ]
             print(f"  issuance record invalid={len(bad)}")
+        if filename in {"pending_requests.json", "team_requests.json", "user_requests.json", "teams.json"}:
+            expected_kind = {
+                "pending_requests.json": "registration",
+                "team_requests.json": "team",
+                "user_requests.json": "user",
+                "teams.json": None,
+            }[filename]
+            invalid = [
+                key for key, record in data.items()
+                if not isinstance(record, dict) or record.get("schema_version") != 1
+                or (expected_kind is not None and record.get("kind") != expected_kind)
+            ]
+            print(f"  canonical_schema_invalid={len(invalid)}")
         if filename in {"team_requests.json", "teams.json"}:
             labels = [record.get("team") for record in data.values() if isinstance(record, dict)]
             print(f"  team_labels={sorted(set(labels))}")

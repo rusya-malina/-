@@ -38,6 +38,7 @@ jobs:
           set -euo pipefail
           for test in \
             tools/test_architecture_contract.py \
+            tools/test_schema_migration.py \
             tools/test_admin_modes.py \
             tools/test_broadcast_media.py \
             tools/test_concurrent_latest_files.py \
@@ -48,6 +49,8 @@ jobs:
             tools/test_registration_approval_consistency.py \
             tools/test_role_simulation.py \
             tools/test_storage_atomicity.py \
+            tools/test_storage_errors.py \
+            tools/data_audit.py \
             tools/test_unified_employee_reports.py \
             tools/verify_admin_request_flow.py \
             tools/deep_audit.py \

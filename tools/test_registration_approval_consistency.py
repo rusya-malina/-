@@ -91,9 +91,12 @@ async def run_consistency_test() -> None:
         direct = await run_scenario("req_accept:registration:100", direct_flow=True)
         old_screen = await run_scenario("pend_accept:100", screen_flow=True)
         legacy_notification = await run_scenario("adm_accept:100")
-        assert direct["users"] == old_screen["users"] == legacy_notification["users"] == {"100": "Тест Пользователь"}
         for result in (direct, old_screen, legacy_notification):
+            user_record = result["users"]["100"]
+            assert user_record["schema_version"] == 1
+            assert user_record["name"] == "Тест Пользователь"
             group_record = result["groups"]["100"]
+            assert group_record["schema_version"] == 1
             assert group_record["name"] == "Тест Пользователь"
             assert group_record["group"] == "A LAMP"
         print("REGISTRATION_APPROVAL_CONSISTENCY PASS")

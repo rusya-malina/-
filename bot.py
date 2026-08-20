@@ -7,13 +7,14 @@ from app_factory import build_application
 from bot_context import ThreadingHTTPServer, logging, os, threading
 from github_sync import restore_kpi_state_sync
 from health import HealthHandler
-from storage import _migrate_team_label, _reset_issuance_if_legacy
+from storage import _migrate_team_label, _reset_issuance_if_legacy, migrate_json_schemas
 
 POLLING_RETRY_DELAY = 15
 
 
 def main() -> None:
     """Запускает health endpoint и устойчивый Telegram polling в одном процессе Render."""
+    migrate_json_schemas()
     _reset_issuance_if_legacy()
     _migrate_team_label()
     token = os.getenv("BOT_TOKEN")

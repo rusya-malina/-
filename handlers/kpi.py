@@ -20,6 +20,7 @@ from config import (
     TEAM_OPTIONS,
     USERS_FILE,
 )
+from data_models import user_name
 from keyboards import cancel_keyboard, get_data_keyboard, get_main_keyboard
 from organization import get_employee_by_id, is_admin_mode, merge_employee_issuance
 from roles import get_user_group
@@ -45,7 +46,7 @@ from states import (
     SET_PLAN_MICRO,
     SET_PLAN_RETRAFIC,
 )
-from storage import get_default_plans, load_json, save_json
+from storage import get_default_plans, load_json, update_json, update_many_json
 
 
 async def open_kpi_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -120,7 +121,7 @@ async def set_plan_retrafic(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "micro_plan": context.user_data["new_plan_micro"],
         "retrafic_plan": val,
     }
-    await save_json(plans, PLANS_FILE)
+    await update_json(PLANS_FILE, lambda data: data.update(plans))
 
     await update.message.reply_text(
         "✅ **Общие планы успешно обновлены!**",
@@ -328,25 +329,22 @@ async def delete_employee_confirm(update: Update, context: ContextTypes.DEFAULT_
         _, del_type, target_name = data.split(":", 2)
         clean_name = target_name.strip().lower()
 
-        kpi_data = await load_json(KPI_FILE)
-        if clean_name in kpi_data:
-            del kpi_data[clean_name]
-            await save_json(kpi_data, KPI_FILE)
+        to_delete: list[str] = []
+
+        def remove_employee(files: dict[str, dict]) -> None:
+            files[KPI_FILE].pop(clean_name, None)
+            if del_type == "full":
+                for uid, record in list(files[USERS_FILE].items()):
+                    if user_name(record).casefold() == clean_name.casefold():
+                        to_delete.append(str(uid))
+                        files[USERS_FILE].pop(uid, None)
+
+        await update_many_json((KPI_FILE, USERS_FILE), remove_employee)
 
         status_text = f"🗑 **Сотрудник {target_name} удалён из списка KPI.**"
-
         if del_type == "full":
-            users_data = await load_json(USERS_FILE)
-            to_delete = []
-            for uid, name in users_data.items():
-                if name.strip().lower() == clean_name:
-                    to_delete.append(uid)
-
             for uid in to_delete:
                 await notify_user_bot_stopped(context, uid)
-                del users_data[uid]
-
-            await save_json(users_data, USERS_FILE)
             status_text = f"🔥 **Сотрудник {target_name} полностью удалён!**"
 
         await query.message.delete()
@@ -475,7 +473,7 @@ async def manual_kpi_get_field_hours(update: Update, context: ContextTypes.DEFAU
         "field_hours": field_hours,
     }
 
-    await save_json(kpi_data, KPI_FILE)
+    await update_json(KPI_FILE, lambda data: data.update(kpi_data))
     await notify_user_kpi_updated(context, target_name)
 
     await update.message.reply_text(
@@ -540,8 +538,8 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     employee = get_employee_by_id(user_id, users, groups, kpi_data, issuance_data)
-    user_name = employee["name"] if employee else users.get(user_id, "Администратор" if admin_mode else "")
-    lookup_name = employee.get("name_key") if employee else user_name.strip().lower()
+    user_name_value = employee["name"] if employee else user_name(users.get(user_id), "Администратор" if admin_mode else "")
+    lookup_name = employee.get("name_key") if employee else user_name_value.strip().lower()
 
     if lookup_name not in kpi_data:
         await query.message.edit_text("ℹ️ **Информация по вашим данным не найдена.**", parse_mode="Markdown")
@@ -578,7 +576,7 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         text = (
             f"📊 **Ваши показатели KPI**\n"
-            f"👤 Сотрудник: *{user_name}*\n"
+            f"👤 Сотрудник: *{user_name_value}*\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
             f"📈 **GT:** План: `{user_kpi['gt_plan']:.0f}` | Факт: `{user_kpi['gt_fact']:.0f}` (`{gt_pct:.1f}%`)\n\n"
             f"{micro_details}\n"
@@ -593,7 +591,7 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         text = (
             f"⏱️ **Учет рабочего времени**\n"
-            f"👤 Сотрудник: *{user_name}*\n"
+            f"👤 Сотрудник: *{user_name_value}*\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
             f"🏢 **Офисные часы:** `{office_hours:.1f}`\n"
             f"⛺️ **Полевые часы:** `{field_hours:.1f}` из 64 часов\n"
@@ -619,8 +617,8 @@ async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     employee = get_employee_by_id(user_id, users, groups, kpi_data, issuance_data)
-    user_name = employee["name"] if employee else users.get(user_id, "Администратор")
-    lookup_name = employee.get("name_key") if employee else user_name.strip().lower()
+    user_name_value = employee["name"] if employee else user_name(users.get(user_id), "Администратор")
+    lookup_name = employee.get("name_key") if employee else user_name_value.strip().lower()
     user_kpi = kpi_data.get(lookup_name, {})
     issued = merge_employee_issuance(employee, issuance_data)
 
@@ -641,7 +639,7 @@ async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = (
         f"📦 **Остатки**\n"
-        f"👤 Сотрудник: *{user_name}*\n"
+        f"👤 Сотрудник: *{user_name_value}*\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
         f"{balance_line('MINTS', mints_issued, microacts_done, mints_balance)}\n\n"
         f"{balance_line('Стики', sticks_issued, gt_done, sticks_balance)}\n\n"

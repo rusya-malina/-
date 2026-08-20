@@ -22,6 +22,8 @@ from config import (
     UPLOADED_DATA_DIR,
     USERS_FILE,
 )
+from data_models import make_user_record, normalize_issuance_record, user_name
+from errors import StorageError
 from github_sync import sync_kpi_state
 from keyboards import cancel_keyboard, get_issuance_keyboard, get_main_keyboard
 from organization import is_admin_mode
@@ -36,7 +38,7 @@ from states import (
     ISSUANCE_MENU,
     UPLOAD_EXCEL,
 )
-from storage import load_json, replace_latest_file, save_json
+from storage import load_json, replace_latest_file, update_many_json
 
 
 async def start_excel_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -72,7 +74,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
             file_path = temp_file.name
         file = await context.bot.get_file(document.file_id)
         await file.download_to_drive(file_path)
-    except (OSError, TelegramError) as error:
+    except (OSError, StorageError, TelegramError) as error:
         logging.exception("Не удалось скачать KPI Excel: %s", error)
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
@@ -115,7 +117,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Старые сотрудники, которых нет в новом файле, удаляются из KPI-отчётов.
         kpi_data = {}
         users_data = await load_json(USERS_FILE)
-        existing_user_names = {_normalize_person_name(v) for v in users_data.values()}
+        existing_user_names = {_normalize_person_name(user_name(v)) for v in users_data.values()}
         updated_names = []
         updated_name_keys = set()
 
@@ -141,11 +143,16 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
             if clean_name not in existing_user_names:
                 fake_uid = f"excel_{clean_name}"
-                users_data[fake_uid] = emp_name
+                users_data[fake_uid] = make_user_record(emp_name)
                 existing_user_names.add(clean_name)
 
-        await save_json(kpi_data, KPI_FILE)
-        await save_json(users_data, USERS_FILE)
+        def persist_kpi_import(files: dict[str, dict]) -> None:
+            files[KPI_FILE].clear()
+            files[KPI_FILE].update(kpi_data)
+            for employee_id, record in users_data.items():
+                files[USERS_FILE].setdefault(employee_id, record)
+
+        await update_many_json((KPI_FILE, USERS_FILE), persist_kpi_import)
         os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
         replace_latest_file(file_path, LATEST_KPI_FILE)
         file_path = None
@@ -168,7 +175,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return ConversationHandler.END
 
-    except (OSError, KeyError, TypeError, ValueError, TelegramError) as e:
+    except (OSError, KeyError, StorageError, TypeError, ValueError, TelegramError) as e:
         logging.error(f"Ошибка при обработке Excel: {e}")
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -239,9 +246,9 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
         users_data = await load_json(USERS_FILE)
         issuance_data = await load_json(ISSUANCE_FILE)
         name_to_user_id = {
-            _normalize_person_name(name): str(user_id)
+            _normalize_person_name(user_name(name)): str(user_id)
             for user_id, name in users_data.items()
-            if str(name).strip() and _normalize_person_name(name) != "nan"
+            if user_name(name) and _normalize_person_name(user_name(name)) != "nan"
         }
         added_without_telegram = []
         timestamp = datetime.now(timezone.utc).isoformat()
@@ -251,30 +258,32 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
             if not user_id:
                 user_id = f"excel_{normalized_name.replace(' ', '_')}"
                 suffix = 2
-                while user_id in users_data and _normalize_person_name(users_data[user_id]) != normalized_name:
+                while user_id in users_data and _normalize_person_name(user_name(users_data[user_id])) != normalized_name:
                     user_id = f"excel_{normalized_name.replace(' ', '_')}_{suffix}"
                     suffix += 1
-                users_data[user_id] = employee_name
+                users_data[user_id] = make_user_record(employee_name)
                 name_to_user_id[normalized_name] = user_id
                 added_without_telegram.append(employee_name)
 
-            record = issuance_data.setdefault(
-                user_id,
-                {"name": employee_name, "mints_issued": 0.0, "sticks_issued": 0.0, "history": []},
-            )
-            record["name"] = employee_name
-            record.setdefault("mints_issued", 0.0)
-            record.setdefault("sticks_issued", 0.0)
-            record.setdefault("history", [])
+            record = normalize_issuance_record(issuance_data.get(user_id), name=employee_name)
             if mints_amount:
                 record["mints_issued"] = float(record["mints_issued"]) + mints_amount
                 record["history"].append({"type": "mints_excel", "amount": mints_amount, "admin_id": ADMIN_ID, "created_at": timestamp})
             if sticks_amount:
                 record["sticks_issued"] = float(record["sticks_issued"]) + sticks_amount
                 record["history"].append({"type": "sticks_excel", "amount": sticks_amount, "admin_id": ADMIN_ID, "created_at": timestamp})
+            issuance_data[user_id] = record
 
-        await save_json(users_data, USERS_FILE)
-        await save_json(issuance_data, ISSUANCE_FILE)
+        def persist_issuance_import(files: dict[str, dict]) -> None:
+            for employee_id, record in users_data.items():
+                files[USERS_FILE].setdefault(employee_id, record)
+            for employee_id, record in issuance_data.items():
+                if employee_id == "_schema_version":
+                    files[ISSUANCE_FILE][employee_id] = record
+                else:
+                    files[ISSUANCE_FILE][employee_id] = record
+
+        await update_many_json((USERS_FILE, ISSUANCE_FILE), persist_issuance_import)
         os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
         replace_latest_file(temp_path, LATEST_ISSUANCE_FILE)
         temp_path = None
@@ -286,7 +295,7 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
             message += f"\nНовых записей без Telegram ID: **{len(added_without_telegram)}**."
         await update.message.reply_text(message, reply_markup=get_issuance_keyboard(), parse_mode="Markdown")
         return ISSUANCE_MENU
-    except (OSError, KeyError, TypeError, ValueError, TelegramError) as error:
+    except (OSError, KeyError, StorageError, TypeError, ValueError, TelegramError) as error:
         logging.exception("Ошибка загрузки Excel выдач: %s", error)
         await update.message.reply_text("❌ Не удалось обработать Excel-файл. Проверьте формат и попробуйте снова.", reply_markup=get_issuance_keyboard())
         return ISSUANCE_MENU

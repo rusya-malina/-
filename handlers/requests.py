@@ -20,6 +20,15 @@ from config import (
     USER_REQUESTS_FILE,
     USERS_FILE,
 )
+from data_models import (
+    make_group_record,
+    make_team_record,
+    make_user_record,
+    registration_request,
+    team_request,
+    user_name,
+    user_request,
+)
 from keyboards import (
     cancel_keyboard,
     get_extra_keyboard,
@@ -32,7 +41,7 @@ from states import (
     PENDING_REQUESTS_STATE,
     USER_REQUEST,
 )
-from storage import load_json, load_pending, save_json, update_many_json
+from storage import load_json, load_pending, update_json, update_many_json
 
 
 def _request_title(request: dict) -> str:
@@ -63,16 +72,12 @@ async def process_registration_approval(user_id: str, accepted: bool) -> dict | 
         if removed_request is None:
             return None
 
-        request = dict(removed_request) if isinstance(removed_request, dict) else {"name": str(removed_request)}
-        name = str(request.get("name") or "Пользователь")
+        request = registration_request(removed_request, user_id=user_id)
+        name = user_name(request, "Пользователь")
         group = request.get("group")
         if accepted:
-            files[USERS_FILE][user_id] = name
-            files[GROUPS_FILE][user_id] = {
-                "name": name,
-                "group": group,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
+            files[USERS_FILE][user_id] = make_user_record(name)
+            files[GROUPS_FILE][user_id] = make_group_record(name, group or "")
             user_text = f"🎉 Ваша заявка одобрена!\n\nДобро пожаловать, {name}!\nГруппа: {group}"
         else:
             files[GROUPS_FILE].pop(user_id, None)
@@ -88,7 +93,7 @@ async def load_request_inbox() -> list[dict]:
 
     pending = await load_pending()
     for user_id, raw_request in pending.items():
-        request = dict(raw_request) if isinstance(raw_request, dict) else {"name": str(raw_request)}
+        request = registration_request(raw_request, user_id=user_id)
         group = request.get("group", "—")
         inbox.append(
             {
@@ -103,31 +108,20 @@ async def load_request_inbox() -> list[dict]:
         )
 
     team_requests = await load_json(TEAM_REQUESTS_FILE)
-    for user_id, request in team_requests.items():
-        request = dict(request or {})
+    for user_id, raw_request in team_requests.items():
+        request = team_request(raw_request, user_id=user_id)
         request.update(
             {
                 "id": f"team:{user_id}",
-                "kind": "team",
-                "user_id": str(user_id),
-                "name": request.get("name", user_id),
                 "text": f"Выбранная команда: {request.get('team', '—')}.",
             }
         )
         inbox.append(request)
 
     user_requests = await load_json(USER_REQUESTS_FILE)
-    for request_id, request in user_requests.items():
-        request = dict(request or {})
-        request.update(
-            {
-                "id": f"user:{request_id}",
-                "kind": "user",
-                "user_id": str(request.get("user_id", "")),
-                "name": request.get("name", request.get("user_id", "Пользователь")),
-                "text": request.get("text", ""),
-            }
-        )
+    for request_id, raw_request in user_requests.items():
+        request = user_request(raw_request, user_id=raw_request.get("user_id") if isinstance(raw_request, dict) else None)
+        request.update({"id": f"user:{request_id}"})
         inbox.append(request)
 
     inbox.sort(key=lambda item: item.get("created_at", ""))
@@ -271,25 +265,22 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_text = result["user_text"]
 
     elif kind == "team":
-        team_requests = await load_json(TEAM_REQUESTS_FILE)
-        team_requests.pop(user_id, None)
-        await save_json(team_requests, TEAM_REQUESTS_FILE)
         team = request.get("team", "—")
-        if accepted:
-            teams = await load_json(TEAMS_FILE)
-            teams[user_id] = {
-                "name": name,
-                "team": team,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-            await save_json(teams, TEAMS_FILE)
-            user_text = f"✅ Администратор подтвердил вашу команду: {team}."
-        else:
-            user_text = f"❌ Запрос на команду {team} отклонён администратором."
+
+        def resolve_team(files: dict[str, dict]) -> None:
+            files[TEAM_REQUESTS_FILE].pop(user_id, None)
+            if accepted:
+                files[TEAMS_FILE][user_id] = make_team_record(name, team)
+
+        await update_many_json((TEAM_REQUESTS_FILE, TEAMS_FILE), resolve_team)
+        user_text = f"✅ Администратор подтвердил вашу команду: {team}." if accepted else f"❌ Запрос на команду {team} отклонён администратором."
     else:
-        user_requests = await load_json(USER_REQUESTS_FILE)
-        user_requests.pop(raw_id.removeprefix("user:"), None)
-        await save_json(user_requests, USER_REQUESTS_FILE)
+        request_id = raw_id.removeprefix("user:")
+
+        def resolve_user_request(data: dict) -> None:
+            data.pop(request_id, None)
+
+        await update_json(USER_REQUESTS_FILE, resolve_user_request)
         user_text = "✅ Ваша заявка рассмотрена администратором." if accepted else "❌ Ваша заявка отклонена администратором."
 
     if user_id.isdigit():
@@ -327,16 +318,14 @@ async def process_user_request(update: Update, context: ContextTypes.DEFAULT_TYP
 
     user_id = str(update.effective_user.id)
     users = await load_json(USERS_FILE)
-    name = users.get(user_id, update.effective_user.full_name or user_id)
-    user_requests = await load_json(USER_REQUESTS_FILE)
+    name = user_name(users.get(user_id), update.effective_user.full_name or user_id)
     request_id = f"{user_id}_{int(datetime.now(timezone.utc).timestamp())}"
-    user_requests[request_id] = {
-        "user_id": user_id,
-        "name": name,
-        "text": text,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    await save_json(user_requests, USER_REQUESTS_FILE)
+    request_record = user_request({"user_id": user_id, "name": name, "text": text}, user_id=user_id)
+
+    def add_request(data: dict) -> None:
+        data[request_id] = request_record
+
+    await update_json(USER_REQUESTS_FILE, add_request)
 
     await update.message.reply_text(
         "✅ Ваша заявка отправлена администратору.",

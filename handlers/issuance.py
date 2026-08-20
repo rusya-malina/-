@@ -25,6 +25,8 @@ from config import (
     KPI_FILE,
     USERS_FILE,
 )
+from data_models import normalize_issuance_record, user_name
+from errors import StorageError
 from keyboards import (
     cancel_keyboard,
     get_issuance_confirmation_markup,
@@ -43,15 +45,15 @@ from states import (
     ISSUANCE_MENU,
     ISSUANCE_USER,
 )
-from storage import load_json, save_json
+from storage import load_json, update_json
 
 
 async def _get_issuance_users_markup(context: ContextTypes.DEFAULT_TYPE) -> InlineKeyboardMarkup:
     users = await load_json(USERS_FILE)
     valid_users = [
-        (str(user_id), str(name).strip())
+        (str(user_id), user_name(name))
         for user_id, name in users.items()
-        if str(user_id).isdigit() and str(name).strip() and str(name).strip().lower() != "nan"
+        if str(user_id).isdigit() and user_name(name) and user_name(name).lower() != "nan"
     ]
     valid_users.sort(key=lambda item: item[1].lower())
 
@@ -132,7 +134,7 @@ async def export_issuance_statistics(update: Update, context: ContextTypes.DEFAU
         )
         await update.message.reply_text("📦 Раздел «Выдача»:", reply_markup=get_issuance_keyboard())
         return ISSUANCE_MENU
-    except (OSError, KeyError, TypeError, ValueError, TelegramError) as error:
+    except (OSError, KeyError, StorageError, TypeError, ValueError, TelegramError) as error:
         logging.exception("Ошибка формирования статистики выдач: %s", error)
         await update.message.reply_text("❌ Не удалось сформировать статистику.", reply_markup=get_issuance_keyboard())
         return ISSUANCE_MENU
@@ -182,39 +184,37 @@ async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     issuance_type = context.user_data.get("issuance_type")
     amount = context.user_data.get("issuance_amount")
     users = await load_json(USERS_FILE)
-    user_name = users.get(user_id)
+    user_name_value = user_name(users.get(user_id))
 
-    if not user_id or not issuance_type or not user_name or amount is None:
+    if not user_id or not issuance_type or not user_name_value or amount is None:
         await query.message.edit_text("❌ Сессия выдачи устарела. Начните операцию заново.")
         context.user_data.pop("issuance_type", None)
         context.user_data.pop("issuance_user_id", None)
         context.user_data.pop("issuance_amount", None)
         return ConversationHandler.END
 
-    issuance_data = await load_json(ISSUANCE_FILE)
-    record = issuance_data.setdefault(
-        str(user_id),
-        {"name": user_name, "mints_issued": 0.0, "sticks_issued": 0.0, "history": []},
-    )
-    record["name"] = user_name
-    record.setdefault("mints_issued", 0.0)
-    record.setdefault("sticks_issued", 0.0)
-    record.setdefault("history", [])
+    record: dict = {}
     field = "mints_issued" if issuance_type == "mints" else "sticks_issued"
-    record[field] = float(record[field]) + float(amount)
-    record["history"].append(
-        {
-            "type": issuance_type,
-            "amount": float(amount),
-            "admin_id": ADMIN_ID,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
-    await save_json(issuance_data, ISSUANCE_FILE)
+
+    def update_issuance(data: dict) -> None:
+        nonlocal record
+        record = normalize_issuance_record(data.get(str(user_id)), name=user_name_value)
+        record[field] += float(amount)
+        record["history"].append(
+            {
+                "type": issuance_type,
+                "amount": float(amount),
+                "admin_id": ADMIN_ID,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        data[str(user_id)] = record
+
+    await update_json(ISSUANCE_FILE, update_issuance)
 
     type_label = "MINTS" if issuance_type == "mints" else "стиков"
     await query.message.edit_text(
-        f"✅ Выдано **{_format_quantity(float(amount))} {type_label}** пользователю **{user_name}**.\n"
+        f"✅ Выдано **{_format_quantity(float(amount))} {type_label}** пользователю **{user_name_value}**.\n"
         f"Всего выдано: **{_format_quantity(record[field])}**.",
         parse_mode="Markdown",
     )
@@ -280,8 +280,8 @@ async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("issue_user:"):
         user_id = data.split(":", 1)[1]
         users = await load_json(USERS_FILE)
-        user_name = users.get(user_id)
-        if not user_id.isdigit() or not user_name:
+        user_name_value = user_name(users.get(user_id))
+        if not user_id.isdigit() or not user_name_value:
             await query.message.edit_text("❌ Пользователь не найден.")
             return ISSUANCE_USER
 
@@ -289,7 +289,7 @@ async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         issuance_type = context.user_data.get("issuance_type")
         type_label = "MINTS" if issuance_type == "mints" else "стиков"
         await query.message.edit_text(
-            f"👤 Пользователь: **{user_name}**\n\nВведите количество {type_label} для выдачи:",
+            f"👤 Пользователь: **{user_name_value}**\n\nВведите количество {type_label} для выдачи:",
             parse_mode="Markdown",
         )
         await context.bot.send_message(
@@ -321,8 +321,8 @@ async def process_issuance_amount(update: Update, context: ContextTypes.DEFAULT_
     user_id = context.user_data.get("issuance_user_id")
     issuance_type = context.user_data.get("issuance_type")
     users = await load_json(USERS_FILE)
-    user_name = users.get(user_id)
-    if not user_id or not issuance_type or not user_name:
+    user_name_value = user_name(users.get(user_id))
+    if not user_id or not issuance_type or not user_name_value:
         await update.message.reply_text("❌ Сессия выдачи устарела. Начните выдачу заново.", reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True))
         return ConversationHandler.END
 
@@ -330,7 +330,7 @@ async def process_issuance_amount(update: Update, context: ContextTypes.DEFAULT_
     context.user_data["issuance_amount"] = amount
     await update.message.reply_text(
         f"🔎 **Проверьте выдачу**\n\n"
-        f"Пользователь: **{user_name}**\n"
+        f"Пользователь: **{user_name_value}**\n"
         f"Тип: **{type_label}**\n"
         f"Количество: **{_format_quantity(amount)}**\n\n"
         "Нажмите «Выдать» для записи операции или измените пользователя.",
