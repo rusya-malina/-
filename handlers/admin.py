@@ -5,6 +5,7 @@ from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard, ge
 from services import _normalize_person_name, notify_user_bot_stopped
 from organization import is_admin_mode
 from roles import get_user_group
+from handlers.requests import process_registration_approval, requests_callback, show_requests_menu, _show_requests_after_callback
 
 
 def _pending_request_name(raw_request) -> str:
@@ -158,42 +159,16 @@ async def show_registered_users(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def show_pending_requests_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin_mode(update.effective_user.id, context):
-        await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
-        return ConversationHandler.END
-
-    pending = await load_pending()
-    if not pending:
-        await update.message.reply_text(
-            "📂 **Новых заявок на вступление нет.** Все заявки обработаны.",
-            reply_markup=get_extra_keyboard(),
-            parse_mode="Markdown",
-        )
-        return EXTRA_MENU_STATE
-
-    inline_keyboard = []
-    for uid, raw_request in pending.items():
-        name = _pending_request_name(raw_request)
-        inline_keyboard.append([InlineKeyboardButton(f"✅ Одобрить: {name}", callback_data=f"pend_accept:{uid}")])
-    
-    inline_keyboard.append([InlineKeyboardButton("🔥 Одобрить всех", callback_data="pend_accept_all")])
-    inline_keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="pend_back")])
-
-    await update.message.reply_text(
-        f"📥 **Список активных заявок ({len(pending)}):**\n\n"
-        "Нажмите на имя сотрудника для одобрения или выберите кнопку «Одобрить всех».",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard),
-        parse_mode="Markdown",
-    )
-    return PENDING_REQUESTS_STATE
+    """Legacy alias: экран заявок всегда строится единым inbox-обработчиком."""
+    return await show_requests_menu(update, context)
 
 
 async def pending_requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Совместимость со старыми кнопками через единый inbox-обработчик."""
     query = update.callback_query
-    await query.answer()
     data = query.data
-
     if data == "pend_back":
+        await query.answer()
         await query.message.delete()
         await context.bot.send_message(
             chat_id=query.message.chat_id,
@@ -202,132 +177,50 @@ async def pending_requests_callback(update: Update, context: ContextTypes.DEFAUL
         )
         return EXTRA_MENU_STATE
 
+    await query.answer()
     pending = await load_pending()
-
     if data == "pend_accept_all":
-        if not pending:
-            await query.message.edit_text("⚠️ Список заявок пуст.")
-            return EXTRA_MENU_STATE
-
-        users = await load_json(USERS_FILE)
-        groups = await load_json(GROUPS_FILE)
         approved_count = 0
-
-        for uid_str, raw_request in list(pending.items()):
-            target_id = int(uid_str)
-            request = raw_request if isinstance(raw_request, dict) else {"name": str(raw_request)}
-            full_name = str(request.get("name") or "Пользователь")
-            selected_group = request.get("group")
-            existing_group = groups.get(uid_str, {})
-            if not selected_group and isinstance(existing_group, dict):
-                selected_group = existing_group.get("group")
-            users[uid_str] = full_name
-            if selected_group:
-                groups[uid_str] = {
-                    "name": full_name,
-                    "group": selected_group,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
+        for uid_str in list(pending):
+            result = await process_registration_approval(uid_str, accepted=True)
+            if result is None:
+                continue
             approved_count += 1
             try:
                 await context.bot.send_message(
-                    chat_id=target_id,
-                    text=(
-                        f"🎉 **Ваша заявка одобрена!**\n\nДобро пожаловать, {full_name}!"
-                        + (f"\nГруппа: **{selected_group}**" if selected_group else "")
-                    ),
-                    reply_markup=get_main_keyboard(target_id, selected_group),
-                    parse_mode="Markdown",
+                    chat_id=int(uid_str),
+                    text=result["user_text"],
+                    reply_markup=get_main_keyboard(int(uid_str), result["group"]),
                 )
-            except Exception as e:
-                logging.error(f"Не удалось уведомить пользователя {target_id}: {e}")
-
-        await save_json(users, USERS_FILE)
-        await save_json(groups, GROUPS_FILE)
-        await save_pending({})
-
-        await query.message.edit_text(
-            f"✅ **Все заявки ({approved_count} шт.) успешно одобрены!**",
-            parse_mode="Markdown",
+            except Exception as error:
+                logging.warning("Не удалось уведомить пользователя %s: %s", uid_str, error)
+        return await _show_requests_after_callback(
+            query,
+            context,
+            f"✅ Одобрено заявок: {approved_count}.",
         )
-        await context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text="⚙️ Раздел «Дополнительно»:",
-            reply_markup=get_extra_keyboard(),
-        )
-        return EXTRA_MENU_STATE
 
     if data.startswith("pend_accept:"):
         _, uid_str = data.split(":", 1)
-        if uid_str not in pending:
-            await query.answer("Эта заявка уже была обработана или удалена.", show_alert=True)
-            return PENDING_REQUESTS_STATE
-
-        raw_request = pending[uid_str]
-        request = raw_request if isinstance(raw_request, dict) else {"name": str(raw_request)}
-        full_name = str(request.get("name") or "Пользователь")
-        target_id = int(uid_str)
-        selected_group = request.get("group")
-
-        users = await load_json(USERS_FILE)
-        users[uid_str] = full_name
-        await save_json(users, USERS_FILE)
-
-        groups = await load_json(GROUPS_FILE)
-        existing_group = groups.get(uid_str, {})
-        if not selected_group and isinstance(existing_group, dict):
-            selected_group = existing_group.get("group")
-        if selected_group:
-            groups[uid_str] = {
-                "name": full_name,
-                "group": selected_group,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-            await save_json(groups, GROUPS_FILE)
-
-        del pending[uid_str]
-        await save_pending(pending)
-
+        result = await process_registration_approval(uid_str, accepted=True)
+        if result is None:
+            await query.answer("Эта заявка уже обработана или удалена.", show_alert=True)
+            return await _show_requests_after_callback(query, context)
         try:
             await context.bot.send_message(
-                chat_id=target_id,
-                text=(
-                    f"🎉 **Ваша заявка одобрена!**\n\nДобро пожаловать, {full_name}!"
-                    + (f"\nГруппа: **{selected_group}**" if selected_group else "")
-                ),
-                reply_markup=get_main_keyboard(target_id, selected_group),
-                parse_mode="Markdown",
+                chat_id=int(uid_str),
+                text=result["user_text"],
+                reply_markup=get_main_keyboard(int(uid_str), result["group"]),
             )
-        except Exception as e:
-            logging.error(f"Не удалось уведомить пользователя {target_id}: {e}")
+        except Exception as error:
+            logging.warning("Не удалось уведомить пользователя %s: %s", uid_str, error)
+        return await _show_requests_after_callback(
+            query,
+            context,
+            f"✅ Заявка пользователя *{result['name']}* одобрена.",
+        )
 
-        if not pending:
-            await query.message.edit_text(
-                f"✅ Заявка пользователя *{full_name}* одобрена. Больше активных заявок нет.",
-                parse_mode="Markdown",
-            )
-            await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text="⚙️ Раздел «Дополнительно»:",
-                reply_markup=get_extra_keyboard(),
-            )
-            return EXTRA_MENU_STATE
-        else:
-            inline_keyboard = []
-            for uid, raw_request in pending.items():
-                name = _pending_request_name(raw_request)
-                inline_keyboard.append([InlineKeyboardButton(f"✅ Одобрить: {name}", callback_data=f"pend_accept:{uid}")])
-            inline_keyboard.append([InlineKeyboardButton("🔥 Одобрить всех", callback_data="pend_accept_all")])
-            inline_keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="pend_back")])
-
-            await query.message.edit_text(
-                f"📥 **Список активных заявок ({len(pending)}):**\n\n"
-                f"✅ Последняя одобренная: *{full_name}*\n"
-                "Выберите следующую заявку:",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard),
-                parse_mode="Markdown",
-            )
-            return PENDING_REQUESTS_STATE
+    return PENDING_REQUESTS_STATE
 
 
 async def request_user_number_to_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -409,71 +302,14 @@ async def process_delete_user_by_number(update: Update, context: ContextTypes.DE
 
 
 async def admin_moderation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обрабатывает старые adm_* кнопки через тот же canonical req_* поток."""
     query = update.callback_query
-    await query.answer()
-    if not is_admin_mode(query.from_user.id, context):
-        await query.answer("⛔️ Нет доступа.", show_alert=True)
-        return
-
     action, target_id_str = query.data.split(":", 1)
-    target_id = int(target_id_str)
-    pending = await load_pending()
-    request = pending.get(target_id_str)
-    if not request:
-        await query.answer("Заявка уже обработана или устарела.", show_alert=True)
+    if action not in {"adm_accept", "adm_reject"}:
         return
-
-    if isinstance(request, dict):
-        full_name = str(request.get("name", "Пользователь"))
-        group = str(request.get("group", ""))
-    else:
-        full_name = str(request)
-        group = ""
-
-    if action == "adm_accept":
-        users = await load_json(USERS_FILE)
-        users[target_id_str] = full_name
-        await save_json(users, USERS_FILE)
-
-        groups = await load_json(GROUPS_FILE)
-        groups[target_id_str] = {
-            "name": full_name,
-            "group": group,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        await save_json(groups, GROUPS_FILE)
-        pending.pop(target_id_str, None)
-        await save_pending(pending)
-
-        await query.message.edit_text(
-            f"✅ **Заявка одобрена.**\nПользователь *{full_name}* зарегистрирован.\nГруппа: **{group}**",
-            parse_mode="Markdown",
-        )
-        try:
-            await context.bot.send_message(
-                chat_id=target_id,
-                text=f"🎉 **Ваша заявка одобрена!**\n\nДобро пожаловать, {full_name}!\nГруппа: **{group}**",
-                reply_markup=get_main_keyboard(target_id, group),
-                parse_mode="Markdown",
-            )
-        except Exception as e:
-            logging.error(f"Не удалось отправить уведомление пользователю {target_id}: {e}")
-    elif action == "adm_reject":
-        pending.pop(target_id_str, None)
-        await save_pending(pending)
-        groups = await load_json(GROUPS_FILE)
-        groups.pop(target_id_str, None)
-        await save_json(groups, GROUPS_FILE)
-
-        await query.message.edit_text(
-            f"❌ **Заявка отклонена.**\nПользователь *{full_name}* должен выбрать группу заново.",
-            parse_mode="Markdown",
-        )
-        try:
-            await context.bot.send_message(
-                chat_id=target_id,
-                text="❌ Заявка отклонена. Выберите группу заново, чтобы отправить новую заявку:",
-                reply_markup=get_registration_group_keyboard(),
-            )
-        except Exception as e:
-            logging.error(f"Не удалось отправить уведомление об отказе пользователю {target_id}: {e}")
+    original_data = query.data
+    query.data = f"{'req_accept' if action == 'adm_accept' else 'req_reject'}:registration:{target_id_str}"
+    try:
+        return await requests_callback(update, context)
+    finally:
+        query.data = original_data

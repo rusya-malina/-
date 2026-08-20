@@ -23,6 +23,48 @@ def _short_text(value: str, limit: int = 70) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+async def process_registration_approval(user_id: str, accepted: bool) -> dict | None:
+    """Единый read-modify-write для одобрения или отклонения регистрации."""
+    user_id = str(user_id)
+
+    def remove_pending(data):
+        return data.pop(user_id, None)
+
+    removed_request = await update_pending(remove_pending)
+    if removed_request is None:
+        return None
+
+    request = dict(removed_request) if isinstance(removed_request, dict) else {"name": str(removed_request)}
+    name = str(request.get("name") or "Пользователь")
+    group = request.get("group")
+
+    if accepted:
+        users = await load_json(USERS_FILE)
+        users[user_id] = name
+        await save_json(users, USERS_FILE)
+
+        groups = await load_json(GROUPS_FILE)
+        groups[user_id] = {
+            "name": name,
+            "group": group,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await save_json(groups, GROUPS_FILE)
+        user_text = f"🎉 Ваша заявка одобрена!\n\nДобро пожаловать, {name}!\nГруппа: {group}"
+    else:
+        groups = await load_json(GROUPS_FILE)
+        groups.pop(user_id, None)
+        await save_json(groups, GROUPS_FILE)
+        user_text = "❌ Заявка отклонена. Выберите группу заново, чтобы отправить новую заявку."
+
+    return {
+        "request": request,
+        "name": name,
+        "group": group,
+        "user_text": user_text,
+    }
+
+
 async def load_request_inbox() -> list[dict]:
     """Возвращает все активные заявки в едином типизированном формате."""
     inbox: list[dict] = []
@@ -205,30 +247,12 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = _request_name(request)
 
     if kind == "registration":
-        def remove_pending(data):
-            return data.pop(user_id, None)
-
-        removed_request = await update_pending(remove_pending)
-        if removed_request is None:
+        result = await process_registration_approval(user_id, accepted)
+        if result is None:
             return await _show_requests_after_callback(query, context)
-        group = request.get("group")
-        if accepted:
-            users = await load_json(USERS_FILE)
-            users[user_id] = name
-            await save_json(users, USERS_FILE)
-            groups = await load_json(GROUPS_FILE)
-            groups[user_id] = {
-                "name": name,
-                "group": group,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-            await save_json(groups, GROUPS_FILE)
-            user_text = f"🎉 Ваша заявка одобрена!\n\nДобро пожаловать, {name}!\nГруппа: {group}"
-        else:
-            groups = await load_json(GROUPS_FILE)
-            groups.pop(user_id, None)
-            await save_json(groups, GROUPS_FILE)
-            user_text = "❌ Заявка отклонена. Выберите группу заново, чтобы отправить новую заявку."
+        name = result["name"]
+        group = result["group"]
+        user_text = result["user_text"]
 
     elif kind == "team":
         team_requests = await load_json(TEAM_REQUESTS_FILE)
