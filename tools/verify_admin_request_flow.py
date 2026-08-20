@@ -92,7 +92,7 @@ async def verify_registration_accept() -> None:
 async def verify_team_accept() -> None:
     original = {
         'load_json': team_handlers.load_json,
-        'update_many_json': team_handlers.update_many_json,
+        'TeamService': team_handlers.TeamService,
     }
 
     async def load_json(path):
@@ -102,15 +102,17 @@ async def verify_team_accept() -> None:
             return {}
         return {}
 
-    async def update_many_json(filepaths, mutator):
-        files = {
-            TEAM_REQUESTS_FILE: {'100': {'name': 'Тест Пользователь', 'team': 'R LAMP'}},
-            TEAMS_FILE: {},
-        }
-        return mutator(files)
+    class FakeTeamService:
+        @classmethod
+        def from_default_storage(cls):
+            return cls()
+
+        async def accept_request(self, user_id):
+            assert str(user_id) == '100'
+            return SimpleNamespace(ok=True)
 
     team_handlers.load_json = load_json
-    team_handlers.update_many_json = update_many_json
+    team_handlers.TeamService = FakeTeamService
     try:
         query = FakeQuery('team_accept:100')
         context = FakeContext()

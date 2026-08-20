@@ -1,6 +1,7 @@
 """Выбор команды сотрудником и административное подтверждение."""
 from telegram.error import TelegramError
 
+from application.team_service import TeamService
 from bot_context import (
     ContextTypes,
     ConversationHandler,
@@ -16,10 +17,9 @@ from config import (
     KPI_FILE,
     TEAM_OPTIONS,
     TEAM_REQUESTS_FILE,
-    TEAMS_FILE,
     USERS_FILE,
 )
-from data_models import make_team_record, team_request, user_name
+from data_models import team_request, user_name
 from keyboards import get_main_keyboard, get_team_keyboard, get_team_menu_keyboard
 from navigation import main_menu_markup
 from organization import (
@@ -34,7 +34,7 @@ from states import (
     TEAM_MENU_STATE,
     TEAM_SELECTION,
 )
-from storage import load_json, update_json, update_many_json
+from storage import load_json
 
 
 async def _get_team_context(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -199,12 +199,10 @@ async def process_team_selection(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text("⚠️ Пользователь ещё не зарегистрирован.", reply_markup=get_main_keyboard(update.effective_user.id))
         return ConversationHandler.END
 
-    request_record = team_request({"user_id": user_id, "name": user_name_value, "team": selected_team}, user_id=user_id)
-
-    def save_request(data: dict) -> None:
-        data[user_id] = request_record
-
-    await update_json(TEAM_REQUESTS_FILE, save_request)
+    result = await TeamService.from_default_storage().create_request(user_id, user_name_value, selected_team)
+    if not result.ok:
+        await update.message.reply_text("❌ Не удалось сохранить заявку на команду.")
+        return ConversationHandler.END
 
     await update.message.reply_text(
         f"⏳ Заявка на команду **{selected_team}** отправлена администратору.\n"
@@ -258,11 +256,10 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
     selected_team = canonical_request["team"]
     user_name_value = user_name(canonical_request)
     if action == "team_accept":
-        def accept_team(files: dict[str, dict]) -> None:
-            files[TEAMS_FILE][user_id] = make_team_record(user_name_value, selected_team)
-            files[TEAM_REQUESTS_FILE].pop(user_id, None)
-
-        await update_many_json((TEAMS_FILE, TEAM_REQUESTS_FILE), accept_team)
+        result = await TeamService.from_default_storage().accept_request(user_id)
+        if not result.ok:
+            await query.message.edit_text("ℹ️ Запрос уже обработан или устарел.")
+            return ConversationHandler.END
         await query.message.edit_text(
             f"✅ **Команда подтверждена**\n\n{user_name_value} → **{selected_team}**",
             parse_mode="Markdown",
@@ -277,10 +274,10 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
         except TelegramError as error:
             logging.error("Не удалось уведомить пользователя о команде: %s", error)
     elif action == "team_reject":
-        def reject_team(data: dict) -> None:
-            data.pop(user_id, None)
-
-        await update_json(TEAM_REQUESTS_FILE, reject_team)
+        result = await TeamService.from_default_storage().reject_request(user_id)
+        if not result.ok:
+            await query.message.edit_text("ℹ️ Запрос уже обработан или устарел.")
+            return ConversationHandler.END
         await query.message.edit_text(
             f"❌ **Запрос на команду отклонён**\n\n{user_name_value} → **{selected_team}**",
             parse_mode="Markdown",
