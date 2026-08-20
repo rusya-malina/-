@@ -41,20 +41,30 @@ async def test_registration_service_uses_atomic_contract() -> None:
         pending_path = str(base / "pending.json")
         users_path = str(base / "users.json")
         groups_path = str(base / "groups.json")
+        issuance_path = str(base / "issuance.json")
         save_json_sync({"100": registration_request({"name": "Иван Петров", "group": "R LAMP"}, user_id="100")}, pending_path)
-        save_json_sync({}, users_path)
-        save_json_sync({}, groups_path)
+        save_json_sync(
+            {"excel_ivan_petrov": make_user_record("Иван Петров")},
+            users_path,
+        )
+        save_json_sync({"excel_ivan_petrov": make_group_record("Иван Петров", "R LAMP")}, groups_path)
+        save_json_sync({"excel_ivan_petrov": {"mints_issued": 5, "sticks_issued": 2}}, issuance_path)
         service = RegistrationService(
             pending=JsonRepository(pending_path),
             users=JsonRepository(users_path),
             groups=JsonRepository(groups_path),
+            issuance=JsonRepository(issuance_path),
         )
 
         accepted = await service.approve("100", ADMIN_ID)
         assert accepted.ok is True
         assert accepted.code == "accepted"
         assert load_json_sync(users_path)["100"]["name"] == "Иван Петров"
+        assert "excel_ivan_petrov" not in load_json_sync(users_path)
         assert load_json_sync(groups_path)["100"]["group"] == "R LAMP"
+        assert load_json_sync(issuance_path)["100"]["mints_issued"] == 5
+        assert "excel_ivan_petrov" not in load_json_sync(issuance_path)
+        assert accepted.details["migrated_aliases"] == ["excel_ivan_petrov"]
         assert "100" not in load_json_sync(pending_path)
 
         denied = await service.reject("missing", ADMIN_ID)
