@@ -1,33 +1,15 @@
 {
-    "малинин руслан": {
-        "original_name": "Малинин Руслан",
-        "gt_plan": 90.0,
-        "gt_fact": 95.0,
-        "micro_plan": 128.0,
-        "micro_las_fact": 28.0,
-        "micro_lau_fact": 120.0,
-        "retrafic_plan": 15.0,
-        "retrafic_fact": 11.0
-    },
-    "валерия малинина": {
-        "original_name": "Валерия Малинина",
-        "gt_plan": 90.0,
-        "gt_fact": 70.0,
-        "micro_plan": 129.0,
-        "micro_las_fact": 10.0,
-        "micro_lau_fact": 100.0,
-        "retrafic_plan": 16.0,
-        "retrafic_fact": 8.0
-    },
-    "светлана иванова": {
-        "original_name": "Светлана Иванова",
-        "gt_plan": 90.0,
-        "gt_fact": 30.0,
-        "micro_plan": 128.0,
-        "micro_las_fact": 10.0,
-        "micro_lau_fact": 100.0,
-        "retrafic_plan": 15.0,
-        "retrafic_fact": 1.0
+    "богдан танаилов": {
+        "original_name": "Богдан Танаилов",
+        "gt_plan": 1440.0,
+        "gt_fact": 1585.0,
+        "micro_plan": 2048.0,
+        "micro_las_fact": 701.0,
+        "micro_lau_fact": 997.0,
+        "retrafic_plan": 240.0,
+        "retrafic_fact": 150.0,
+        "office_hours": NaN,
+        "field_hours": NaN
     },
     "дмитрий хайдуров": {
         "original_name": "Дмитрий Хайдуров",
@@ -53,6 +35,18 @@
         "office_hours": 0.0,
         "field_hours": 0.0
     },
+    "марго диденко": {
+        "original_name": "Марго Диденко",
+        "gt_plan": 90.0,
+        "gt_fact": 84.0,
+        "micro_plan": 128.0,
+        "micro_las_fact": 51.0,
+        "micro_lau_fact": 73.0,
+        "retrafic_plan": 15.0,
+        "retrafic_fact": 12.0,
+        "office_hours": 9.5,
+        "field_hours": 44.0
+    },
     "владлена попсуйко": {
         "original_name": "Владлена Попсуйко",
         "gt_plan": 90.0,
@@ -77,65 +71,17 @@
         "office_hours": 0.0,
         "field_hours": 26.0
     },
-    "елена синько": {
-        "original_name": "Елена Синько",
+    "барно матякубова": {
+        "original_name": "Барно Матякубова",
         "gt_plan": 90.0,
-        "gt_fact": 156.0,
+        "gt_fact": 95.0,
         "micro_plan": 128.0,
-        "micro_las_fact": 57.0,
-        "micro_lau_fact": 98.0,
+        "micro_las_fact": 47.0,
+        "micro_lau_fact": 47.0,
         "retrafic_plan": 15.0,
-        "retrafic_fact": 14.0,
+        "retrafic_fact": 15.0,
         "office_hours": 7.5,
-        "field_hours": 43.0
-    },
-    "эмиль козлов": {
-        "original_name": "Эмиль Козлов",
-        "gt_plan": 90.0,
-        "gt_fact": 94.0,
-        "micro_plan": 128.0,
-        "micro_las_fact": 31.0,
-        "micro_lau_fact": 65.0,
-        "retrafic_plan": 15.0,
-        "retrafic_fact": 6.0,
-        "office_hours": 2.0,
-        "field_hours": 28.0
-    },
-    "руслан малинин": {
-        "original_name": "Руслан Малинин",
-        "gt_plan": 720.0,
-        "gt_fact": 761.0,
-        "micro_plan": 1024.0,
-        "micro_las_fact": 334.0,
-        "micro_lau_fact": 494.0,
-        "retrafic_plan": 120.0,
-        "retrafic_fact": 68.0,
-        "office_hours": 0.0,
-        "field_hours": 0.0
-    },
-    "алексия ким": {
-        "original_name": "Алексия Ким",
-        "gt_plan": 90.0,
-        "gt_fact": 105.0,
-        "micro_plan": 128.0,
-        "micro_las_fact": 55.0,
-        "micro_lau_fact": 54.0,
-        "retrafic_plan": 15.0,
-        "retrafic_fact": 5.0,
-        "office_hours": 9.0,
-        "field_hours": 37.0
-    },
-    "марго диденко": {
-        "original_name": "Марго Диденко",
-        "gt_plan": 90.0,
-        "gt_fact": 84.0,
-        "micro_plan": 128.0,
-        "micro_las_fact": 51.0,
-        "micro_lau_fact": 73.0,
-        "retrafic_plan": 15.0,
-        "retrafic_fact": 12.0,
-        "office_hours": 9.5,
-        "field_hours": 44.0
+        "field_hours": 35.0
     },
     "даяна кличханова": {
         "original_name": "Даяна Кличханова",
@@ -149,125 +95,29 @@
         "office_hours": 8.5,
         "field_hours": 31.0
     },
-    "барно матякубова": {
-        "original_name": "Барно Матякубова",
+    "эмиль козлов": {
+        "original_name": "Эмиль Козлов",
         "gt_plan": 90.0,
-        "gt_fact": 95.0,
+        "gt_fact": 94.0,
         "micro_plan": 128.0,
-        "micro_las_fact": 47.0,
-        "micro_lau_fact": 47.0,
+        "micro_las_fact": 31.0,
+        "micro_lau_fact": 65.0,
         "retrafic_plan": 15.0,
-        "retrafic_fact": 15.0,
-        "office_hours": 7.5,
-        "field_hours": 35.0
-    },
-    "борухова светлана": {
-        "original_name": "Борухова Светлана",
-        "gt_plan": 90.0,
-        "gt_fact": 144.0,
-        "micro_plan": 128.0,
-        "micro_las_fact": 73.0,
-        "micro_lau_fact": 75.0,
-        "retrafic_plan": 15.0,
-        "retrafic_fact": 13.0,
+        "retrafic_fact": 6.0,
         "office_hours": 2.0,
-        "field_hours": 36.0
+        "field_hours": 28.0
     },
-    "екатерина харчевникова": {
-        "original_name": "Екатерина Харчевникова",
+    "елена синько": {
+        "original_name": "Елена Синько",
         "gt_plan": 90.0,
-        "gt_fact": 85.0,
+        "gt_fact": 156.0,
         "micro_plan": 128.0,
-        "micro_las_fact": 40.0,
-        "micro_lau_fact": 70.0,
+        "micro_las_fact": 57.0,
+        "micro_lau_fact": 98.0,
         "retrafic_plan": 15.0,
-        "retrafic_fact": 2.0,
-        "office_hours": 11.0,
-        "field_hours": 32.0
-    },
-    "анастасия акбарова": {
-        "original_name": "Анастасия Акбарова",
-        "gt_plan": 90.0,
-        "gt_fact": 174.0,
-        "micro_plan": 128.0,
-        "micro_las_fact": 71.0,
-        "micro_lau_fact": 109.0,
-        "retrafic_plan": 15.0,
-        "retrafic_fact": 13.0,
-        "office_hours": 8.0,
-        "field_hours": 39.0
-    },
-    "валентина бузрукова": {
-        "original_name": "Валентина Бузрукова",
-        "gt_plan": 90.0,
-        "gt_fact": 60.0,
-        "micro_plan": 128.0,
-        "micro_las_fact": 16.0,
-        "micro_lau_fact": 58.0,
-        "retrafic_plan": 15.0,
-        "retrafic_fact": 2.0,
-        "office_hours": 8.5,
-        "field_hours": 22.0
-    },
-    "александра умарова": {
-        "original_name": "Александра Умарова",
-        "gt_plan": 90.0,
-        "gt_fact": 86.0,
-        "micro_plan": 128.0,
-        "micro_las_fact": 47.0,
-        "micro_lau_fact": 40.0,
-        "retrafic_plan": 15.0,
-        "retrafic_fact": 17.0,
-        "office_hours": 9.0,
-        "field_hours": 34.0
-    },
-    "диана полищук": {
-        "original_name": "Диана Полищук",
-        "gt_plan": 90.0,
-        "gt_fact": 124.0,
-        "micro_plan": 128.0,
-        "micro_las_fact": 47.0,
-        "micro_lau_fact": 64.0,
-        "retrafic_plan": 15.0,
-        "retrafic_fact": 4.0,
-        "office_hours": 0.0,
-        "field_hours": 29.0
-    },
-    "nan": {
-        "original_name": "nan",
-        "gt_plan": 0.0,
-        "gt_fact": 0.0,
-        "micro_plan": 0.0,
-        "micro_las_fact": 0.0,
-        "micro_lau_fact": 0.0,
-        "retrafic_plan": 0.0,
-        "retrafic_fact": 0.0,
-        "office_hours": 0.0,
-        "field_hours": 0.0
-    },
-    "богдан танаилов": {
-        "original_name": "Богдан Танаилов",
-        "gt_plan": 1440.0,
-        "gt_fact": 1585.0,
-        "micro_plan": 2048.0,
-        "micro_las_fact": 701.0,
-        "micro_lau_fact": 997.0,
-        "retrafic_plan": 240.0,
-        "retrafic_fact": 150.0,
-        "office_hours": NaN,
-        "field_hours": NaN
-    },
-    "лада сорочкина": {
-        "original_name": "Лада Сорочкина",
-        "gt_plan": 90.0,
-        "gt_fact": 65.0,
-        "micro_plan": 128.0,
-        "micro_las_fact": 38.0,
-        "micro_lau_fact": 66.0,
-        "retrafic_plan": 15.0,
-        "retrafic_fact": 7.0,
-        "office_hours": 11.0,
-        "field_hours": 30.5
+        "retrafic_fact": 14.0,
+        "office_hours": 7.5,
+        "field_hours": 43.0
     },
     "светлана борухова": {
         "original_name": "Светлана Борухова",
@@ -281,6 +131,30 @@
         "office_hours": 2.0,
         "field_hours": 36.0
     },
+    "руслан малинин": {
+        "original_name": "Руслан Малинин",
+        "gt_plan": 720.0,
+        "gt_fact": 761.0,
+        "micro_plan": 1024.0,
+        "micro_las_fact": 334.0,
+        "micro_lau_fact": 494.0,
+        "retrafic_plan": 120.0,
+        "retrafic_fact": 68.0,
+        "office_hours": 0.0,
+        "field_hours": 0.0
+    },
+    "александра умарова": {
+        "original_name": "Александра Умарова",
+        "gt_plan": 90.0,
+        "gt_fact": 86.0,
+        "micro_plan": 128.0,
+        "micro_las_fact": 47.0,
+        "micro_lau_fact": 40.0,
+        "retrafic_plan": 15.0,
+        "retrafic_fact": 17.0,
+        "office_hours": 9.0,
+        "field_hours": 34.0
+    },
     "сабина инамова": {
         "original_name": "Сабина Инамова",
         "gt_plan": 90.0,
@@ -292,5 +166,77 @@
         "retrafic_fact": 18.0,
         "office_hours": 2.0,
         "field_hours": 16.0
+    },
+    "екатерина харчевникова": {
+        "original_name": "Екатерина Харчевникова",
+        "gt_plan": 90.0,
+        "gt_fact": 85.0,
+        "micro_plan": 128.0,
+        "micro_las_fact": 40.0,
+        "micro_lau_fact": 70.0,
+        "retrafic_plan": 15.0,
+        "retrafic_fact": 2.0,
+        "office_hours": 11.0,
+        "field_hours": 32.0
+    },
+    "алексия ким": {
+        "original_name": "Алексия Ким",
+        "gt_plan": 90.0,
+        "gt_fact": 105.0,
+        "micro_plan": 128.0,
+        "micro_las_fact": 55.0,
+        "micro_lau_fact": 54.0,
+        "retrafic_plan": 15.0,
+        "retrafic_fact": 5.0,
+        "office_hours": 9.0,
+        "field_hours": 37.0
+    },
+    "лада сорочкина": {
+        "original_name": "Лада Сорочкина",
+        "gt_plan": 90.0,
+        "gt_fact": 65.0,
+        "micro_plan": 128.0,
+        "micro_las_fact": 38.0,
+        "micro_lau_fact": 66.0,
+        "retrafic_plan": 15.0,
+        "retrafic_fact": 7.0,
+        "office_hours": 11.0,
+        "field_hours": 30.5
+    },
+    "валентина бузрукова": {
+        "original_name": "Валентина Бузрукова",
+        "gt_plan": 90.0,
+        "gt_fact": 60.0,
+        "micro_plan": 128.0,
+        "micro_las_fact": 16.0,
+        "micro_lau_fact": 58.0,
+        "retrafic_plan": 15.0,
+        "retrafic_fact": 2.0,
+        "office_hours": 8.5,
+        "field_hours": 22.0
+    },
+    "диана полищук": {
+        "original_name": "Диана Полищук",
+        "gt_plan": 90.0,
+        "gt_fact": 124.0,
+        "micro_plan": 128.0,
+        "micro_las_fact": 47.0,
+        "micro_lau_fact": 64.0,
+        "retrafic_plan": 15.0,
+        "retrafic_fact": 4.0,
+        "office_hours": 0.0,
+        "field_hours": 29.0
+    },
+    "анастасия акбарова": {
+        "original_name": "Анастасия Акбарова",
+        "gt_plan": 90.0,
+        "gt_fact": 174.0,
+        "micro_plan": 128.0,
+        "micro_las_fact": 71.0,
+        "micro_lau_fact": 109.0,
+        "retrafic_plan": 15.0,
+        "retrafic_fact": 13.0,
+        "office_hours": 8.0,
+        "field_hours": 39.0
     }
 }

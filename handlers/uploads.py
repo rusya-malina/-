@@ -84,7 +84,9 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 os.remove(file_path)
             return UPLOAD_EXCEL
 
-        kpi_data = await load_json(KPI_FILE)
+        # Последний корректный Excel является полной заменой KPI-снимка.
+        # Старые сотрудники, которых нет в новом файле, удаляются из KPI-отчётов.
+        kpi_data = {}
         users_data = await load_json(USERS_FILE)
         existing_user_names = {_normalize_person_name(v) for v in users_data.values()}
         updated_names = []
