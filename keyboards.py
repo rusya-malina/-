@@ -35,14 +35,13 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
         keyboard = [["Моя команда"], ["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
         if group in GROUPS_WITH_BALANCES:
             keyboard.append(["Остатки"])
-        keyboard.append(["📝 Оставить заявку"])
     elif group in GROUPS_WITH_HOURS or group in GROUPS_WITH_BALANCES:
-        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["Остатки"], ["📝 Оставить заявку"]]
+        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["Остатки"]]
     elif group in TEAM_OPTIONS:
-        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["📝 Оставить заявку"]]
+        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
     else:
         # Legacy users may predate group registration; keep them active without re-registration.
-        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["📝 Оставить заявку"]]
+        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 

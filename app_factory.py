@@ -48,10 +48,8 @@ from handlers.kpi import (
     show_balances,
 )
 from handlers.requests import (
-    process_user_request,
     requests_callback,
     show_requests_menu,
-    start_user_request,
 )
 from handlers.teams import (
     open_my_team_menu,
@@ -112,7 +110,6 @@ from states import (
     TEAM_MENU_STATE,
     TEAM_SELECTION,
     UPLOAD_EXCEL,
-    USER_REQUEST,
 )
 
 
@@ -135,7 +132,6 @@ def build_application(token: str) -> Application:
             MessageHandler(filters.Regex(r"^📢 Рассылка$"), start_broadcast),
             MessageHandler(filters.Regex(r"^Загрузить данные$"), open_kpi_admin_menu),
             MessageHandler(filters.Regex(r"^⚙️ Дополнительно$"), open_extra_menu),
-            MessageHandler(filters.Regex(r"^📝 Оставить заявку$"), start_user_request),
         ],
         states={
             REG_GROUP: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, reg_get_group)],
@@ -186,7 +182,6 @@ def build_application(token: str) -> Application:
                 MessageHandler(filters.Regex(r"^📦 Остатки команды$"), show_team_balances),
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             ],
-            USER_REQUEST: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, process_user_request)],
             ISSUANCE_MENU: [MessageHandler(filters.Regex(r"^(MINTS|Стики|📥 Загрузить выдачи \(Excel\)|📊 Выгрузка статистики)$"), issuance_menu_message), MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action)],
             ISSUANCE_EXCEL_UPLOAD: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.Document.ALL, process_issuance_excel_file)],
             ISSUANCE_USER: [CallbackQueryHandler(issuance_callback, pattern=r"^(issue_(type|user):|issue_cancel)$")],

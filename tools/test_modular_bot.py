@@ -85,13 +85,14 @@ def main() -> None:
     assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки"}.issubset(coor_buttons)
     assert {"Новый расчет", "Мой KPI", "Справочник KPI"}.issubset(spv_buttons)
     assert "Остатки" not in spv_buttons
+    assert "📝 Оставить заявку" not in r_lamp_buttons | coor_buttons | spv_buttons
     assert "R LAMP" in TEAM_OPTIONS
     assert "К LAMP" not in TEAM_OPTIONS
     assert get_issuance_confirmation_markup().inline_keyboard
-    request_markup = build_requests_markup([{"id": "team:1", "kind": "team", "user_id": "1", "name": "Тест", "team": "R LAMP", "text": "Проверка"}])
+    request_markup = build_requests_markup([{"id": "registration:1", "kind": "registration", "user_id": "1", "name": "Тест", "group": "R LAMP", "text": "Проверка"}])
     callback_values = [button.callback_data for row in request_markup.inline_keyboard for button in row]
-    assert "req_accept:team:1" in callback_values
-    assert "req_reject:team:1" in callback_values
+    assert "req_accept:registration:1" in callback_values
+    assert "req_reject:registration:1" in callback_values
     matched_ids = find_telegram_user_ids_by_name(
         {"100": "Анна Петрова", "excel_anna_petrova": "Анна Петрова", "101": "Иван Сидоров"},
         "  Анна   Петрова ",

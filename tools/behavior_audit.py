@@ -19,31 +19,21 @@ import storage
 
 async def test_request_inbox() -> None:
     original_load_pending = request_handlers.load_pending
-    original_load_json = request_handlers.load_json
 
     async def fake_load_pending():
         return {"1": "Иван Иванов"}
 
-    async def fake_load_json(path):
-        if path == request_handlers.TEAM_REQUESTS_FILE:
-            return {"2": {"name": "Пётр Петров", "team": "R LAMP", "created_at": "2026-01-01T00:00:00+00:00"}}
-        if path == request_handlers.USER_REQUESTS_FILE:
-            return {"custom-1": {"user_id": "3", "name": "Анна", "text": "Нужна справка", "created_at": "2026-01-02T00:00:00+00:00"}}
-        return {}
-
     request_handlers.load_pending = fake_load_pending
-    request_handlers.load_json = fake_load_json
     try:
         inbox = await request_handlers.load_request_inbox()
-        assert [item["kind"] for item in inbox] == ["registration", "team", "user"]
+        assert [item["kind"] for item in inbox] == ["registration"]
         markup = request_handlers.build_requests_markup(inbox)
         callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
         assert "req_accept:registration:1" in callbacks
-        assert "req_accept:team:2" in callbacks
-        assert "req_accept:user:custom-1" in callbacks
+        assert "req_accept:team:2" not in callbacks
+        assert "req_accept:user:custom-1" not in callbacks
     finally:
         request_handlers.load_pending = original_load_pending
-        request_handlers.load_json = original_load_json
 
 
 async def test_user_list_groups_and_data_sources() -> None:

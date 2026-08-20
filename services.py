@@ -13,8 +13,6 @@ from bot_context import (
 )
 from config import (
     ADMIN_ID,
-    TEAM_REQUESTS_FILE,
-    USER_REQUESTS_FILE,
     USERS_FILE,
 )
 from storage import load_json, load_pending
@@ -22,9 +20,7 @@ from storage import load_json, load_pending
 
 async def check_pending_requests_job(context: ContextTypes.DEFAULT_TYPE):
     pending = await load_pending()
-    team_requests = await load_json(TEAM_REQUESTS_FILE)
-    user_requests = await load_json(USER_REQUESTS_FILE)
-    count = len(pending) + len(team_requests) + len(user_requests)
+    count = len(pending)
     if not count:
         return
 

@@ -89,7 +89,7 @@ def main() -> None:
     checks = {
         "R LAMP present": "R LAMP" in text,
         "old team label absent outside migration/test": "К LAMP" not in text.replace('record.get("team") == "К LAMP"', "").replace('assert "К LAMP" not in TEAM_OPTIONS', ""),
-        "new requests button present": "📝 Оставить заявку" in text,
+        "user request button absent": "📝 Оставить заявку" not in text,
         "new admin requests button present": "📥 Заявки" in text,
         "requests callback present": "requests_callback" in text,
         "upload module present": (ROOT / "handlers/uploads.py").exists(),

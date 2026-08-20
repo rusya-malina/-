@@ -49,7 +49,6 @@ async def verify_registration_accept() -> None:
     original = {
         'load_request_inbox': request_handlers.load_request_inbox,
         'update_many_json': request_handlers.update_many_json,
-        'load_json': request_handlers.load_json,
     }
     request_handlers.load_request_inbox = AsyncMock(return_value=[{
         'id': 'registration:100',
@@ -70,14 +69,6 @@ async def verify_registration_accept() -> None:
 
     request_handlers.update_many_json = update_many_json
 
-    async def load_json(path):
-        if path == request_handlers.USERS_FILE:
-            return {'100': 'Тест Пользователь'}
-        if path == request_handlers.GROUPS_FILE:
-            return {}
-        return {}
-
-    request_handlers.load_json = load_json
     try:
         query = FakeQuery('req_accept:registration:100')
         context = FakeContext()

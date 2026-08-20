@@ -7,30 +7,21 @@ from bot_context import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Update,
-    datetime,
     logging,
-    timezone,
 )
 from config import (
     ADMIN_ID,
     GROUPS_FILE,
     PENDING_FILE,
-    TEAM_REQUESTS_FILE,
-    TEAMS_FILE,
-    USER_REQUESTS_FILE,
     USERS_FILE,
 )
 from data_models import (
     make_group_record,
-    make_team_record,
     make_user_record,
     registration_request,
-    team_request,
     user_name,
-    user_request,
 )
 from keyboards import (
-    cancel_keyboard,
     get_extra_keyboard,
     get_main_keyboard,
     get_registration_group_keyboard,
@@ -39,9 +30,8 @@ from organization import is_admin_mode
 from states import (
     EXTRA_MENU_STATE,
     PENDING_REQUESTS_STATE,
-    USER_REQUEST,
 )
-from storage import load_json, load_pending, update_json, update_many_json
+from storage import load_pending, update_many_json
 
 
 def _request_title(request: dict) -> str:
@@ -106,23 +96,6 @@ async def load_request_inbox() -> list[dict]:
                 "created_at": request.get("created_at", ""),
             }
         )
-
-    team_requests = await load_json(TEAM_REQUESTS_FILE)
-    for user_id, raw_request in team_requests.items():
-        request = team_request(raw_request, user_id=user_id)
-        request.update(
-            {
-                "id": f"team:{user_id}",
-                "text": f"Выбранная команда: {request.get('team', '—')}.",
-            }
-        )
-        inbox.append(request)
-
-    user_requests = await load_json(USER_REQUESTS_FILE)
-    for request_id, raw_request in user_requests.items():
-        request = user_request(raw_request, user_id=raw_request.get("user_id") if isinstance(raw_request, dict) else None)
-        request.update({"id": f"user:{request_id}"})
-        inbox.append(request)
 
     inbox.sort(key=lambda item: item.get("created_at", ""))
     return inbox
@@ -255,33 +228,14 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     accepted = action == "req_accept"
     kind = request["kind"]
     user_id = str(request.get("user_id", ""))
-    name = _request_name(request)
-
     if kind == "registration":
         result = await process_registration_approval(user_id, accepted)
         if result is None:
             return await _show_requests_after_callback(query, context)
-        name = result["name"]
         user_text = result["user_text"]
 
-    elif kind == "team":
-        team = request.get("team", "—")
-
-        def resolve_team(files: dict[str, dict]) -> None:
-            files[TEAM_REQUESTS_FILE].pop(user_id, None)
-            if accepted:
-                files[TEAMS_FILE][user_id] = make_team_record(name, team)
-
-        await update_many_json((TEAM_REQUESTS_FILE, TEAMS_FILE), resolve_team)
-        user_text = f"✅ Администратор подтвердил вашу команду: {team}." if accepted else f"❌ Запрос на команду {team} отклонён администратором."
     else:
-        request_id = raw_id.removeprefix("user:")
-
-        def resolve_user_request(data: dict) -> None:
-            data.pop(request_id, None)
-
-        await update_json(USER_REQUESTS_FILE, resolve_user_request)
-        user_text = "✅ Ваша заявка рассмотрена администратором." if accepted else "❌ Ваша заявка отклонена администратором."
+        return await _show_requests_after_callback(query, context, "⚠️ Этот тип заявки больше не поддерживается.")
 
     if user_id.isdigit():
         try:
@@ -299,54 +253,3 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     result = "✅ Заявка принята." if accepted else "❌ Заявка отклонена."
     return await _show_admin_main_menu_after_callback(query, context, result)
-
-
-async def start_user_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📝 Опишите вашу заявку одним сообщением.\n\n"
-        "Её получит администратор и рассмотрит в разделе «📥 Заявки».",
-        reply_markup=cancel_keyboard,
-    )
-    return USER_REQUEST
-
-
-async def process_user_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (update.message.text or "").strip()
-    if len(text) < 3:
-        await update.message.reply_text("⚠️ Напишите заявку подробнее, минимум 3 символа.", reply_markup=cancel_keyboard)
-        return USER_REQUEST
-
-    user_id = str(update.effective_user.id)
-    users = await load_json(USERS_FILE)
-    name = user_name(users.get(user_id), update.effective_user.full_name or user_id)
-    request_id = f"{user_id}_{int(datetime.now(timezone.utc).timestamp())}"
-    request_record = user_request({"user_id": user_id, "name": name, "text": text}, user_id=user_id)
-
-    def add_request(data: dict) -> None:
-        data[request_id] = request_record
-
-    await update_json(USER_REQUESTS_FILE, add_request)
-
-    await update.message.reply_text(
-        "✅ Ваша заявка отправлена администратору.",
-        reply_markup=get_main_keyboard(update.effective_user.id),
-    )
-    try:
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=(
-                "🔔 Новая пользовательская заявка\n\n"
-                f"👤 Пользователь: {name}\n"
-                f"🆔 Telegram ID: {user_id}\n\n"
-                f"📝 {text}"
-            ),
-                reply_markup=InlineKeyboardMarkup(
-                [[
-                    InlineKeyboardButton("✅ Принять", callback_data=f"req_accept:user:{request_id}"),
-                    InlineKeyboardButton("❌ Отклонить", callback_data=f"req_reject:user:{request_id}"),
-                ]]
-            ),
-        )
-    except TelegramError as error:
-        logging.error("Не удалось отправить пользовательскую заявку админу: %s", error)
-    return ConversationHandler.END
