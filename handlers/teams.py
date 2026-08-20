@@ -2,7 +2,7 @@
 from bot_context import *
 from storage import load_json, save_json
 from keyboards import cancel_keyboard, get_main_keyboard, get_team_keyboard, get_team_menu_keyboard
-from organization import get_visible_users, is_admin_mode, is_management_group
+from organization import get_visible_users, is_admin_mode, is_management_group, merge_employee_issuance
 from roles import get_user_group
 from services import _format_quantity, calculate_balances, _normalize_person_name
 
@@ -30,6 +30,8 @@ async def _get_team_context(update: Update, context: ContextTypes.DEFAULT_TYPE):
         groups,
         admin_mode=admin_mode,
         exclude_user_id=user_id,
+        kpi_data=kpi_data,
+        issuance_data=issuance_data,
     )
     return user_id, group, visible_users, kpi_data, issuance_data
 
@@ -75,7 +77,7 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
             lines.append("_Нет зарегистрированных пользователей._\n")
             continue
         for index, person in enumerate(section_users, start=1):
-            kpi = kpi_data.get(_normalize_person_name(person["name"]), {})
+            kpi = kpi_data.get(person.get("name_key") or _normalize_person_name(person["name"]), {})
             gt_plan = float(kpi.get("gt_plan", 0) or 0)
             gt_fact = float(kpi.get("gt_fact", 0) or 0)
             micro_plan = float(kpi.get("micro_plan", 0) or 0)
@@ -117,8 +119,8 @@ async def show_team_balances(update: Update, context: ContextTypes.DEFAULT_TYPE)
             lines.append("_Нет зарегистрированных пользователей._\n")
             continue
         for index, person in enumerate(section_users, start=1):
-            kpi = kpi_data.get(_normalize_person_name(person["name"]), {})
-            balances = calculate_balances(kpi, issuance_data.get(person["user_id"], {}))
+            kpi = kpi_data.get(person.get("name_key") or _normalize_person_name(person["name"]), {})
+            balances = calculate_balances(kpi, merge_employee_issuance(person, issuance_data))
             lines.append(
                 f"{index}. *{person['name']}* — {person['group']}\n"
                 f"   Остаток MINTS: {_format_quantity(balances['mints_balance'])} | "

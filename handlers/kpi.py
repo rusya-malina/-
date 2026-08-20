@@ -17,7 +17,7 @@ from services import (
     notify_user_kpi_updated,
 )
 from roles import get_user_group
-from organization import is_admin_mode
+from organization import is_admin_mode, get_employee_by_id, merge_employee_issuance
 
 
 async def open_kpi_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -488,6 +488,9 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id_num = query.from_user.id
     user_id = str(user_id_num)
     users = await load_json(USERS_FILE)
+    groups = await load_json(GROUPS_FILE)
+    kpi_data = await load_json(KPI_FILE)
+    issuance_data = await load_json(ISSUANCE_FILE)
     group = await get_user_group(user_id_num)
 
     admin_mode = is_admin_mode(user_id_num, context)
@@ -508,9 +511,9 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    user_name = users.get(user_id, "Администратор" if admin_mode else "")
-    lookup_name = user_name.strip().lower()
-    kpi_data = await load_json(KPI_FILE)
+    employee = get_employee_by_id(user_id, users, groups, kpi_data, issuance_data)
+    user_name = employee["name"] if employee else users.get(user_id, "Администратор" if admin_mode else "")
+    lookup_name = employee.get("name_key") if employee else user_name.strip().lower()
 
     if lookup_name not in kpi_data:
         await query.message.edit_text("ℹ️ **Информация по вашим данным не найдена.**", parse_mode="Markdown")
@@ -575,6 +578,9 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     users = await load_json(USERS_FILE)
+    groups = await load_json(GROUPS_FILE)
+    kpi_data = await load_json(KPI_FILE)
+    issuance_data = await load_json(ISSUANCE_FILE)
     group = await get_user_group(user_id)
     admin_mode = is_admin_mode(update.effective_user.id, context)
     if user_id not in users and not admin_mode:
@@ -584,12 +590,11 @@ async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Остатки недоступны для вашей группы.")
         return
 
-    user_name = users.get(user_id, "Администратор")
-    lookup_name = user_name.strip().lower()
-    kpi_data = await load_json(KPI_FILE)
+    employee = get_employee_by_id(user_id, users, groups, kpi_data, issuance_data)
+    user_name = employee["name"] if employee else users.get(user_id, "Администратор")
+    lookup_name = employee.get("name_key") if employee else user_name.strip().lower()
     user_kpi = kpi_data.get(lookup_name, {})
-    issuance_data = await load_json(ISSUANCE_FILE)
-    issued = issuance_data.get(user_id, {})
+    issued = merge_employee_issuance(employee, issuance_data)
 
     balances = calculate_balances(user_kpi, issued)
     mints_issued = balances["mints_issued"]
