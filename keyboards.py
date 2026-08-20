@@ -7,7 +7,8 @@ from bot_context import (
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
 )
-from organization import is_admin_mode, is_management_group
+from organization import is_management_group
+from permissions import is_admin_mode
 from roles import get_user_group_sync
 
 

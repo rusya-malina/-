@@ -8,6 +8,7 @@
 | `states.py` | Все состояния ConversationHandler без бизнес-логики. |
 | `data_models.py` | Canonical schema v1, constructors и backward-compatible readers для users, groups, заявок, teams и issuance. |
 | `errors.py` | Typed `StorageError`, `DataValidationError` и `ExternalServiceError` для единых error boundaries. |
+| `permissions.py` | Единый слой разрешений: ADMIN_ID, режимы `admin`/`coor`, Permission enum и безопасные параметры главного меню. |
 | `bot_context.py` | Только обратная совместимость для старых тестов и модулей; новый production-код использует явные импорты. |
 | `storage.py` | Асинхронное чтение, атомарная запись JSON-файлов, single-file и multi-file lock операции, планы и pending-заявки. |
 | `keyboards.py` | Reply-клавиатуры и callback-разметка меню, включая подтверждение выдачи. |
@@ -36,7 +37,7 @@
 
 ## Проверки
 
-Перед публикацией выполняются компиляция всех `.py`-файлов, Ruff с единым `ruff.toml`, архитектурный contract-тест, миграционный тест схем, typed storage error test, импорт всех модулей, создание Telegram Application с тестовым токеном, проверки клавиатур, расчёта остатков, регистрации, единого реестра сотрудников, конкурентного хранилища, наличия обоих Excel-обработчиков и поведенческие аудиты. Эти же проверки запускаются в `.github/workflows/quality.yml` на push и pull request.
+Перед публикацией выполняются компиляция всех `.py`-файлов, Ruff с единым `ruff.toml`, архитектурный contract-тест, permission layer test, миграционный тест схем, typed storage error test, импорт всех модулей, создание Telegram Application с тестовым токеном, проверки клавиатур, расчёта остатков, регистрации, единого реестра сотрудников, конкурентного хранилища, наличия обоих Excel-обработчиков и поведенческие аудиты. Эти же проверки запускаются в `.github/workflows/quality.yml` на push и pull request.
 
 Одобрение регистрации использует `storage.update_many_json()` с упорядоченной блокировкой файлов `pending_requests.json`, `users.json` и `groups.json`; это предотвращает параллельные обработчики, которые видят разные версии одной заявки. Для одиночных хранилищ используется `update_json()`, а синхронное чтение клавиатур и startup-миграций проходит через `load_json_sync()`. При старте `migrate_json_schemas()` переводит legacy-значения в schema v1, сохраняя совместимые readers для уже существующих тестовых и внешних snapshots.
 

@@ -26,7 +26,7 @@ from keyboards import (
     get_main_keyboard,
     get_registration_group_keyboard,
 )
-from organization import is_admin_mode
+from permissions import Permission, has_permission
 from states import (
     EXTRA_MENU_STATE,
     PENDING_REQUESTS_STATE,
@@ -123,7 +123,7 @@ def build_requests_markup(inbox: list[dict]) -> InlineKeyboardMarkup:
 
 
 async def show_requests_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin_mode(update.effective_user.id, context):
+    if not has_permission(update.effective_user.id, context, Permission.REGISTRATION_REQUESTS):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -185,7 +185,7 @@ async def _show_requests_after_callback(query, context: ContextTypes.DEFAULT_TYP
 
 async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    if not is_admin_mode(query.from_user.id, context):
+    if not has_permission(query.from_user.id, context, Permission.REGISTRATION_REQUESTS):
         await query.answer("⛔️ Нет доступа.", show_alert=True)
         return PENDING_REQUESTS_STATE
     await query.answer()

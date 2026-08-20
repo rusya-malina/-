@@ -11,7 +11,7 @@ from config import (
     USERS_FILE,
 )
 from keyboards import cancel_keyboard, get_main_keyboard
-from organization import is_admin_mode
+from permissions import Permission, has_permission
 from states import (
     BROADCAST,
 )
@@ -19,7 +19,7 @@ from storage import load_json
 
 
 async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin_mode(update.effective_user.id, context):
+    if not has_permission(update.effective_user.id, context, Permission.BROADCAST):
         await update.message.reply_text("⛔️ У вас нет доступа.")
         return ConversationHandler.END
 

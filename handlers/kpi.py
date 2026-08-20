@@ -22,7 +22,8 @@ from config import (
 )
 from data_models import user_name
 from keyboards import cancel_keyboard, get_data_keyboard, get_main_keyboard
-from organization import get_employee_by_id, is_admin_mode, merge_employee_issuance
+from organization import get_employee_by_id, merge_employee_issuance
+from permissions import Permission, has_permission, is_admin_mode
 from roles import get_user_group
 from services import (
     _format_quantity,
@@ -50,7 +51,7 @@ from storage import get_default_plans, load_json, update_json, update_many_json
 
 
 async def open_kpi_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin_mode(update.effective_user.id, context):
+    if not has_permission(update.effective_user.id, context, Permission.KPI_MANAGEMENT):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 

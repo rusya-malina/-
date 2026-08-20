@@ -23,7 +23,7 @@ from keyboards import (
     get_main_keyboard,
     get_registration_group_keyboard,
 )
-from organization import is_admin_mode
+from permissions import is_admin_mode
 from roles import get_user_group
 from states import (
     CHANGE_LAST_NAME,
@@ -44,7 +44,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if user_id_num == ADMIN_ID:
         context.user_data["name"] = user_name(users.get(user_id), "Руслан Малинин")
-        admin_mode = bool(context.user_data.get("admin_mode"))
+        admin_mode = is_admin_mode(update.effective_user.id, context)
         group = await get_user_group(user_id_num) or "coor R"
         await update.message.reply_text(
             "👋 Вы вошли в режиме администратора." if admin_mode else "👋 Вы вошли в режиме coor R.",
@@ -87,7 +87,7 @@ async def reg_get_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_keyboard(
                 ADMIN_ID,
                 group=await get_user_group(ADMIN_ID) or "coor R",
-                admin_mode=bool(context.user_data.get("admin_mode")),
+                admin_mode=is_admin_mode(update.effective_user.id, context),
             ),
         )
         return ConversationHandler.END
@@ -116,7 +116,7 @@ async def reg_get_first_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
             reply_markup=get_main_keyboard(
                 ADMIN_ID,
                 group=await get_user_group(ADMIN_ID) or "coor R",
-                admin_mode=bool(context.user_data.get("admin_mode")),
+                admin_mode=is_admin_mode(update.effective_user.id, context),
             ),
         )
         return ConversationHandler.END
@@ -142,7 +142,7 @@ async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_keyboard(
                 ADMIN_ID,
                 group=await get_user_group(ADMIN_ID) or "coor R",
-                admin_mode=bool(context.user_data.get("admin_mode")),
+                admin_mode=is_admin_mode(update.effective_user.id, context),
             ),
         )
         return ConversationHandler.END

@@ -27,10 +27,10 @@ from keyboards import (
 )
 from organization import (
     get_visible_users,
-    is_admin_mode,
     is_management_group,
     merge_employee_issuance,
 )
+from permissions import Permission, has_permission, is_admin_mode
 from roles import get_user_group
 from services import _format_quantity, _normalize_person_name, calculate_balances
 from states import (
@@ -241,7 +241,7 @@ async def process_team_selection(update: Update, context: ContextTypes.DEFAULT_T
 async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    if not is_admin_mode(query.from_user.id, context):
+    if not has_permission(query.from_user.id, context, Permission.TEAM_APPROVAL):
         await query.message.edit_text("⛔️ У вас нет доступа к этому запросу.")
         return ConversationHandler.END
 

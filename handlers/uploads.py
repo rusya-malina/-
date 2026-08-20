@@ -26,7 +26,7 @@ from data_models import make_user_record, normalize_issuance_record, user_name
 from errors import StorageError
 from github_sync import sync_kpi_state
 from keyboards import cancel_keyboard, get_issuance_keyboard, get_main_keyboard
-from organization import is_admin_mode
+from permissions import Permission, has_permission
 from services import (
     _find_column,
     _normalize_person_name,
@@ -42,7 +42,7 @@ from storage import load_json, replace_latest_file, update_many_json
 
 
 async def start_excel_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin_mode(update.effective_user.id, context):
+    if not has_permission(update.effective_user.id, context, Permission.DATA_UPLOAD):
         await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
 
@@ -184,7 +184,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin_mode(update.effective_user.id, context):
+    if not has_permission(update.effective_user.id, context, Permission.DATA_UPLOAD):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 

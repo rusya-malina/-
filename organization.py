@@ -171,10 +171,6 @@ def is_management_group(group: str | None) -> bool:
     return group in MANAGEMENT_GROUPS
 
 
-def is_admin_mode(user_id: int | str, context) -> bool:
-    return str(user_id) == str(ADMIN_ID) and bool(getattr(context, "user_data", {}).get("admin_mode"))
-
-
 def get_visible_users(
     actor_id: int | str,
     users: dict,

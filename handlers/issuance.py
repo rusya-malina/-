@@ -33,7 +33,7 @@ from keyboards import (
     get_issuance_keyboard,
     get_main_keyboard,
 )
-from organization import is_admin_mode
+from permissions import Permission, has_permission
 from services import (
     _format_quantity,
     _normalize_person_name,
@@ -65,7 +65,7 @@ async def _get_issuance_users_markup(context: ContextTypes.DEFAULT_TYPE) -> Inli
 
 
 async def issuance_menu_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin_mode(update.effective_user.id, context):
+    if not has_permission(update.effective_user.id, context, Permission.ISSUANCE):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -91,7 +91,7 @@ async def issuance_menu_message(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def export_issuance_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin_mode(update.effective_user.id, context):
+    if not has_permission(update.effective_user.id, context, Permission.ISSUANCE):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -144,7 +144,7 @@ async def export_issuance_statistics(update: Update, context: ContextTypes.DEFAU
 
 
 async def issuance_type_message(update: Update, context: ContextTypes.DEFAULT_TYPE, issuance_type: str):
-    if not is_admin_mode(update.effective_user.id, context):
+    if not has_permission(update.effective_user.id, context, Permission.ISSUANCE):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -163,7 +163,7 @@ async def issuance_type_message(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def start_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin_mode(update.effective_user.id, context):
+    if not has_permission(update.effective_user.id, context, Permission.ISSUANCE):
         await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
 
@@ -232,7 +232,7 @@ async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    if not is_admin_mode(query.from_user.id, context):
+    if not has_permission(query.from_user.id, context, Permission.ISSUANCE):
         await query.message.edit_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -303,7 +303,7 @@ async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def process_issuance_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin_mode(update.effective_user.id, context):
+    if not has_permission(update.effective_user.id, context, Permission.ISSUANCE):
         await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
 
