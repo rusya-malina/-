@@ -1,6 +1,7 @@
 """Единый inbox заявок пользователей для администратора."""
 from telegram.error import TelegramError
 
+from application.registration_service import RegistrationService
 from bot_context import (
     ContextTypes,
     ConversationHandler,
@@ -9,18 +10,8 @@ from bot_context import (
     Update,
     logging,
 )
-from config import (
-    ADMIN_ID,
-    GROUPS_FILE,
-    PENDING_FILE,
-    USERS_FILE,
-)
-from data_models import (
-    make_group_record,
-    make_user_record,
-    registration_request,
-    user_name,
-)
+from config import ADMIN_ID
+from data_models import registration_request, user_name
 from keyboards import get_extra_keyboard, get_main_keyboard, get_registration_group_keyboard
 from navigation import main_menu_markup
 from permissions import Permission, has_permission
@@ -28,7 +19,7 @@ from states import (
     EXTRA_MENU_STATE,
     PENDING_REQUESTS_STATE,
 )
-from storage import load_pending, update_many_json
+from storage import load_pending
 
 
 def _request_title(request: dict) -> str:
@@ -50,28 +41,31 @@ def _short_text(value: str, limit: int = 70) -> str:
 
 
 async def process_registration_approval(user_id: str, accepted: bool) -> dict | None:
-    """Единая согласованная операция для одобрения или отклонения регистрации."""
+    """Telegram adapter over the application registration service."""
     user_id = str(user_id)
+    pending = await load_pending()
+    raw_request = pending.get(user_id)
+    if raw_request is None:
+        return None
 
-    def mutate(files: dict[str, dict]) -> dict | None:
-        pending = files[PENDING_FILE]
-        removed_request = pending.pop(user_id, None)
-        if removed_request is None:
-            return None
+    request = registration_request(raw_request, user_id=user_id)
+    service = RegistrationService.from_default_storage()
+    operation = (
+        await service.approve(user_id, ADMIN_ID)
+        if accepted
+        else await service.reject(user_id, ADMIN_ID)
+    )
+    if not operation.ok:
+        return None
 
-        request = registration_request(removed_request, user_id=user_id)
-        name = user_name(request, "Пользователь")
-        group = request.get("group")
-        if accepted:
-            files[USERS_FILE][user_id] = make_user_record(name)
-            files[GROUPS_FILE][user_id] = make_group_record(name, group or "")
-            user_text = f"🎉 Ваша заявка одобрена!\n\nДобро пожаловать, {name}!\nГруппа: {group}"
-        else:
-            files[GROUPS_FILE].pop(user_id, None)
-            user_text = "❌ Заявка отклонена. Выберите группу заново, чтобы отправить новую заявку."
-        return {"request": request, "name": name, "group": group, "user_text": user_text}
-
-    return await update_many_json((PENDING_FILE, USERS_FILE, GROUPS_FILE), mutate)
+    name = str(operation.details.get("name") or user_name(request, "Пользователь"))
+    group = operation.details.get("group") or request.get("group")
+    user_text = (
+        f"🎉 Ваша заявка одобрена!\n\nДобро пожаловать, {name}!\nГруппа: {group}"
+        if accepted
+        else "❌ Заявка отклонена. Выберите группу заново, чтобы отправить новую заявку."
+    )
+    return {"request": request, "name": name, "group": group, "user_text": user_text}
 
 
 async def load_request_inbox() -> list[dict]:

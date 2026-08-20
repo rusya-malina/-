@@ -48,7 +48,8 @@ class FakeContext:
 async def verify_registration_accept() -> None:
     original = {
         'load_request_inbox': request_handlers.load_request_inbox,
-        'update_many_json': request_handlers.update_many_json,
+        'load_pending': request_handlers.load_pending,
+        'RegistrationService': request_handlers.RegistrationService,
     }
     request_handlers.load_request_inbox = AsyncMock(return_value=[{
         'id': 'registration:100',
@@ -58,16 +59,17 @@ async def verify_registration_accept() -> None:
         'group': 'A LAMP',
         'text': 'Выбранная группа: A LAMP.',
     }])
-    async def update_many_json(filepaths, mutator):
-        files = {
-            request_handlers.PENDING_FILE: {'100': {'name': 'Тест Пользователь', 'group': 'A LAMP'}},
-            request_handlers.USERS_FILE: {},
-            request_handlers.GROUPS_FILE: {},
-        }
-        result = mutator(files)
-        return result
+    class FakeRegistrationService:
+        @classmethod
+        def from_default_storage(cls):
+            return cls()
 
-    request_handlers.update_many_json = update_many_json
+        async def approve(self, user_id, actor_id):
+            assert str(actor_id) == str(ADMIN_ID)
+            return SimpleNamespace(ok=True, details={'name': 'Тест Пользователь', 'group': 'A LAMP'})
+
+    request_handlers.RegistrationService = FakeRegistrationService
+    request_handlers.load_pending = AsyncMock(return_value={'100': {'name': 'Тест Пользователь', 'group': 'A LAMP'}})
 
     try:
         query = FakeQuery('req_accept:registration:100')

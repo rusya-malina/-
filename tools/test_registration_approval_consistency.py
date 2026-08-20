@@ -1,3 +1,4 @@
+"""Regression test for all registration approval entry points."""
 from __future__ import annotations
 
 import asyncio
@@ -13,6 +14,7 @@ sys.path.insert(0, str(ROOT))
 import handlers.admin as admin_handlers
 import handlers.requests as request_handlers
 from bot_context import ADMIN_ID, ConversationHandler
+from data_models import make_group_record, make_user_record
 
 
 class FakeMessage:
@@ -52,7 +54,8 @@ async def run_consistency_test() -> None:
     }
     original = {
         "request_load_inbox": request_handlers.load_request_inbox,
-        "request_update_many": request_handlers.update_many_json,
+        "request_load_pending": request_handlers.load_pending,
+        "request_service": request_handlers.RegistrationService,
         "admin_load_pending": admin_handlers.load_pending,
         "admin_show_after": admin_handlers._show_requests_after_callback,
     }
@@ -60,17 +63,31 @@ async def run_consistency_test() -> None:
     async def run_scenario(callback_data: str, *, screen_flow: bool = False, direct_flow: bool = False) -> dict:
         saved: dict[str, dict] = {}
 
-        async def fake_update_many(filepaths, mutator):
-            files = {
-                request_handlers.PENDING_FILE: {"100": copy.deepcopy(request)},
-                request_handlers.USERS_FILE: {},
-                request_handlers.GROUPS_FILE: {},
-            }
-            result = mutator(files)
-            saved.update({path: copy.deepcopy(files[path]) for path in files})
-            return result
+        class FakeRegistrationService:
+            @classmethod
+            def from_default_storage(cls):
+                return cls()
 
-        request_handlers.update_many_json = fake_update_many
+            async def approve(self, user_id, actor_id):
+                assert str(actor_id) == str(ADMIN_ID)
+                saved["users"] = {str(user_id): make_user_record(request["name"])}
+                saved["groups"] = {str(user_id): make_group_record(request["name"], request["group"])}
+                return SimpleNamespace(
+                    ok=True,
+                    details={"name": request["name"], "group": request["group"]},
+                )
+
+            async def reject(self, user_id, actor_id):
+                assert str(actor_id) == str(ADMIN_ID)
+                saved["users"] = {}
+                saved["groups"] = {}
+                return SimpleNamespace(
+                    ok=True,
+                    details={"name": request["name"], "group": request["group"]},
+                )
+
+        request_handlers.RegistrationService = FakeRegistrationService
+        request_handlers.load_pending = AsyncMock(return_value={"100": copy.deepcopy(request)})
         if direct_flow:
             request_handlers.load_request_inbox = AsyncMock(return_value=[inbox_item])
         if screen_flow:
@@ -85,7 +102,7 @@ async def run_consistency_test() -> None:
         else:
             result = await request_handlers.requests_callback(SimpleNamespace(callback_query=query), FakeContext())
         assert result == ConversationHandler.END
-        return {"users": saved[request_handlers.USERS_FILE], "groups": saved[request_handlers.GROUPS_FILE]}
+        return saved
 
     try:
         direct = await run_scenario("req_accept:registration:100", direct_flow=True)
@@ -102,7 +119,8 @@ async def run_consistency_test() -> None:
         print("REGISTRATION_APPROVAL_CONSISTENCY PASS")
     finally:
         request_handlers.load_request_inbox = original["request_load_inbox"]
-        request_handlers.update_many_json = original["request_update_many"]
+        request_handlers.load_pending = original["request_load_pending"]
+        request_handlers.RegistrationService = original["request_service"]
         admin_handlers.load_pending = original["admin_load_pending"]
         admin_handlers._show_requests_after_callback = original["admin_show_after"]
 
