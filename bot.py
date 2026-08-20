@@ -1,24 +1,16 @@
-"""Точка запуска Telegram-бота и Render health endpoint."""
-import signal
-
-from telegram.error import Conflict, TelegramError
+"""Composition root for the Telegram bot process."""
+from __future__ import annotations
 
 from app_factory import build_application
-from bot_context import ThreadingHTTPServer, logging, os, threading
-from github_sync import restore_kpi_state_sync
-from health import HealthHandler
-from permissions import load_persisted_admin_mode
-from storage import _migrate_team_label, _reset_issuance_if_legacy, migrate_json_schemas
-
-POLLING_RETRY_DELAY = 15
+from bot_context import logging, os
+from runtime.health_server import HealthServer
+from runtime.polling_supervisor import PollingSupervisor
+from runtime.startup import prepare_data, restore_external_state
 
 
 def main() -> None:
-    """Запускает health endpoint и устойчивый Telegram polling в одном процессе Render."""
-    migrate_json_schemas()
-    _reset_issuance_if_legacy()
-    _migrate_team_label()
-    load_persisted_admin_mode()
+    """Prepare data, expose health and supervise Telegram polling."""
+    prepare_data()
     token = os.getenv("BOT_TOKEN")
     if not token:
         raise RuntimeError(
@@ -26,61 +18,16 @@ def main() -> None:
             "Добавьте её в настройках Render или локального окружения."
         )
 
-    port = int(os.getenv("PORT", "10000"))
-    health_server = ThreadingHTTPServer(("0.0.0.0", port), HealthHandler)
-    health_thread = threading.Thread(target=health_server.serve_forever, daemon=True)
-    health_thread.start()
-    restore_kpi_state_sync()
+    health_server = HealthServer(int(os.getenv("PORT", "10000")))
+    health_server.start()
+    restore_external_state()
 
-    stop_event = threading.Event()
-    current_app = {"value": None}
-
-    def handle_shutdown(signum, _frame):
-        logging.info("Shutdown signal %s received", signum)
-        stop_event.set()
-        app = current_app.get("value")
-        if app is not None:
-            try:
-                app.stop_running()
-            except (OSError, RuntimeError, TelegramError):
-                logging.exception("Failed to stop Telegram application gracefully")
-
-    for signum in (signal.SIGTERM, signal.SIGINT):
-        signal.signal(signum, handle_shutdown)
-
+    supervisor = PollingSupervisor(token, build_application)
+    supervisor.install_signal_handlers()
     try:
-        while not stop_event.is_set():
-            app = build_application(token)
-            current_app["value"] = app
-            try:
-                logging.info("Telegram bot polling attempt started")
-                app.run_polling(
-                    drop_pending_updates=False,
-                    bootstrap_retries=5,
-                    close_loop=False,
-                    stop_signals=(),
-                )
-                if not stop_event.is_set():
-                    logging.warning(
-                        "Telegram polling stopped unexpectedly; retrying in %s seconds",
-                        POLLING_RETRY_DELAY,
-                    )
-            except Conflict:
-                logging.warning(
-                    "Telegram getUpdates conflict; another instance may still be handing over. "
-                    "Retrying in %s seconds.",
-                    POLLING_RETRY_DELAY,
-                )
-            except (OSError, RuntimeError, TelegramError):
-                logging.exception("Telegram polling stopped unexpectedly")
-            finally:
-                current_app["value"] = None
-
-            if not stop_event.is_set():
-                stop_event.wait(POLLING_RETRY_DELAY)
+        supervisor.run()
     finally:
-        health_server.shutdown()
-        health_server.server_close()
+        health_server.close()
         logging.info("Health server stopped gracefully")
 
 

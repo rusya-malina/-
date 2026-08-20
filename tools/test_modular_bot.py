@@ -113,10 +113,10 @@ def main() -> None:
     assert hasattr(app_factory, "process_excel_file")
     assert hasattr(app_factory, "process_issuance_excel_file")
     assert not hasattr(bot, "process_excel_file")
-    bot_source = (ROOT / "bot.py").read_text(encoding="utf-8")
-    assert "except Conflict" in bot_source
-    assert "stop_signals=()" in bot_source
-    assert "POLLING_RETRY_DELAY" in bot_source
+    polling_source = (ROOT / "runtime" / "polling_supervisor.py").read_text(encoding="utf-8")
+    assert "except Conflict" in polling_source
+    assert "stop_signals=()" in polling_source
+    assert "POLLING_RETRY_DELAY" in polling_source
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), HealthHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)

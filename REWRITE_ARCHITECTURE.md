@@ -107,7 +107,7 @@ Excel flow состоит из пяти фаз: download, parse, validate, previ
 
 ## Current migration status
 
-The first vertical slice is active: registration approval mutations now run through `application/registration_service.py`, the unified employee registry is available through `application/employee_service.py`, and `presentation/router.py` owns ConversationHandler composition. Legacy handler functions remain as Telegram adapters until each domain flow receives its own application service and shadow test.
+The first vertical slice is active: registration approval mutations now run through `application/registration_service.py`, the unified employee registry is available through `application/employee_service.py`, `application/report_service.py` owns the active personal balances read path, `application/admin_service.py` owns users+KPI deletion, and `presentation/router.py` owns ConversationHandler composition. Runtime startup, health and polling are now isolated in `runtime/startup.py`, `runtime/health_server.py` and `runtime/polling_supervisor.py`; `bot.py` is only the composition root. Legacy handler functions remain as Telegram adapters until each remaining domain flow receives its own application service and shadow test.
 
 ## Acceptance criteria
 
