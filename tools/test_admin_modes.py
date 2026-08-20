@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 
 import handlers.admin as admin_handler
 from bot_context import ADMIN_ID, ConversationHandler, EXTRA_MENU_STATE
+from keyboards import get_main_keyboard, get_team_menu_keyboard
 
 
 def labels(markup):
@@ -51,7 +52,14 @@ async def main() -> None:
     assert 'Моя команда' in coor_labels
     assert 'Загрузить данные' not in coor_labels
     assert '📢 Рассылка' not in coor_labels
-    print('admin mode tests passed')
+    spv_labels = labels(get_main_keyboard(777777, "SPV"))
+    assert "Моя команда" in spv_labels
+    team_menu_labels = labels(get_team_menu_keyboard())
+    assert "📊 KPI команды" in team_menu_labels
+    assert "📦 Остатки команды" in team_menu_labels
+    assert "KPI команды" != "Остатки команды"
+
+    print('admin mode and SPV team menu tests passed')
 
 
 if __name__ == '__main__':
