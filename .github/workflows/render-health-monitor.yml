@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+    inputs:
+      test_alert:
+        description: "Send a test Telegram alert"
+        required: false
+        default: "false"
+        type: boolean
 
 concurrency:
   group: render-health-monitor
@@ -53,3 +59,41 @@ jobs:
 
           echo "Render health check failed after 3 attempts."
           exit 1
+
+      - name: Notify Telegram about failure or test
+        if: failure() || inputs.test_alert == 'true'
+        continue-on-error: true
+        env:
+          MONITOR_BOT_TOKEN: ${{ secrets.MONITOR_BOT_TOKEN }}
+          MONITOR_CHAT_ID: ${{ secrets.MONITOR_CHAT_ID }}
+          HEALTH_URL: ${{ env.HEALTH_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${MONITOR_BOT_TOKEN}" || -z "${MONITOR_CHAT_ID}" ]]; then
+            echo "Telegram notification skipped: MONITOR_BOT_TOKEN or MONITOR_CHAT_ID is not configured."
+            exit 0
+          fi
+
+          if [[ "${{ inputs.test_alert }}" == "true" ]]; then
+            title="KPI bot monitor test"
+          else
+            title="KPI bot monitor alert"
+          fi
+
+          text="${title}
+          Render URL: ${HEALTH_URL}
+          Repository: ${GITHUB_REPOSITORY}
+          Workflow: ${GITHUB_WORKFLOW}
+          Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          Commit: ${GITHUB_SHA}
+          Time: $(date -u -Is)"
+
+          curl --fail --silent --show-error --max-time 20 \
+            --retry 2 \
+            --retry-delay 3 \
+            -X POST \
+            "https://api.telegram.org/bot${MONITOR_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${MONITOR_CHAT_ID}" \
+            --data-urlencode "text=${text}"
