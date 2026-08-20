@@ -7,6 +7,12 @@ from organization import is_admin_mode
 from roles import get_user_group
 
 
+def _pending_request_name(raw_request) -> str:
+    if isinstance(raw_request, dict):
+        return str(raw_request.get("name") or "Пользователь")
+    return str(raw_request)
+
+
 async def enter_admin_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔️ Команда доступна только администратору.")
@@ -166,7 +172,8 @@ async def show_pending_requests_menu(update: Update, context: ContextTypes.DEFAU
         return EXTRA_MENU_STATE
 
     inline_keyboard = []
-    for uid, name in pending.items():
+    for uid, raw_request in pending.items():
+        name = _pending_request_name(raw_request)
         inline_keyboard.append([InlineKeyboardButton(f"✅ Одобрить: {name}", callback_data=f"pend_accept:{uid}")])
     
     inline_keyboard.append([InlineKeyboardButton("🔥 Одобрить всех", callback_data="pend_accept_all")])
@@ -203,23 +210,40 @@ async def pending_requests_callback(update: Update, context: ContextTypes.DEFAUL
             return EXTRA_MENU_STATE
 
         users = await load_json(USERS_FILE)
+        groups = await load_json(GROUPS_FILE)
         approved_count = 0
 
-        for uid_str, full_name in list(pending.items()):
+        for uid_str, raw_request in list(pending.items()):
             target_id = int(uid_str)
+            request = raw_request if isinstance(raw_request, dict) else {"name": str(raw_request)}
+            full_name = str(request.get("name") or "Пользователь")
+            selected_group = request.get("group")
+            existing_group = groups.get(uid_str, {})
+            if not selected_group and isinstance(existing_group, dict):
+                selected_group = existing_group.get("group")
             users[uid_str] = full_name
+            if selected_group:
+                groups[uid_str] = {
+                    "name": full_name,
+                    "group": selected_group,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
             approved_count += 1
             try:
                 await context.bot.send_message(
                     chat_id=target_id,
-                    text=f"🎉 **Ваша заявка одобрена!**\n\nДобро пожаловать, {full_name}!",
-                    reply_markup=get_main_keyboard(target_id),
+                    text=(
+                        f"🎉 **Ваша заявка одобрена!**\n\nДобро пожаловать, {full_name}!"
+                        + (f"\nГруппа: **{selected_group}**" if selected_group else "")
+                    ),
+                    reply_markup=get_main_keyboard(target_id, selected_group),
                     parse_mode="Markdown",
                 )
             except Exception as e:
                 logging.error(f"Не удалось уведомить пользователя {target_id}: {e}")
 
         await save_json(users, USERS_FILE)
+        await save_json(groups, GROUPS_FILE)
         await save_pending({})
 
         await query.message.edit_text(
@@ -239,12 +263,27 @@ async def pending_requests_callback(update: Update, context: ContextTypes.DEFAUL
             await query.answer("Эта заявка уже была обработана или удалена.", show_alert=True)
             return PENDING_REQUESTS_STATE
 
-        full_name = pending[uid_str]
+        raw_request = pending[uid_str]
+        request = raw_request if isinstance(raw_request, dict) else {"name": str(raw_request)}
+        full_name = str(request.get("name") or "Пользователь")
         target_id = int(uid_str)
+        selected_group = request.get("group")
 
         users = await load_json(USERS_FILE)
         users[uid_str] = full_name
         await save_json(users, USERS_FILE)
+
+        groups = await load_json(GROUPS_FILE)
+        existing_group = groups.get(uid_str, {})
+        if not selected_group and isinstance(existing_group, dict):
+            selected_group = existing_group.get("group")
+        if selected_group:
+            groups[uid_str] = {
+                "name": full_name,
+                "group": selected_group,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            await save_json(groups, GROUPS_FILE)
 
         del pending[uid_str]
         await save_pending(pending)
@@ -252,8 +291,11 @@ async def pending_requests_callback(update: Update, context: ContextTypes.DEFAUL
         try:
             await context.bot.send_message(
                 chat_id=target_id,
-                text=f"🎉 **Ваша заявка одобрена!**\n\nДобро пожаловать, {full_name}!",
-                reply_markup=get_main_keyboard(target_id),
+                text=(
+                    f"🎉 **Ваша заявка одобрена!**\n\nДобро пожаловать, {full_name}!"
+                    + (f"\nГруппа: **{selected_group}**" if selected_group else "")
+                ),
+                reply_markup=get_main_keyboard(target_id, selected_group),
                 parse_mode="Markdown",
             )
         except Exception as e:
@@ -272,7 +314,8 @@ async def pending_requests_callback(update: Update, context: ContextTypes.DEFAUL
             return EXTRA_MENU_STATE
         else:
             inline_keyboard = []
-            for uid, name in pending.items():
+            for uid, raw_request in pending.items():
+                name = _pending_request_name(raw_request)
                 inline_keyboard.append([InlineKeyboardButton(f"✅ Одобрить: {name}", callback_data=f"pend_accept:{uid}")])
             inline_keyboard.append([InlineKeyboardButton("🔥 Одобрить всех", callback_data="pend_accept_all")])
             inline_keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="pend_back")])
