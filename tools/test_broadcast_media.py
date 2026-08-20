@@ -25,6 +25,8 @@ class FakeMessage:
         self.caption = caption
         self.photo = photo
         self.document = document
+        self.chat_id = 14599689
+        self.message_id = 777
         self.replies = []
 
     async def reply_text(self, text, **kwargs):
@@ -36,14 +38,8 @@ class FakeBot:
     def __init__(self):
         self.calls = []
 
-    async def send_message(self, **kwargs):
-        self.calls.append(("message", kwargs))
-
-    async def send_photo(self, **kwargs):
-        self.calls.append(("photo", kwargs))
-
-    async def send_document(self, **kwargs):
-        self.calls.append(("document", kwargs))
+    async def copy_message(self, **kwargs):
+        self.calls.append(("copy", kwargs))
 
 
 async def run_case(message):
@@ -64,32 +60,25 @@ async def run_case(message):
 
 
 async def main():
-    result, calls = await run_case(FakeMessage(text="Тестовый текст"))
-    assert result == broadcast.ConversationHandler.END
-    assert [kind for kind, _ in calls] == ["message", "message"]
-    assert all(call[1]["text"] == "Тестовый текст" for call in calls)
-
-    result, calls = await run_case(
+    for message in (
+        FakeMessage(text="Тестовый текст"),
         FakeMessage(
             caption="Подпись к фото",
             photo=[SimpleNamespace(file_id="photo-1")],
-        )
-    )
-    assert result == broadcast.ConversationHandler.END
-    assert [kind for kind, _ in calls] == ["photo", "photo"]
-    assert all(call[1]["photo"] == "photo-1" for call in calls)
-
-    result, calls = await run_case(
+        ),
         FakeMessage(
             caption="Файл KPI",
             document=SimpleNamespace(file_id="document-1"),
-        )
-    )
-    assert result == broadcast.ConversationHandler.END
-    assert [kind for kind, _ in calls] == ["document", "document"]
-    assert all(call[1]["document"] == "document-1" for call in calls)
+        ),
+    ):
+        result, calls = await run_case(message)
+        assert result == broadcast.ConversationHandler.END
+        assert [kind for kind, _ in calls] == ["copy", "copy"]
+        assert all(call[1]["from_chat_id"] == 14599689 for call in calls)
+        assert all(call[1]["message_id"] == 777 for call in calls)
+        assert all(call[1]["chat_id"] in (101, 102) for call in calls)
 
-    print("broadcast text/photo/document tests passed")
+    print("broadcast copyMessage text/photo/document tests passed")
 
 
 if __name__ == "__main__":
