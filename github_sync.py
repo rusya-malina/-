@@ -94,7 +94,7 @@ def _write_atomic(path: str, content: bytes) -> None:
 def _validate_remote_kpi_json(content: bytes) -> None:
     parsed = json.loads(content.decode("utf-8"))
     if not isinstance(parsed, dict):
-        raise ValueError("Remote kpi_data.json is not a JSON object")
+        raise TypeError("Remote kpi_data.json is not a JSON object")
 
 
 def _get_remote(path: str) -> tuple[bytes, str | None] | None:

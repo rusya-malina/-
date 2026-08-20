@@ -2,13 +2,13 @@ from bot_context import (
     ADMIN_ID,
     GROUPS_WITH_BALANCES,
     GROUPS_WITH_HOURS,
+    TEAM_OPTIONS,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
-    TEAM_OPTIONS,
 )
-from roles import get_user_group_sync
 from organization import is_admin_mode, is_management_group
+from roles import get_user_group_sync
 
 
 def get_registration_group_keyboard() -> ReplyKeyboardMarkup:
@@ -36,9 +36,7 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
         if group in GROUPS_WITH_BALANCES:
             keyboard.append(["Остатки"])
         keyboard.append(["📝 Оставить заявку"])
-    elif group in GROUPS_WITH_HOURS:
-        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["Остатки"], ["📝 Оставить заявку"]]
-    elif group in GROUPS_WITH_BALANCES:
+    elif group in GROUPS_WITH_HOURS or group in GROUPS_WITH_BALANCES:
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["Остатки"], ["📝 Оставить заявку"]]
     elif group in TEAM_OPTIONS:
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["📝 Оставить заявку"]]

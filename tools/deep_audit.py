@@ -46,7 +46,7 @@ def load_json_files() -> list[str]:
             data = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 errors.append(f"{name}: top-level value is {type(data).__name__}, expected dict")
-        except Exception as exc:
+        except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             errors.append(f"{name}: {type(exc).__name__}: {exc}")
     return errors
 

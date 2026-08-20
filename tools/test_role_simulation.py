@@ -13,7 +13,6 @@ import handlers.kpi as kpi_handler
 import handlers.teams as teams_handler
 from bot_context import ADMIN_ID, TEAM_MENU_STATE
 
-
 USERS = {
     "101": "A One",
     "102": "R One",

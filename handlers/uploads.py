@@ -1,15 +1,42 @@
 """Тяжёлые операции с Excel, изолированные от меню и основного роутера."""
-from bot_context import *
+from telegram.error import TelegramError
+
+from bot_context import (
+    ContextTypes,
+    ConversationHandler,
+    Update,
+    asyncio,
+    datetime,
+    logging,
+    os,
+    pd,
+    tempfile,
+    timezone,
+)
+from config import (
+    ADMIN_ID,
+    ISSUANCE_FILE,
+    KPI_FILE,
+    LATEST_ISSUANCE_FILE,
+    LATEST_KPI_FILE,
+    UPLOADED_DATA_DIR,
+    USERS_FILE,
+)
 from github_sync import sync_kpi_state
-from organization import is_admin_mode
-from storage import load_json, replace_latest_file, save_json
 from keyboards import cancel_keyboard, get_issuance_keyboard, get_main_keyboard
+from organization import is_admin_mode
 from services import (
     _find_column,
     _normalize_person_name,
     _parse_nonnegative_quantity,
     notify_user_kpi_updated,
 )
+from states import (
+    ISSUANCE_EXCEL_UPLOAD,
+    ISSUANCE_MENU,
+    UPLOAD_EXCEL,
+)
+from storage import load_json, replace_latest_file, save_json
 
 
 async def start_excel_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -45,7 +72,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
             file_path = temp_file.name
         file = await context.bot.get_file(document.file_id)
         await file.download_to_drive(file_path)
-    except Exception as error:
+    except (OSError, TelegramError) as error:
         logging.exception("Не удалось скачать KPI Excel: %s", error)
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
@@ -141,7 +168,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return ConversationHandler.END
 
-    except Exception as e:
+    except (OSError, KeyError, TypeError, ValueError, TelegramError) as e:
         logging.error(f"Ошибка при обработке Excel: {e}")
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -259,7 +286,7 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
             message += f"\nНовых записей без Telegram ID: **{len(added_without_telegram)}**."
         await update.message.reply_text(message, reply_markup=get_issuance_keyboard(), parse_mode="Markdown")
         return ISSUANCE_MENU
-    except Exception as error:
+    except (OSError, KeyError, TypeError, ValueError, TelegramError) as error:
         logging.exception("Ошибка загрузки Excel выдач: %s", error)
         await update.message.reply_text("❌ Не удалось обработать Excel-файл. Проверьте формат и попробуйте снова.", reply_markup=get_issuance_keyboard())
         return ISSUANCE_MENU

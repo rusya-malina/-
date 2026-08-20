@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import handlers.admin as admin_handler
-from bot_context import ADMIN_ID, ConversationHandler, EXTRA_MENU_STATE
+from bot_context import ADMIN_ID, EXTRA_MENU_STATE, ConversationHandler
 from keyboards import get_main_keyboard, get_team_menu_keyboard
 
 
@@ -57,7 +57,6 @@ async def main() -> None:
     team_menu_labels = labels(get_team_menu_keyboard())
     assert "📊 KPI команды" in team_menu_labels
     assert "📦 Остатки команды" in team_menu_labels
-    assert "KPI команды" != "Остатки команды"
 
     print('admin mode and SPV team menu tests passed')
 

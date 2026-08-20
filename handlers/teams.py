@@ -1,10 +1,44 @@
 """Выбор команды сотрудником и административное подтверждение."""
-from bot_context import *
-from storage import load_json, save_json
-from keyboards import cancel_keyboard, get_main_keyboard, get_team_keyboard, get_team_menu_keyboard
-from organization import get_visible_users, is_admin_mode, is_management_group, merge_employee_issuance
+from telegram.error import TelegramError
+
+from bot_context import (
+    ContextTypes,
+    ConversationHandler,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update,
+    datetime,
+    logging,
+    timezone,
+)
+from config import (
+    ADMIN_ID,
+    GROUPS_FILE,
+    ISSUANCE_FILE,
+    KPI_FILE,
+    TEAM_OPTIONS,
+    TEAM_REQUESTS_FILE,
+    TEAMS_FILE,
+    USERS_FILE,
+)
+from keyboards import (
+    get_main_keyboard,
+    get_team_keyboard,
+    get_team_menu_keyboard,
+)
+from organization import (
+    get_visible_users,
+    is_admin_mode,
+    is_management_group,
+    merge_employee_issuance,
+)
 from roles import get_user_group
-from services import _format_quantity, calculate_balances, _normalize_person_name
+from services import _format_quantity, _normalize_person_name, calculate_balances
+from states import (
+    TEAM_MENU_STATE,
+    TEAM_SELECTION,
+)
+from storage import load_json, save_json
 
 
 async def _get_team_context(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -201,7 +235,7 @@ async def process_team_selection(update: Update, context: ContextTypes.DEFAULT_T
             reply_markup=InlineKeyboardMarkup(inline_keyboard),
             parse_mode="Markdown",
         )
-    except Exception as error:
+    except TelegramError as error:
         logging.error("Не удалось отправить запрос команды администратору: %s", error)
 
     return ConversationHandler.END
@@ -249,7 +283,7 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
                 reply_markup=get_main_keyboard(int(user_id), selected_team),
                 parse_mode="Markdown",
             )
-        except Exception as error:
+        except TelegramError as error:
             logging.error("Не удалось уведомить пользователя о команде: %s", error)
     elif action == "team_reject":
         del team_requests[user_id]
@@ -264,7 +298,7 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
                 text="❌ Запрос на выбранную команду отклонён администратором. Выберите новую группу через /start.",
                 reply_markup=get_main_keyboard(int(user_id)),
             )
-        except Exception as error:
+        except TelegramError as error:
             logging.error("Не удалось уведомить пользователя об отказе команды: %s", error)
 
     await context.bot.send_message(

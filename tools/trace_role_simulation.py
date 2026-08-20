@@ -9,10 +9,11 @@ from unittest.mock import AsyncMock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from test_role_simulation import GROUPS, ISSUANCE, KPI, USERS
+
 import handlers.kpi as kpi_handler
 import handlers.teams as teams_handler
 from bot_context import TEAM_MENU_STATE
-from test_role_simulation import GROUPS, ISSUANCE, KPI, USERS
 
 
 def update_for(user_id: int):

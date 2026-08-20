@@ -5,7 +5,7 @@ import json
 import statistics
 import sys
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -17,7 +17,6 @@ import handlers.kpi as kpi_handler
 import handlers.teams as teams_handler
 from bot_context import ADMIN_ID, TEAM_MENU_STATE
 from keyboards import get_main_keyboard
-
 
 ROLE_COUNTS = {
     "A LAMP": 15,
@@ -180,7 +179,7 @@ async def main() -> None:
                 text = team_update.message.reply_text.await_args.args[0]
                 assert state == TEAM_MENU_STATE and "Остаток MINTS" in text and "GT:" not in text
                 scenarios["team_balances"].append((time.perf_counter() - started) * 1000)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - harness records every scenario failure
             errors.append({"user_id": user_id, "role": role, "error": repr(error)})
 
     tasks = [asyncio.create_task(user_scenario(int(user_id))) for user_id in users]

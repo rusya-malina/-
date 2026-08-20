@@ -1,5 +1,22 @@
 """Общие расчёты, уведомления и фоновые задания."""
-from bot_context import *
+from telegram.error import TelegramError
+
+from bot_context import (
+    ContextTypes,
+    ReplyKeyboardRemove,
+    datetime,
+    logging,
+    math,
+    pd,
+    re,
+    timezone,
+)
+from config import (
+    ADMIN_ID,
+    TEAM_REQUESTS_FILE,
+    USER_REQUESTS_FILE,
+    USERS_FILE,
+)
 from storage import load_json, load_pending
 
 
@@ -30,7 +47,7 @@ async def check_pending_requests_job(context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
         )
         context.application.bot_data["last_requests_reminder"] = now.isoformat()
-    except Exception as e:
+    except TelegramError as e:
         logging.error(f"Не удалось отправить напоминание о заявках: {e}")
 
 
@@ -60,7 +77,7 @@ async def notify_user_kpi_updated(context: ContextTypes.DEFAULT_TYPE, target_nam
                 ),
                 parse_mode="Markdown",
             )
-        except Exception as e:
+        except TelegramError as e:
             logging.error(f"Не удалось отправить уведомление пользователю {target_user_id}: {e}")
 
 
@@ -72,7 +89,7 @@ async def notify_user_bot_stopped(context: ContextTypes.DEFAULT_TYPE, user_id: s
                 text="⛔️ Работа бота остановлена.\nВы были удалены из системы",
                 reply_markup=ReplyKeyboardRemove(),
             )
-        except Exception as e:
+        except TelegramError as e:
             logging.error(f"Не удалось отправить уведомление об остановке пользователю {user_id}: {e}")
 
 

@@ -1,23 +1,51 @@
 """Загрузка, ручное редактирование и просмотр KPI."""
+import contextlib
 
-
-from bot_context import *
-
-
-from storage import load_json, save_json, get_default_plans
-
-
+from bot_context import (
+    BadRequest,
+    ContextTypes,
+    ConversationHandler,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ReplyKeyboardRemove,
+    Update,
+)
+from config import (
+    GROUPS_FILE,
+    GROUPS_WITH_BALANCES,
+    GROUPS_WITH_HOURS,
+    ISSUANCE_FILE,
+    KPI_FILE,
+    PLANS_FILE,
+    TEAM_OPTIONS,
+    USERS_FILE,
+)
 from keyboards import cancel_keyboard, get_data_keyboard, get_main_keyboard
-
-
+from organization import get_employee_by_id, is_admin_mode, merge_employee_issuance
+from roles import get_user_group
 from services import (
     _format_quantity,
     calculate_balances,
     notify_user_bot_stopped,
     notify_user_kpi_updated,
 )
-from roles import get_user_group
-from organization import is_admin_mode, get_employee_by_id, merge_employee_issuance
+from states import (
+    CONFIRM_DELETE_EMP,
+    KPI_MENU_STATE,
+    MANUAL_KPI_FIELD_HOURS,
+    MANUAL_KPI_GT_FACT,
+    MANUAL_KPI_MICRO_LAS_FACT,
+    MANUAL_KPI_MICRO_LAU_FACT,
+    MANUAL_KPI_NAME,
+    MANUAL_KPI_NEW_NAME,
+    MANUAL_KPI_OFFICE_HOURS,
+    MANUAL_KPI_RETRAFIC_FACT,
+    SELECT_PREVIOUS_EMP,
+    SET_PLAN_GT,
+    SET_PLAN_MICRO,
+    SET_PLAN_RETRAFIC,
+)
+from storage import get_default_plans, load_json, save_json
 
 
 async def open_kpi_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -546,7 +574,7 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if need_las > 0:
             micro_details += f"  └ ⚠️ **Рекомендация:** Добавить микроакты LAS: `{need_las}`\n"
         else:
-            micro_details += f"  └ ✅ **Показатель LAS в норме!**\n"
+            micro_details += "  └ ✅ **Показатель LAS в норме!**\n"
 
         text = (
             f"📊 **Ваши показатели KPI**\n"
@@ -658,7 +686,5 @@ async def kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=query.message.chat_id, text="🏠 Главное меню:", reply_markup=get_main_keyboard(user_id_num, group=await get_user_group(user_id_num), admin_mode=is_admin_mode(user_id_num, context)))
         return
 
-    try:
+    with contextlib.suppress(BadRequest):
         await query.message.edit_text(text, reply_markup=query.message.reply_markup, parse_mode="Markdown")
-    except BadRequest:
-        pass

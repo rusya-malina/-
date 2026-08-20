@@ -1,11 +1,39 @@
 """Административные разделы: пользователи, заявки и удаление сотрудников."""
-from bot_context import *
-from storage import load_json, save_json, load_pending, save_pending
-from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard, get_registration_group_keyboard
-from services import _normalize_person_name, notify_user_bot_stopped
+from telegram.error import TelegramError
+
+from bot_context import (
+    ContextTypes,
+    ConversationHandler,
+    Update,
+    logging,
+)
+from config import (
+    ADMIN_ID,
+    GROUPS_FILE,
+    ISSUANCE_FILE,
+    KPI_FILE,
+    USERS_FILE,
+)
+from handlers.requests import (
+    _show_requests_after_callback,
+    process_registration_approval,
+    requests_callback,
+    show_requests_menu,
+)
+from keyboards import (
+    cancel_keyboard,
+    get_extra_keyboard,
+    get_main_keyboard,
+)
 from organization import is_admin_mode
 from roles import get_user_group
-from handlers.requests import process_registration_approval, requests_callback, show_requests_menu, _show_requests_after_callback
+from services import _normalize_person_name, notify_user_bot_stopped
+from states import (
+    DELETE_BY_NUM_STATE,
+    EXTRA_MENU_STATE,
+    PENDING_REQUESTS_STATE,
+)
+from storage import load_json, load_pending, save_json
 
 
 def _pending_request_name(raw_request) -> str:
@@ -192,7 +220,7 @@ async def pending_requests_callback(update: Update, context: ContextTypes.DEFAUL
                     text=result["user_text"],
                     reply_markup=get_main_keyboard(int(uid_str), result["group"]),
                 )
-            except Exception as error:
+            except TelegramError as error:
                 logging.warning("Не удалось уведомить пользователя %s: %s", uid_str, error)
         return await _show_requests_after_callback(
             query,
@@ -212,7 +240,7 @@ async def pending_requests_callback(update: Update, context: ContextTypes.DEFAUL
                 text=result["user_text"],
                 reply_markup=get_main_keyboard(int(uid_str), result["group"]),
             )
-        except Exception as error:
+        except TelegramError as error:
             logging.warning("Не удалось уведомить пользователя %s: %s", uid_str, error)
         return await _show_requests_after_callback(
             query,

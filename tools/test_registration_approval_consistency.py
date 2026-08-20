@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import copy
 import sys
@@ -50,79 +52,45 @@ async def run_consistency_test() -> None:
     }
     original = {
         "request_load_inbox": request_handlers.load_request_inbox,
-        "request_update_pending": request_handlers.update_pending,
-        "request_load_json": request_handlers.load_json,
-        "request_save_json": request_handlers.save_json,
+        "request_update_many": request_handlers.update_many_json,
         "admin_load_pending": admin_handlers.load_pending,
         "admin_show_after": admin_handlers._show_requests_after_callback,
     }
 
-    async def fake_load_json(path):
-        if path == request_handlers.USERS_FILE:
-            return {}
-        if path == request_handlers.GROUPS_FILE:
-            return {}
-        return {}
+    async def run_scenario(callback_data: str, *, screen_flow: bool = False, direct_flow: bool = False) -> dict:
+        saved: dict[str, dict] = {}
 
-    async def run_direct_button():
-        saved = {}
+        async def fake_update_many(filepaths, mutator):
+            files = {
+                request_handlers.PENDING_FILE: {"100": copy.deepcopy(request)},
+                request_handlers.USERS_FILE: {},
+                request_handlers.GROUPS_FILE: {},
+            }
+            result = mutator(files)
+            saved.update({path: copy.deepcopy(files[path]) for path in files})
+            return result
 
-        async def save_json(data, path):
-            saved[path] = copy.deepcopy(data)
+        request_handlers.update_many_json = fake_update_many
+        if direct_flow:
+            request_handlers.load_request_inbox = AsyncMock(return_value=[inbox_item])
+        if screen_flow:
+            admin_handlers.load_pending = AsyncMock(return_value={"100": copy.deepcopy(request)})
+            admin_handlers._show_requests_after_callback = AsyncMock(return_value=ConversationHandler.END)
 
-        request_handlers.load_request_inbox = AsyncMock(return_value=[inbox_item])
-        request_handlers.update_pending = AsyncMock(return_value=request.copy())
-        request_handlers.load_json = fake_load_json
-        request_handlers.save_json = save_json
-        query = FakeQuery("req_accept:registration:100")
-        result = await request_handlers.requests_callback(SimpleNamespace(callback_query=query), FakeContext())
+        query = FakeQuery(callback_data)
+        if screen_flow:
+            result = await admin_handlers.pending_requests_callback(SimpleNamespace(callback_query=query), FakeContext())
+        elif callback_data.startswith("adm_"):
+            result = await admin_handlers.admin_moderation_callback(SimpleNamespace(callback_query=query), FakeContext())
+        else:
+            result = await request_handlers.requests_callback(SimpleNamespace(callback_query=query), FakeContext())
         assert result == ConversationHandler.END
-        return {
-            "users": saved[request_handlers.USERS_FILE],
-            "groups": saved[request_handlers.GROUPS_FILE],
-        }
-
-    async def run_legacy_notification_button():
-        saved = {}
-
-        async def save_json(data, path):
-            saved[path] = copy.deepcopy(data)
-
-        request_handlers.load_request_inbox = AsyncMock(return_value=[inbox_item])
-        request_handlers.update_pending = AsyncMock(return_value=request.copy())
-        request_handlers.load_json = fake_load_json
-        request_handlers.save_json = save_json
-        query = FakeQuery("adm_accept:100")
-        result = await admin_handlers.admin_moderation_callback(SimpleNamespace(callback_query=query), FakeContext())
-        assert result == ConversationHandler.END
-        return {
-            "users": saved[request_handlers.USERS_FILE],
-            "groups": saved[request_handlers.GROUPS_FILE],
-        }
-
-    async def run_old_screen_button():
-        saved = {}
-
-        async def save_json(data, path):
-            saved[path] = copy.deepcopy(data)
-
-        request_handlers.update_pending = AsyncMock(return_value=request.copy())
-        request_handlers.load_json = fake_load_json
-        request_handlers.save_json = save_json
-        admin_handlers.load_pending = AsyncMock(return_value={"100": request.copy()})
-        admin_handlers._show_requests_after_callback = AsyncMock(return_value=ConversationHandler.END)
-        query = FakeQuery("pend_accept:100")
-        result = await admin_handlers.pending_requests_callback(query and SimpleNamespace(callback_query=query), FakeContext())
-        assert result == ConversationHandler.END
-        return {
-            "users": saved[request_handlers.USERS_FILE],
-            "groups": saved[request_handlers.GROUPS_FILE],
-        }
+        return {"users": saved[request_handlers.USERS_FILE], "groups": saved[request_handlers.GROUPS_FILE]}
 
     try:
-        direct = await run_direct_button()
-        old_screen = await run_old_screen_button()
-        legacy_notification = await run_legacy_notification_button()
+        direct = await run_scenario("req_accept:registration:100", direct_flow=True)
+        old_screen = await run_scenario("pend_accept:100", screen_flow=True)
+        legacy_notification = await run_scenario("adm_accept:100")
         assert direct["users"] == old_screen["users"] == legacy_notification["users"] == {"100": "Тест Пользователь"}
         for result in (direct, old_screen, legacy_notification):
             group_record = result["groups"]["100"]
@@ -131,9 +99,7 @@ async def run_consistency_test() -> None:
         print("REGISTRATION_APPROVAL_CONSISTENCY PASS")
     finally:
         request_handlers.load_request_inbox = original["request_load_inbox"]
-        request_handlers.update_pending = original["request_update_pending"]
-        request_handlers.load_json = original["request_load_json"]
-        request_handlers.save_json = original["request_save_json"]
+        request_handlers.update_many_json = original["request_update_many"]
         admin_handlers.load_pending = original["admin_load_pending"]
         admin_handlers._show_requests_after_callback = original["admin_show_after"]
 

@@ -11,7 +11,12 @@ from unittest.mock import AsyncMock
 
 import handlers.requests as request_handlers
 import handlers.teams as team_handlers
-from bot_context import ADMIN_ID, ConversationHandler, GROUPS_FILE, GROUPS_WITH_BALANCES, GROUPS_WITH_HOURS, TEAM_REQUESTS_FILE, TEAMS_FILE, USERS_FILE
+from bot_context import (
+    ADMIN_ID,
+    TEAM_REQUESTS_FILE,
+    TEAMS_FILE,
+    ConversationHandler,
+)
 
 
 class FakeMessage:
@@ -43,7 +48,7 @@ class FakeContext:
 async def verify_registration_accept() -> None:
     original = {
         'load_request_inbox': request_handlers.load_request_inbox,
-        'update_pending': request_handlers.update_pending,
+        'update_many_json': request_handlers.update_many_json,
         'load_json': request_handlers.load_json,
         'save_json': request_handlers.save_json,
     }
@@ -55,7 +60,16 @@ async def verify_registration_accept() -> None:
         'group': 'A LAMP',
         'text': 'Выбранная группа: A LAMP.',
     }])
-    request_handlers.update_pending = AsyncMock(return_value={'name': 'Тест Пользователь', 'group': 'A LAMP'})
+    async def update_many_json(filepaths, mutator):
+        files = {
+            request_handlers.PENDING_FILE: {'100': {'name': 'Тест Пользователь', 'group': 'A LAMP'}},
+            request_handlers.USERS_FILE: {},
+            request_handlers.GROUPS_FILE: {},
+        }
+        result = mutator(files)
+        return result
+
+    request_handlers.update_many_json = update_many_json
 
     async def load_json(path):
         if path == request_handlers.USERS_FILE:

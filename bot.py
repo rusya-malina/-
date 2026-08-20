@@ -1,13 +1,13 @@
 """Точка запуска Telegram-бота и Render health endpoint."""
 import signal
 
-from bot_context import ThreadingHTTPServer, logging, os, threading
+from telegram.error import Conflict, TelegramError
+
 from app_factory import build_application
+from bot_context import ThreadingHTTPServer, logging, os, threading
 from github_sync import restore_kpi_state_sync
 from health import HealthHandler
 from storage import _migrate_team_label, _reset_issuance_if_legacy
-from telegram.error import Conflict
-
 
 POLLING_RETRY_DELAY = 15
 
@@ -39,7 +39,7 @@ def main() -> None:
         if app is not None:
             try:
                 app.stop_running()
-            except Exception:
+            except (OSError, RuntimeError, TelegramError):
                 logging.exception("Failed to stop Telegram application gracefully")
 
     for signum in (signal.SIGTERM, signal.SIGINT):
@@ -68,7 +68,7 @@ def main() -> None:
                     "Retrying in %s seconds.",
                     POLLING_RETRY_DELAY,
                 )
-            except Exception:
+            except (OSError, RuntimeError, TelegramError):
                 logging.exception("Telegram polling stopped unexpectedly")
             finally:
                 current_app["value"] = None

@@ -1,14 +1,119 @@
 """Сборка Telegram Application и маршрутизация по функциональным модулям."""
-from bot_context import *
+from bot_context import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ConversationHandler,
+    HTTPXRequest,
+    MessageHandler,
+    filters,
+)
+from handlers.admin import (
+    enter_admin_mode,
+    exit_admin_mode,
+    open_extra_menu,
+    pending_requests_callback,
+    process_delete_user_by_number,
+    request_user_number_to_delete,
+    show_registered_users,
+)
+from handlers.broadcast import (
+    send_broadcast,
+    start_broadcast,
+)
+from handlers.issuance import (
+    issuance_callback,
+    issuance_menu_message,
+    process_issuance_amount,
+)
+from handlers.kpi import (
+    delete_employee_confirm,
+    kpi_callback,
+    kpi_menu,
+    manual_kpi_get_field_hours,
+    manual_kpi_get_gt_fact,
+    manual_kpi_get_micro_las_fact,
+    manual_kpi_get_micro_lau_fact,
+    manual_kpi_get_new_name,
+    manual_kpi_get_office_hours,
+    manual_kpi_get_retrafic_fact,
+    manual_kpi_select_employee,
+    my_kpi_callback,
+    my_kpi_menu,
+    open_kpi_admin_menu,
+    select_previous_employee_handler,
+    set_plan_gt,
+    set_plan_micro,
+    set_plan_retrafic,
+    show_balances,
+)
+from handlers.requests import (
+    process_user_request,
+    requests_callback,
+    show_requests_menu,
+    start_user_request,
+)
+from handlers.teams import (
+    open_my_team_menu,
+    process_team_selection,
+    show_team_balances,
+    show_team_kpi,
+    start_team_selection,
+    team_moderation_callback,
+)
+from handlers.uploads import (
+    process_excel_file,
+    process_issuance_excel_file,
+    start_excel_upload,
+)
+from handlers.user import (
+    cancel_action,
+    get_las,
+    get_lau,
+    new_calculation,
+    reg_get_first_name,
+    reg_get_group,
+    reg_get_last_name,
+    save_new_first_name,
+    save_new_full_name,
+    start,
+)
 from services import check_pending_requests_job
-from handlers.user import *
-from handlers.admin import *
-from handlers.teams import *
-from handlers.kpi import *
-from handlers.issuance import *
-from handlers.uploads import *
-from handlers.broadcast import *
-from handlers.requests import *
+from states import (
+    BROADCAST,
+    CHANGE_LAST_NAME,
+    CHANGE_NAME,
+    CONFIRM_DELETE_EMP,
+    DELETE_BY_NUM_STATE,
+    EXTRA_MENU_STATE,
+    ISSUANCE_AMOUNT,
+    ISSUANCE_EXCEL_UPLOAD,
+    ISSUANCE_MENU,
+    ISSUANCE_USER,
+    KPI_MENU_STATE,
+    LAS,
+    LAU,
+    MANUAL_KPI_FIELD_HOURS,
+    MANUAL_KPI_GT_FACT,
+    MANUAL_KPI_MICRO_LAS_FACT,
+    MANUAL_KPI_MICRO_LAU_FACT,
+    MANUAL_KPI_NAME,
+    MANUAL_KPI_NEW_NAME,
+    MANUAL_KPI_OFFICE_HOURS,
+    MANUAL_KPI_RETRAFIC_FACT,
+    PENDING_REQUESTS_STATE,
+    REG_FIRST_NAME,
+    REG_GROUP,
+    REG_LAST_NAME,
+    SELECT_PREVIOUS_EMP,
+    SET_PLAN_GT,
+    SET_PLAN_MICRO,
+    SET_PLAN_RETRAFIC,
+    TEAM_MENU_STATE,
+    TEAM_SELECTION,
+    UPLOAD_EXCEL,
+    USER_REQUEST,
+)
 
 
 def build_application(token: str) -> Application:

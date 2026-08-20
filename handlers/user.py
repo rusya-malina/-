@@ -1,10 +1,39 @@
 """Пользовательские сценарии: регистрация, расчёты и возврат в меню."""
-from bot_context import *
-from storage import load_json, save_json, load_pending, update_pending
-from keyboards import cancel_keyboard, get_main_keyboard, get_registration_group_keyboard
-from services import notify_user_bot_stopped
-from roles import get_user_group
+from telegram.error import TelegramError
+
+from bot_context import (
+    ContextTypes,
+    ConversationHandler,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ReplyKeyboardRemove,
+    Update,
+    datetime,
+    logging,
+    timezone,
+)
+from config import (
+    ADMIN_ID,
+    TEAM_OPTIONS,
+    USERS_FILE,
+)
+from keyboards import (
+    cancel_keyboard,
+    get_main_keyboard,
+    get_registration_group_keyboard,
+)
 from organization import is_admin_mode
+from roles import get_user_group
+from states import (
+    CHANGE_LAST_NAME,
+    CHANGE_NAME,
+    LAS,
+    LAU,
+    REG_FIRST_NAME,
+    REG_GROUP,
+    REG_LAST_NAME,
+)
+from storage import load_json, load_pending, save_json, update_pending
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -175,7 +204,7 @@ async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(inline_keyboard),
             parse_mode="Markdown",
         )
-    except Exception as e:
+    except TelegramError as e:
         logging.error(f"Не удалось отправить уведомление админу: {e}")
 
     return ConversationHandler.END
@@ -263,7 +292,8 @@ async def new_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_las(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         val = float(update.message.text.replace(",", "."))
-        if val < 0: raise ValueError
+        if val < 0:
+            raise ValueError
         context.user_data["las"] = val
         await update.message.reply_text("Введите количество **LAU**:", reply_markup=cancel_keyboard, parse_mode="Markdown")
         return LAU
@@ -275,7 +305,8 @@ async def get_las(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_lau(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         val = float(update.message.text.replace(",", "."))
-        if val < 0: raise ValueError
+        if val < 0:
+            raise ValueError
         context.user_data["lau"] = val
 
         name = context.user_data["name"]

@@ -1,28 +1,49 @@
 """Выдачи MINTS и стиков, Excel-загрузка и статистика."""
+from io import BytesIO
+from pathlib import Path
 
+from telegram.error import TelegramError
 
-from bot_context import *
-
-
-from storage import load_json, save_json
-
-
+from bot_context import (
+    ContextTypes,
+    ConversationHandler,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update,
+    asyncio,
+    datetime,
+    logging,
+    math,
+    os,
+    pd,
+    tempfile,
+    timezone,
+)
+from config import (
+    ADMIN_ID,
+    ISSUANCE_FILE,
+    KPI_FILE,
+    USERS_FILE,
+)
 from keyboards import (
     cancel_keyboard,
     get_issuance_confirmation_markup,
     get_issuance_keyboard,
     get_main_keyboard,
 )
-
-
 from organization import is_admin_mode
 from services import (
     _format_quantity,
-    _find_column,
     _normalize_person_name,
-    _parse_nonnegative_quantity,
     calculate_balances,
 )
+from states import (
+    ISSUANCE_AMOUNT,
+    ISSUANCE_EXCEL_UPLOAD,
+    ISSUANCE_MENU,
+    ISSUANCE_USER,
+)
+from storage import load_json, save_json
 
 
 async def _get_issuance_users_markup(context: ContextTypes.DEFAULT_TYPE) -> InlineKeyboardMarkup:
@@ -103,15 +124,15 @@ async def export_issuance_statistics(update: Update, context: ContextTypes.DEFAU
         with tempfile.NamedTemporaryFile(prefix="issuance_statistics_", suffix=".xlsx", delete=False) as temp_file:
             report_path = temp_file.name
         await asyncio.to_thread(report.to_excel, report_path, index=False, engine="openpyxl")
-        with open(report_path, "rb") as report_file:
-            await update.message.reply_document(
-                document=report_file,
-                filename="issuance_statistics.xlsx",
-                caption="📊 Статистика по выданным и остаточным MINTS/стикам.",
-            )
+        report_bytes = await asyncio.to_thread(Path(report_path).read_bytes)
+        await update.message.reply_document(
+            document=BytesIO(report_bytes),
+            filename="issuance_statistics.xlsx",
+            caption="📊 Статистика по выданным и остаточным MINTS/стикам.",
+        )
         await update.message.reply_text("📦 Раздел «Выдача»:", reply_markup=get_issuance_keyboard())
         return ISSUANCE_MENU
-    except Exception as error:
+    except (OSError, KeyError, TypeError, ValueError, TelegramError) as error:
         logging.exception("Ошибка формирования статистики выдач: %s", error)
         await update.message.reply_text("❌ Не удалось сформировать статистику.", reply_markup=get_issuance_keyboard())
         return ISSUANCE_MENU

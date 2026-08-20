@@ -1,8 +1,21 @@
 """Рассылка текста, фотографий и документов администратором."""
-from bot_context import *
-from organization import is_admin_mode
-from storage import load_json
+from telegram.error import TelegramError
+
+from bot_context import (
+    ContextTypes,
+    ConversationHandler,
+    Update,
+    logging,
+)
+from config import (
+    USERS_FILE,
+)
 from keyboards import cancel_keyboard, get_main_keyboard
+from organization import is_admin_mode
+from states import (
+    BROADCAST,
+)
+from storage import load_json
 
 
 async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -33,7 +46,7 @@ async def send_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sent, failed = 0, 0
     status_msg = await message.reply_text("⏳ Идет рассылка...")
 
-    for user_id in users.keys():
+    for user_id in users:
         if not str(user_id).isdigit():
             continue
         try:
@@ -45,7 +58,7 @@ async def send_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 message_id=message.message_id,
             )
             sent += 1
-        except Exception as error:
+        except TelegramError as error:
             failed += 1
             logging.warning("Рассылка не доставлена пользователю %s: %s", user_id, error)
 

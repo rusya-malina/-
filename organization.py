@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections import OrderedDict
 import re
+from collections import OrderedDict
 
 from bot_context import ADMIN_ID, TEAM_OPTIONS
 

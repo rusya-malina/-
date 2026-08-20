@@ -1,8 +1,38 @@
 """Единый inbox заявок пользователей для администратора."""
-from bot_context import *
-from storage import load_json, save_json, load_pending, update_pending
-from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard, get_registration_group_keyboard
+from telegram.error import TelegramError
+
+from bot_context import (
+    ContextTypes,
+    ConversationHandler,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update,
+    datetime,
+    logging,
+    timezone,
+)
+from config import (
+    ADMIN_ID,
+    GROUPS_FILE,
+    PENDING_FILE,
+    TEAM_REQUESTS_FILE,
+    TEAMS_FILE,
+    USER_REQUESTS_FILE,
+    USERS_FILE,
+)
+from keyboards import (
+    cancel_keyboard,
+    get_extra_keyboard,
+    get_main_keyboard,
+    get_registration_group_keyboard,
+)
 from organization import is_admin_mode
+from states import (
+    EXTRA_MENU_STATE,
+    PENDING_REQUESTS_STATE,
+    USER_REQUEST,
+)
+from storage import load_json, load_pending, save_json, update_many_json
 
 
 def _request_title(request: dict) -> str:
@@ -24,45 +54,32 @@ def _short_text(value: str, limit: int = 70) -> str:
 
 
 async def process_registration_approval(user_id: str, accepted: bool) -> dict | None:
-    """Единый read-modify-write для одобрения или отклонения регистрации."""
+    """Единая согласованная операция для одобрения или отклонения регистрации."""
     user_id = str(user_id)
 
-    def remove_pending(data):
-        return data.pop(user_id, None)
+    def mutate(files: dict[str, dict]) -> dict | None:
+        pending = files[PENDING_FILE]
+        removed_request = pending.pop(user_id, None)
+        if removed_request is None:
+            return None
 
-    removed_request = await update_pending(remove_pending)
-    if removed_request is None:
-        return None
+        request = dict(removed_request) if isinstance(removed_request, dict) else {"name": str(removed_request)}
+        name = str(request.get("name") or "Пользователь")
+        group = request.get("group")
+        if accepted:
+            files[USERS_FILE][user_id] = name
+            files[GROUPS_FILE][user_id] = {
+                "name": name,
+                "group": group,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            user_text = f"🎉 Ваша заявка одобрена!\n\nДобро пожаловать, {name}!\nГруппа: {group}"
+        else:
+            files[GROUPS_FILE].pop(user_id, None)
+            user_text = "❌ Заявка отклонена. Выберите группу заново, чтобы отправить новую заявку."
+        return {"request": request, "name": name, "group": group, "user_text": user_text}
 
-    request = dict(removed_request) if isinstance(removed_request, dict) else {"name": str(removed_request)}
-    name = str(request.get("name") or "Пользователь")
-    group = request.get("group")
-
-    if accepted:
-        users = await load_json(USERS_FILE)
-        users[user_id] = name
-        await save_json(users, USERS_FILE)
-
-        groups = await load_json(GROUPS_FILE)
-        groups[user_id] = {
-            "name": name,
-            "group": group,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        await save_json(groups, GROUPS_FILE)
-        user_text = f"🎉 Ваша заявка одобрена!\n\nДобро пожаловать, {name}!\nГруппа: {group}"
-    else:
-        groups = await load_json(GROUPS_FILE)
-        groups.pop(user_id, None)
-        await save_json(groups, GROUPS_FILE)
-        user_text = "❌ Заявка отклонена. Выберите группу заново, чтобы отправить новую заявку."
-
-    return {
-        "request": request,
-        "name": name,
-        "group": group,
-        "user_text": user_text,
-    }
+    return await update_many_json((PENDING_FILE, USERS_FILE, GROUPS_FILE), mutate)
 
 
 async def load_request_inbox() -> list[dict]:
@@ -251,7 +268,6 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if result is None:
             return await _show_requests_after_callback(query, context)
         name = result["name"]
-        group = result["group"]
         user_text = result["user_text"]
 
     elif kind == "team":
@@ -287,7 +303,7 @@ async def requests_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     else get_registration_group_keyboard()
                 ),
             )
-        except Exception as error:
+        except TelegramError as error:
             logging.warning("Не удалось уведомить пользователя по заявке %s: %s", user_id, error)
 
     result = "✅ Заявка принята." if accepted else "❌ Заявка отклонена."
@@ -342,6 +358,6 @@ async def process_user_request(update: Update, context: ContextTypes.DEFAULT_TYP
                 ]]
             ),
         )
-    except Exception as error:
+    except TelegramError as error:
         logging.error("Не удалось отправить пользовательскую заявку админу: %s", error)
     return ConversationHandler.END

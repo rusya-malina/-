@@ -10,10 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import handlers.teams as teams_handler
-from bot_context import ConversationHandler, TEAM_MENU_STATE
+from bot_context import TEAM_MENU_STATE
+from handlers.teams import _report_sections as get_report_sections
 from keyboards import get_main_keyboard
 from organization import get_scope_groups, get_visible_users
-from handlers.teams import _report_sections as get_report_sections
 
 
 async def test_scope_and_team_view() -> None:

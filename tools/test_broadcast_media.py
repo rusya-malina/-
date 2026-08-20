@@ -8,7 +8,7 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-import handlers.broadcast as broadcast
+from handlers import broadcast
 
 
 class FakeStatus:

@@ -12,12 +12,22 @@ sys.path.insert(0, str(ROOT))
 import app_factory
 import bot
 from app_factory import build_application
-from bot_context import EXTRA_MENU_STATE, PENDING_REQUESTS_STATE, TEAM_OPTIONS, ThreadingHTTPServer
+from bot_context import (
+    EXTRA_MENU_STATE,
+    PENDING_REQUESTS_STATE,
+    TEAM_OPTIONS,
+    ThreadingHTTPServer,
+)
 from handlers.requests import build_requests_markup
-from keyboards import get_data_keyboard, get_issuance_confirmation_markup, get_kpi_menu_keyboard, get_main_keyboard, get_registration_group_keyboard
 from health import HealthHandler
+from keyboards import (
+    get_data_keyboard,
+    get_issuance_confirmation_markup,
+    get_kpi_menu_keyboard,
+    get_main_keyboard,
+    get_registration_group_keyboard,
+)
 from services import calculate_balances, find_telegram_user_ids_by_name
-
 
 MODULES = [
     "bot_context",

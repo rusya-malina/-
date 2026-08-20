@@ -10,7 +10,11 @@ sys.path.insert(0, str(ROOT))
 import handlers.kpi as kpi_handler
 import handlers.teams as teams_handler
 from bot_context import TEAM_MENU_STATE
-from organization import build_employee_registry, get_visible_users, merge_employee_issuance
+from organization import (
+    build_employee_registry,
+    get_visible_users,
+    merge_employee_issuance,
+)
 
 USERS = {
     "10": "Алиса Смирнова",

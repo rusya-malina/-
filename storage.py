@@ -1,4 +1,7 @@
 """Асинхронный адаптер JSON-хранилищ бота."""
+from collections.abc import Callable, Iterable
+from contextlib import AsyncExitStack
+
 from bot_context import (
     ISSUANCE_FILE,
     ISSUANCE_SCHEMA_VERSION,
@@ -11,7 +14,6 @@ from bot_context import (
     logging,
     os,
 )
-
 
 _JSON_LOCKS: dict[str, asyncio.Lock] = {}
 
@@ -61,6 +63,11 @@ def _sync_save_json(data: dict, filepath: str) -> None:
             pass
 
 
+def load_json_sync(filepath: str) -> dict:
+    """Read-only synchronous access for startup and keyboard rendering."""
+    return _sync_load_json(filepath)
+
+
 async def load_json(filepath: str) -> dict:
     return await asyncio.to_thread(_sync_load_json, filepath)
 
@@ -75,6 +82,23 @@ async def update_json(filepath: str, mutator):
         data = await load_json(filepath)
         result = mutator(data)
         await save_json(data, filepath)
+        return result
+
+
+async def update_many_json(filepaths: Iterable[str], mutator: Callable[[dict[str, dict]], object]):
+    """Serialize a related multi-file read-modify-write operation.
+
+    Locks are acquired in sorted path order to avoid deadlocks when concurrent
+    handlers update overlapping JSON stores.
+    """
+    paths = sorted(set(filepaths))
+    async with AsyncExitStack() as stack:
+        for filepath in paths:
+            await stack.enter_async_context(_get_json_lock(filepath))
+        data = {filepath: await load_json(filepath) for filepath in paths}
+        result = mutator(data)
+        for filepath in paths:
+            await save_json(data[filepath], filepath)
         return result
 
 
