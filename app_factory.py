@@ -77,6 +77,7 @@ from handlers.user import (
     save_new_full_name,
     start,
 )
+from recovery import handle_application_error
 from services import check_pending_requests_job
 from states import (
     BROADCAST,
@@ -118,6 +119,7 @@ def build_application(token: str) -> Application:
     """Создаёт приложение, подключает фоновые задачи и маршруты Telegram."""
     request = HTTPXRequest(connect_timeout=30.0, read_timeout=30.0)
     app = Application.builder().token(token).request(request).build()
+    app.add_error_handler(handle_application_error)
 
     if app.job_queue:
         app.job_queue.run_repeating(check_pending_requests_job, interval=300, first=60)
