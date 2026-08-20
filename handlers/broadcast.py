@@ -10,7 +10,8 @@ from bot_context import (
 from config import (
     USERS_FILE,
 )
-from keyboards import cancel_keyboard, get_main_keyboard
+from keyboards import cancel_keyboard
+from navigation import main_menu_markup
 from permissions import Permission, has_permission
 from states import (
     BROADCAST,
@@ -68,6 +69,6 @@ async def send_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await message.reply_text(
         "Главное меню:",
-        reply_markup=get_main_keyboard(update.effective_user.id, admin_mode=True),
+        reply_markup=main_menu_markup(update.effective_user.id, context),
     )
     return ConversationHandler.END

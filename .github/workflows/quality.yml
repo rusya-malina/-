@@ -41,6 +41,7 @@ jobs:
             tools/test_schema_migration.py \
             tools/test_admin_modes.py \
             tools/test_permissions.py \
+            tools/test_excel_preview.py \
             tools/test_broadcast_media.py \
             tools/test_concurrent_latest_files.py \
             tools/test_github_sync.py \

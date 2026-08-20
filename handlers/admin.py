@@ -20,11 +20,8 @@ from handlers.requests import (
     requests_callback,
     show_requests_menu,
 )
-from keyboards import (
-    cancel_keyboard,
-    get_extra_keyboard,
-    get_main_keyboard,
-)
+from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard
+from navigation import main_menu_markup
 from organization import build_employee_registry
 from permissions import Permission, has_permission, set_admin_mode
 from roles import get_user_group
@@ -50,7 +47,7 @@ async def enter_admin_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     set_admin_mode(context, True)
     await update.message.reply_text(
         "🛡 **Режим администратора включён.**\nДля возврата в режим coor R используйте /coor.",
-        reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True),
+        reply_markup=main_menu_markup(ADMIN_ID, context),
         parse_mode="Markdown",
     )
     return ConversationHandler.END
@@ -64,7 +61,7 @@ async def exit_admin_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group = await get_user_group(ADMIN_ID) or "coor R"
     await update.message.reply_text(
         "👥 **Режим coor R включён.**\nДля возврата к административным функциям используйте /admin.",
-        reply_markup=get_main_keyboard(ADMIN_ID, group=group, admin_mode=False),
+        reply_markup=main_menu_markup(ADMIN_ID, context, group=group),
         parse_mode="Markdown",
     )
     return ConversationHandler.END

@@ -21,11 +21,8 @@ from data_models import (
     registration_request,
     user_name,
 )
-from keyboards import (
-    get_extra_keyboard,
-    get_main_keyboard,
-    get_registration_group_keyboard,
-)
+from keyboards import get_extra_keyboard, get_main_keyboard, get_registration_group_keyboard
+from navigation import main_menu_markup
 from permissions import Permission, has_permission
 from states import (
     EXTRA_MENU_STATE,
@@ -154,7 +151,7 @@ async def _show_admin_main_menu_after_callback(query, context: ContextTypes.DEFA
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text="🏠 Главное меню администратора:",
-        reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True),
+        reply_markup=main_menu_markup(ADMIN_ID, context),
     )
     return ConversationHandler.END
 

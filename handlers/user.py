@@ -18,11 +18,8 @@ from config import (
     USERS_FILE,
 )
 from data_models import make_user_record, user_name
-from keyboards import (
-    cancel_keyboard,
-    get_main_keyboard,
-    get_registration_group_keyboard,
-)
+from keyboards import cancel_keyboard, get_main_keyboard, get_registration_group_keyboard
+from navigation import clear_navigation_state, main_menu_markup
 from permissions import is_admin_mode
 from roles import get_user_group
 from states import (
@@ -335,11 +332,7 @@ async def get_lau(update: Update, context: ContextTypes.DEFAULT_TYPE):
         group = await get_user_group(update.effective_user.id)
         await update.message.reply_text(
             result,
-            reply_markup=get_main_keyboard(
-                update.effective_user.id,
-                group=group,
-                admin_mode=is_admin_mode(update.effective_user.id, context),
-            ),
+            reply_markup=main_menu_markup(update.effective_user.id, context, group=group),
             parse_mode="Markdown",
         )
         return ConversationHandler.END
@@ -349,15 +342,12 @@ async def get_lau(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cancel_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    clear_navigation_state(context)
     for key in ("issuance_type", "issuance_user_id", "issuance_amount"):
         context.user_data.pop(key, None)
     group = await get_user_group(update.effective_user.id)
     await update.message.reply_text(
         "❌ Действие отменено.",
-        reply_markup=get_main_keyboard(
-            update.effective_user.id,
-            group=group,
-            admin_mode=is_admin_mode(update.effective_user.id, context),
-        ),
+        reply_markup=main_menu_markup(update.effective_user.id, context, group=group),
     )
     return ConversationHandler.END

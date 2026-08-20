@@ -27,12 +27,8 @@ from config import (
 )
 from data_models import normalize_issuance_record, user_name
 from errors import StorageError
-from keyboards import (
-    cancel_keyboard,
-    get_issuance_confirmation_markup,
-    get_issuance_keyboard,
-    get_main_keyboard,
-)
+from keyboards import cancel_keyboard, get_issuance_confirmation_markup, get_issuance_keyboard
+from navigation import main_menu_markup
 from permissions import Permission, has_permission
 from services import (
     _format_quantity,
@@ -221,7 +217,7 @@ async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text="🏠 Главное меню:",
-        reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True),
+        reply_markup=main_menu_markup(ADMIN_ID, context),
     )
     context.user_data.pop("issuance_type", None)
     context.user_data.pop("issuance_user_id", None)
@@ -259,7 +255,7 @@ async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text="❌ Выдача отменена.",
-            reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True),
+            reply_markup=main_menu_markup(ADMIN_ID, context),
         )
         return ConversationHandler.END
 
@@ -323,7 +319,7 @@ async def process_issuance_amount(update: Update, context: ContextTypes.DEFAULT_
     users = await load_json(USERS_FILE)
     user_name_value = user_name(users.get(user_id))
     if not user_id or not issuance_type or not user_name_value:
-        await update.message.reply_text("❌ Сессия выдачи устарела. Начните выдачу заново.", reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True))
+        await update.message.reply_text("❌ Сессия выдачи устарела. Начните выдачу заново.", reply_markup=main_menu_markup(ADMIN_ID, context))
         return ConversationHandler.END
 
     type_label = "MINTS" if issuance_type == "mints" else "стиков"

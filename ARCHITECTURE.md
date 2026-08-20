@@ -9,6 +9,7 @@
 | `data_models.py` | Canonical schema v1, constructors и backward-compatible readers для users, groups, заявок, teams и issuance. |
 | `errors.py` | Typed `StorageError`, `DataValidationError` и `ExternalServiceError` для единых error boundaries. |
 | `permissions.py` | Единый слой разрешений: ADMIN_ID, режимы `admin`/`coor`, Permission enum и безопасные параметры главного меню. |
+| `navigation.py` | Централизованные возвраты в главное меню и очистка временного staged navigation/import state без изменения прав. |
 | `bot_context.py` | Только обратная совместимость для старых тестов и модулей; новый production-код использует явные импорты. |
 | `storage.py` | Асинхронное чтение, атомарная запись JSON-файлов, single-file и multi-file lock операции, планы и pending-заявки. |
 | `keyboards.py` | Reply-клавиатуры и callback-разметка меню, включая подтверждение выдачи. |
@@ -19,7 +20,7 @@
 | `handlers/requests.py` | Административный inbox регистраций новых пользователей; принятие и отклонение из раздела «📥 Заявки». |
 | `handlers/kpi.py` | Ручной KPI, планы, просмотр KPI, справочник и личные остатки через единый реестр сотрудников. |
 | `handlers/issuance.py` | Меню выдач, выдача MINTS/стиков, подтверждение и статистика. |
-| `handlers/uploads.py` | Excel-загрузка KPI и Excel-загрузка выдач. Тяжёлая обработка остаётся изолированной от меню. |
+| `handlers/uploads.py` | Excel-загрузка KPI и Excel-загрузка выдач. Тяжёлая обработка остаётся изолированной от меню; запись выполняется только после preview confirmation. |
 | `handlers/broadcast.py` | Рассылка текста и фотографий. |
 | `health.py` | Минимальный `/healthz` endpoint для Render. |
 

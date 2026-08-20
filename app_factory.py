@@ -60,6 +60,7 @@ from handlers.teams import (
     team_moderation_callback,
 )
 from handlers.uploads import (
+    excel_preview_callback,
     process_excel_file,
     process_issuance_excel_file,
     start_excel_upload,
@@ -152,7 +153,7 @@ def build_application(token: str) -> Application:
                 MessageHandler(filters.Regex(r"^(MINTS|Стики|📥 Загрузить выдачи \(Excel\)|📊 Выгрузка статистики)$"), issuance_menu_message),
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             ],
-            UPLOAD_EXCEL: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.Document.ALL, process_excel_file)],
+            UPLOAD_EXCEL: [CallbackQueryHandler(excel_preview_callback, pattern=r"^excel_(confirm|cancel)$"), MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.Document.ALL, process_excel_file)],
             MANUAL_KPI_NAME: [CallbackQueryHandler(manual_kpi_select_employee, pattern=r"^manual_emp_")],
             SELECT_PREVIOUS_EMP: [CallbackQueryHandler(select_previous_employee_handler, pattern=r"^(sel_emp:|manual_emp_)")],
             CONFIRM_DELETE_EMP: [CallbackQueryHandler(delete_employee_confirm, pattern=r"^(del_select:|del_type:|del_back_list|manual_emp_)")],
@@ -183,7 +184,7 @@ def build_application(token: str) -> Application:
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             ],
             ISSUANCE_MENU: [MessageHandler(filters.Regex(r"^(MINTS|Стики|📥 Загрузить выдачи \(Excel\)|📊 Выгрузка статистики)$"), issuance_menu_message), MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action)],
-            ISSUANCE_EXCEL_UPLOAD: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.Document.ALL, process_issuance_excel_file)],
+            ISSUANCE_EXCEL_UPLOAD: [CallbackQueryHandler(excel_preview_callback, pattern=r"^excel_(confirm|cancel)$"), MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.Document.ALL, process_issuance_excel_file)],
             ISSUANCE_USER: [CallbackQueryHandler(issuance_callback, pattern=r"^(issue_(type|user):|issue_cancel)$")],
             ISSUANCE_AMOUNT: [CallbackQueryHandler(issuance_callback, pattern=r"^(issue_confirm|issue_change_user|issue_cancel)$"), MessageHandler(filters.TEXT & ~filters.COMMAND, process_issuance_amount)],
         },

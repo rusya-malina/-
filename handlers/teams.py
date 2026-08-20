@@ -20,11 +20,8 @@ from config import (
     USERS_FILE,
 )
 from data_models import make_team_record, team_request, user_name
-from keyboards import (
-    get_main_keyboard,
-    get_team_keyboard,
-    get_team_menu_keyboard,
-)
+from keyboards import get_main_keyboard, get_team_keyboard, get_team_menu_keyboard
+from navigation import main_menu_markup
 from organization import (
     get_visible_users,
     is_management_group,
@@ -253,7 +250,7 @@ async def team_moderation_callback(update: Update, context: ContextTypes.DEFAULT
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text="🏠 Главное меню администратора:",
-            reply_markup=get_main_keyboard(ADMIN_ID, admin_mode=True),
+            reply_markup=main_menu_markup(ADMIN_ID, context),
         )
         return ConversationHandler.END
 

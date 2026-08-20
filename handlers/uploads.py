@@ -4,6 +4,8 @@ from telegram.error import TelegramError
 from bot_context import (
     ContextTypes,
     ConversationHandler,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
     Update,
     asyncio,
     datetime,
@@ -25,7 +27,8 @@ from config import (
 from data_models import make_user_record, normalize_issuance_record, user_name
 from errors import StorageError
 from github_sync import sync_kpi_state
-from keyboards import cancel_keyboard, get_issuance_keyboard, get_main_keyboard
+from keyboards import cancel_keyboard, get_data_keyboard, get_issuance_keyboard
+from navigation import clear_pending_import
 from permissions import Permission, has_permission
 from services import (
     _find_column,
@@ -36,9 +39,19 @@ from services import (
 from states import (
     ISSUANCE_EXCEL_UPLOAD,
     ISSUANCE_MENU,
+    KPI_MENU_STATE,
     UPLOAD_EXCEL,
 )
 from storage import load_json, replace_latest_file, update_many_json
+
+
+def _excel_preview_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✅ Подтвердить импорт", callback_data="excel_confirm")],
+            [InlineKeyboardButton("❌ Отменить", callback_data="excel_cancel")],
+        ]
+    )
 
 
 async def start_excel_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -57,7 +70,6 @@ async def start_excel_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id_num = update.effective_user.id
     document = update.message.document
 
     if not document.file_name.lower().endswith(".xlsx"):
@@ -119,6 +131,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         users_data = await load_json(USERS_FILE)
         existing_user_names = {_normalize_person_name(user_name(v)) for v in users_data.values()}
         updated_names = []
+        new_names = []
         updated_name_keys = set()
 
         for _, row in df.iterrows():
@@ -145,35 +158,30 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 fake_uid = f"excel_{clean_name}"
                 users_data[fake_uid] = make_user_record(emp_name)
                 existing_user_names.add(clean_name)
+                new_names.append(emp_name)
 
-        def persist_kpi_import(files: dict[str, dict]) -> None:
-            files[KPI_FILE].clear()
-            files[KPI_FILE].update(kpi_data)
-            for employee_id, record in users_data.items():
-                files[USERS_FILE].setdefault(employee_id, record)
-
-        await update_many_json((KPI_FILE, USERS_FILE), persist_kpi_import)
-        os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
-        replace_latest_file(file_path, LATEST_KPI_FILE)
-        file_path = None
-        github_persisted = await sync_kpi_state()
-
-        for name in updated_names:
-            await notify_user_kpi_updated(context, name)
-
-        persistence_note = (
-            "☁️ Копия JSON и latest Excel сохранена в GitHub. Данные восстановятся после перезапуска Render."
-            if github_persisted
-            else "⚠️ Файл стал основным только в текущем контейнере: GitHub-синхронизация не настроена или завершилась ошибкой."
+        context.user_data["pending_excel_import"] = {
+            "kind": "kpi",
+            "temp_path": file_path,
+            "kpi_data": kpi_data,
+            "users_data": users_data,
+            "updated_names": updated_names,
+            "new_names": new_names,
+            "row_count": len(df),
+        }
+        sample = ", ".join(updated_names[:8])
+        if len(updated_names) > 8:
+            sample += ", …"
+        preview = (
+            "🔎 **Предпросмотр импорта KPI**\n\n"
+            f"Строк в файле: **{len(df)}**\n"
+            f"Новых сотрудников без Telegram ID: **{len(new_names)}**\n"
+            f"Сотрудников в preview: **{len(updated_names)}**\n"
+            f"Примеры: {sample or 'нет'}\n\n"
+            "Данные ещё не записаны. Подтвердите импорт или отмените его."
         )
-        await update.message.reply_text(
-            f"✅ **Данные KPI успешно загружены!**\nЗаписей обновлено: `{len(df)}`\n"
-            "📌 Файл сохранён как основной KPI-файл; предыдущий файл заменён.\n"
-            f"{persistence_note}",
-            reply_markup=get_main_keyboard(user_id_num, admin_mode=True),
-            parse_mode="Markdown",
-        )
-        return ConversationHandler.END
+        await update.message.reply_text(preview, reply_markup=_excel_preview_markup(), parse_mode="Markdown")
+        return UPLOAD_EXCEL
 
     except (OSError, KeyError, StorageError, TypeError, ValueError, TelegramError) as e:
         logging.error(f"Ошибка при обработке Excel: {e}")
@@ -181,6 +189,92 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
             os.remove(file_path)
         await update.message.reply_text("❌ **Произошла ошибка при чтении файла.**")
         return UPLOAD_EXCEL
+
+
+async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if not has_permission(query.from_user.id, context, Permission.DATA_UPLOAD):
+        await query.message.edit_text("⛔️ У вас нет доступа к импорту.")
+        return ConversationHandler.END
+
+    staged = context.user_data.get("pending_excel_import")
+    if not isinstance(staged, dict):
+        await query.message.edit_text("ℹ️ Предпросмотр устарел. Загрузите файл заново.")
+        return ConversationHandler.END
+
+    if query.data == "excel_cancel":
+        clear_pending_import(context)
+        await query.message.edit_text("❌ Импорт отменён. Данные не изменены.")
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="📥 Раздел загрузки данных:",
+            reply_markup=get_data_keyboard() if staged.get("kind") == "kpi" else get_issuance_keyboard(),
+        )
+        return KPI_MENU_STATE if staged.get("kind") == "kpi" else ISSUANCE_MENU
+
+    if query.data != "excel_confirm":
+        return UPLOAD_EXCEL
+
+    kind = staged.get("kind")
+    try:
+        if kind == "kpi":
+            await _apply_kpi_import(staged, context)
+            menu = get_data_keyboard()
+            state = KPI_MENU_STATE
+            text = "✅ Импорт KPI подтверждён и применён."
+        elif kind == "issuance":
+            await _apply_issuance_import(staged)
+            menu = get_issuance_keyboard()
+            state = ISSUANCE_MENU
+            text = "✅ Импорт выдач подтверждён и применён."
+        else:
+            raise ValueError("Неизвестный тип staged Excel import")
+    except (OSError, KeyError, StorageError, TypeError, ValueError, TelegramError) as error:
+        logging.exception("Ошибка применения подтверждённого Excel import: %s", error)
+        clear_pending_import(context)
+        await query.message.edit_text("❌ Не удалось применить импорт. Данные не изменены или восстановлены.")
+        return ConversationHandler.END
+
+    context.user_data.pop("pending_excel_import", None)
+    await query.message.edit_text(text)
+    await context.bot.send_message(chat_id=query.message.chat_id, text="📥 Раздел загрузки данных:", reply_markup=menu)
+    return state
+
+
+async def _apply_kpi_import(staged: dict, context: ContextTypes.DEFAULT_TYPE) -> None:
+    kpi_data = staged["kpi_data"]
+    users_data = staged["users_data"]
+
+    def persist(files: dict[str, dict]) -> None:
+        files[KPI_FILE].clear()
+        files[KPI_FILE].update(kpi_data)
+        for employee_id, record in users_data.items():
+            files[USERS_FILE].setdefault(employee_id, record)
+
+    await update_many_json((KPI_FILE, USERS_FILE), persist)
+    source_path = staged["temp_path"]
+    os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
+    replace_latest_file(source_path, LATEST_KPI_FILE)
+    staged["temp_path"] = None
+    await sync_kpi_state()
+    for name in staged.get("updated_names", []):
+        await notify_user_kpi_updated(context, name)
+
+
+async def _apply_issuance_import(staged: dict) -> None:
+    users_data = staged["users_data"]
+    issuance_data = staged["issuance_data"]
+
+    def persist(files: dict[str, dict]) -> None:
+        for employee_id, record in users_data.items():
+            files[USERS_FILE].setdefault(employee_id, record)
+        for employee_id, record in issuance_data.items():
+            files[ISSUANCE_FILE][employee_id] = record
+
+    await update_many_json((USERS_FILE, ISSUANCE_FILE), persist)
+    replace_latest_file(staged["temp_path"], LATEST_ISSUANCE_FILE)
+    staged["temp_path"] = None
 
 
 async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -274,27 +368,27 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
                 record["history"].append({"type": "sticks_excel", "amount": sticks_amount, "admin_id": ADMIN_ID, "created_at": timestamp})
             issuance_data[user_id] = record
 
-        def persist_issuance_import(files: dict[str, dict]) -> None:
-            for employee_id, record in users_data.items():
-                files[USERS_FILE].setdefault(employee_id, record)
-            for employee_id, record in issuance_data.items():
-                if employee_id == "_schema_version":
-                    files[ISSUANCE_FILE][employee_id] = record
-                else:
-                    files[ISSUANCE_FILE][employee_id] = record
-
-        await update_many_json((USERS_FILE, ISSUANCE_FILE), persist_issuance_import)
-        os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
-        replace_latest_file(temp_path, LATEST_ISSUANCE_FILE)
+        context.user_data["pending_excel_import"] = {
+            "kind": "issuance",
+            "temp_path": temp_path,
+            "users_data": users_data,
+            "issuance_data": issuance_data,
+            "row_count": len(rows),
+            "added_without_telegram": added_without_telegram,
+            "mints_total": sum(item[1] for item in rows),
+            "sticks_total": sum(item[2] for item in rows),
+        }
         temp_path = None
-        message = (
-            f"✅ Загружено строк: **{len(rows)}**. Выдачи добавлены сотрудникам по имени.\n"
-            "📌 Файл сохранён как основной файл выдач; предыдущий файл заменён."
+        preview = (
+            "🔎 **Предпросмотр импорта выдач**\n\n"
+            f"Строк в файле: **{len(rows)}**\n"
+            f"MINTS к добавлению: **{sum(item[1] for item in rows):.2f}**\n"
+            f"Стиков к добавлению: **{sum(item[2] for item in rows):.2f}**\n"
+            f"Новых записей без Telegram ID: **{len(added_without_telegram)}**\n\n"
+            "Данные ещё не записаны. Подтвердите импорт или отмените его."
         )
-        if added_without_telegram:
-            message += f"\nНовых записей без Telegram ID: **{len(added_without_telegram)}**."
-        await update.message.reply_text(message, reply_markup=get_issuance_keyboard(), parse_mode="Markdown")
-        return ISSUANCE_MENU
+        await update.message.reply_text(preview, reply_markup=_excel_preview_markup(), parse_mode="Markdown")
+        return ISSUANCE_EXCEL_UPLOAD
     except (OSError, KeyError, StorageError, TypeError, ValueError, TelegramError) as error:
         logging.exception("Ошибка загрузки Excel выдач: %s", error)
         await update.message.reply_text("❌ Не удалось обработать Excel-файл. Проверьте формат и попробуйте снова.", reply_markup=get_issuance_keyboard())
