@@ -68,7 +68,7 @@ async def main():
         ),
         FakeMessage(
             caption="Файл KPI",
-            document=SimpleNamespace(file_id="document-1"),
+            document=SimpleNamespace(file_id="document-1", file_name="presentation.pptx"),
         ),
     ):
         result, calls = await run_case(message)

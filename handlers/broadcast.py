@@ -12,7 +12,7 @@ async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "📢 Отправьте обычный текст, фотографию с подписью или файл/Excel-документ "
-        "с необязательной подписью для рассылки:",
+        "(включая PPT/PPTX-презентации) с необязательной подписью для рассылки:",
         reply_markup=cancel_keyboard,
     )
     return BROADCAST
