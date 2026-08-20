@@ -3,6 +3,7 @@ import signal
 
 from bot_context import ThreadingHTTPServer, logging, os, threading
 from app_factory import build_application
+from github_sync import restore_kpi_state_sync
 from health import HealthHandler
 from storage import _migrate_team_label, _reset_issuance_if_legacy
 from telegram.error import Conflict
@@ -26,6 +27,7 @@ def main() -> None:
     health_server = ThreadingHTTPServer(("0.0.0.0", port), HealthHandler)
     health_thread = threading.Thread(target=health_server.serve_forever, daemon=True)
     health_thread.start()
+    restore_kpi_state_sync()
 
     stop_event = threading.Event()
     current_app = {"value": None}

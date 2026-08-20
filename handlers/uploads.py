@@ -1,5 +1,6 @@
 """Тяжёлые операции с Excel, изолированные от меню и основного роутера."""
 from bot_context import *
+from github_sync import sync_kpi_state
 from organization import is_admin_mode
 from storage import load_json, replace_latest_file, save_json
 from keyboards import cancel_keyboard, get_issuance_keyboard, get_main_keyboard
@@ -119,13 +120,20 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
         replace_latest_file(file_path, LATEST_KPI_FILE)
         file_path = None
+        github_persisted = await sync_kpi_state()
 
         for name in updated_names:
             await notify_user_kpi_updated(context, name)
 
+        persistence_note = (
+            "☁️ Копия JSON и latest Excel сохранена в GitHub. Данные восстановятся после перезапуска Render."
+            if github_persisted
+            else "⚠️ Файл стал основным только в текущем контейнере: GitHub-синхронизация не настроена или завершилась ошибкой."
+        )
         await update.message.reply_text(
             f"✅ **Данные KPI успешно загружены!**\nЗаписей обновлено: `{len(df)}`\n"
-            "📌 Файл сохранён как основной KPI-файл; предыдущий файл заменён.",
+            "📌 Файл сохранён как основной KPI-файл; предыдущий файл заменён.\n"
+            f"{persistence_note}",
             reply_markup=get_main_keyboard(user_id_num, admin_mode=True),
             parse_mode="Markdown",
         )
