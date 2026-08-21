@@ -11,7 +11,11 @@ sys.path.insert(0, str(ROOT))
 
 from domain.models import OperationResult
 from handlers.training import (
+    build_coaching_text,
     build_training_compliance_text,
+    coaching_candidates,
+    coaching_counts_from_data,
+    is_coaching_group,
     is_my_training_group,
     is_training_group,
     my_training_markup,
@@ -33,6 +37,9 @@ def test_training_visibility_and_scoped_candidates() -> None:
     assert is_training_group("coor R") is True
     assert is_training_group("MNG") is False
     assert is_training_group("A LAMP") is False
+    assert is_coaching_group("coor A") is True
+    assert is_coaching_group("coor R") is True
+    assert is_coaching_group("SPV") is False
     assert is_my_training_group("A LAMP") is True
     assert is_my_training_group("R LAMP") is True
     assert is_my_training_group("coor A") is False
@@ -42,6 +49,8 @@ def test_training_visibility_and_scoped_candidates() -> None:
     lamp_labels = _keyboard_text(get_main_keyboard(102, group="A LAMP"))
     assert "Загрузить обучение" in coor_a_labels
     assert "Загрузить обучение" in coor_r_labels
+    assert "Коучинги" in coor_a_labels
+    assert "Коучинги" in coor_r_labels
     assert "Загрузить обучение" not in lamp_labels
     assert "Мои обучения" in lamp_labels
 
@@ -84,6 +93,28 @@ def test_training_visibility_and_scoped_candidates() -> None:
     assert "Сотрудник A — не проведено обучение: **2**" in compliance
     assert "Сотрудник B — не проведено обучение: **1, 2**" in compliance
     assert "Сотрудник C" not in compliance
+
+    visible = [
+        {"user_id": "100", "name": "Сотрудник A", "group": "A LAMP", "aliases": ["100"]},
+        {"user_id": "200", "name": "Сотрудник B", "group": "A LAMP", "aliases": ["200"]},
+        {"user_id": "300", "name": "Другой сотрудник", "group": "R LAMP", "aliases": ["300"]},
+    ]
+    employees = coaching_candidates(visible, "coor A")
+    assert [employee["name"] for employee in employees] == ["Сотрудник A", "Сотрудник B"]
+    history = {
+        "100": {
+            "deliveries": [
+                {"type": "one", "month": "2026-08"},
+                {"type": "two", "month": "2026-08"},
+                {"type": "two", "month": "2026-09"},
+            ]
+        }
+    }
+    assert coaching_counts_from_data(history, employees[0]) == {"one": 1, "two": 2}
+    coaching_text = build_coaching_text("coor A", employees, history)
+    assert "Сотрудник A — **3** коуч." in coaching_text
+    assert "обучение 1: 1, обучение 2: 2" in coaching_text
+    assert "Сотрудник B — **0** коуч." in coaching_text
 
 
 def test_training_one_guard_message() -> None:

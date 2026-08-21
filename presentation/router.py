@@ -44,6 +44,7 @@ from handlers.teams import (
 )
 from handlers.training import (
     my_training_callback,
+    open_coaching_report,
     open_my_training_menu,
     open_training_menu,
     process_training_file,
@@ -116,6 +117,7 @@ def build_conversation_handler() -> ConversationHandler:
             CommandHandler("admin", enter_admin_mode),
             CommandHandler("coor", exit_admin_mode),
             MessageHandler(filters.Regex(r"^Новый расчет$"), new_calculation),
+            MessageHandler(filters.Regex(r"^Коучинги$"), open_coaching_report),
             MessageHandler(filters.Regex(r"^Моя команда$"), open_my_team_menu),
             MessageHandler(filters.Regex(r"^Загрузить обучение$"), open_training_menu),
             MessageHandler(filters.Regex(r"^Мои обучения$"), open_my_training_menu),
