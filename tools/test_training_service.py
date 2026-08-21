@@ -32,11 +32,12 @@ def test_training_service_monthly_guard() -> None:
             assert first.ok and first.code == "training_recorded"
             assert not duplicate.ok and duplicate.code == "training_one_already_sent"
             assert next_month.ok
-            assert second_first.ok and second_repeat.ok
+            assert second_first.ok
+            assert not second_repeat.ok and second_repeat.code == "training_two_already_sent"
             assert await service.has_sent_this_month("100", TRAINING_ONE, "2026-08") is True
             assert await service.has_sent_this_month("100", TRAINING_ONE, "2026-10") is False
             data = json.loads(history_path.read_text(encoding="utf-8"))
-            assert len(data["100"]["deliveries"]) == 4
+            assert len(data["100"]["deliveries"]) == 3
             assert TrainingService.missing_types_from_data(data, "100", "2026-08") == ()
             data["200"] = {"deliveries": [{"type": TRAINING_ONE, "month": "2026-08"}]}
             assert TrainingService.missing_types_from_data(data, "200", "2026-08") == (TRAINING_TWO,)

@@ -40,6 +40,7 @@ from storage import load_json
 
 TRAINING_LABELS = {TRAINING_ONE: "Обучение один", TRAINING_TWO: "Обучение два"}
 TRAINING_FILE_PATHS = {TRAINING_ONE: TRAINING_ONE_FILE, TRAINING_TWO: TRAINING_TWO_FILE}
+TRAINING_OTHER_TYPES = {TRAINING_ONE: TRAINING_TWO, TRAINING_TWO: TRAINING_ONE}
 
 
 def is_training_group(group: str | None) -> bool:
@@ -172,9 +173,11 @@ async def training_type_callback(update: Update, context: ContextTypes.DEFAULT_T
     recipient_id = str(context.user_data.get("training_recipient_id", ""))
     recipient_name = str(context.user_data.get("training_recipient_name", "Сотрудник"))
     service = TrainingService.from_default_storage()
-    if training_type == TRAINING_ONE and await service.has_sent_this_month(recipient_id, TRAINING_ONE):
+    if await service.has_sent_this_month(recipient_id, training_type):
+        other_type = TRAINING_OTHER_TYPES[training_type]
         await query.answer(
-            "Обучение один уже отправлено в этом месяце. Выберите обучение два",
+            f"{TRAINING_LABELS[training_type]} уже отправлено в этом месяце. "
+            f"Выберите {TRAINING_LABELS[other_type].lower()}",
             show_alert=True,
         )
         return TRAINING_TYPE
@@ -249,10 +252,15 @@ async def process_training_file(update: Update, context: ContextTypes.DEFAULT_TY
             file_id=document.file_id,
         )
         if not result.ok:
-            await update.message.reply_text(
-                "Обучение один уже отправлено в этом месяце. Выберите обучение два",
-                reply_markup=training_markup(candidates),
-            )
+            other_type = TRAINING_OTHER_TYPES.get(training_type)
+            if other_type:
+                text = (
+                    f"{TRAINING_LABELS[training_type]} уже отправлено в этом месяце. "
+                    f"Выберите {TRAINING_LABELS[other_type].lower()}"
+                )
+            else:
+                text = "Обучение уже отправлено в этом месяце. Выберите другой тип обучения"
+            await update.message.reply_text(text, reply_markup=training_markup(candidates))
             return TRAINING_EMPLOYEE
         await sync_training_history()
         try:

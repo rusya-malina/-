@@ -104,6 +104,24 @@ def test_training_one_guard_message() -> None:
     )
 
 
+def test_training_two_guard_message() -> None:
+    query = SimpleNamespace(data="training_type:two", answer=AsyncMock())
+    update = SimpleNamespace(callback_query=query)
+    service = SimpleNamespace(has_sent_this_month=AsyncMock(return_value=True))
+    context = SimpleNamespace(user_data={"training_recipient_id": "100", "training_recipient_name": "Сотрудник A"})
+
+    async def scenario() -> int:
+        with patch("handlers.training.TrainingService.from_default_storage", return_value=service):
+            return await training_type_callback(update, context)
+
+    result = asyncio.run(scenario())
+    assert result == TRAINING_TYPE
+    query.answer.assert_awaited_once_with(
+        "Обучение два уже отправлено в этом месяце. Выберите обучение один",
+        show_alert=True,
+    )
+
+
 def test_training_upload_returns_to_employee_list() -> None:
     candidates = [{"user_id": "100", "name": "Сотрудник A", "group": "A LAMP"}]
     document = SimpleNamespace(file_name="training.xlsx", file_id="telegram-file-one")
@@ -146,5 +164,6 @@ def test_training_upload_returns_to_employee_list() -> None:
 if __name__ == "__main__":
     test_training_visibility_and_scoped_candidates()
     test_training_one_guard_message()
+    test_training_two_guard_message()
     test_training_upload_returns_to_employee_list()
     print("TRAINING_FLOW PASS")

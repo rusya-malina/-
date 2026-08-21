@@ -89,10 +89,9 @@ class TrainingService:
             deliveries = record.get("deliveries")
             if not isinstance(deliveries, list):
                 deliveries = []
-            if training_type == TRAINING_ONE and training_type not in self.missing_types_from_data(
-                {target_id: record}, target_id, selected_month
-            ):
-                return OperationResult(False, "training_one_already_sent", "training_one_already_sent")
+            if training_type not in self.missing_types_from_data({target_id: record}, target_id, selected_month):
+                already_sent_code = f"training_{training_type}_already_sent"
+                return OperationResult(False, already_sent_code, already_sent_code)
             delivery = {
                 "type": training_type,
                 "month": selected_month,
