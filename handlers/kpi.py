@@ -603,6 +603,12 @@ def _plan_number(value: float) -> str:
     return str(int(value)) if float(value).is_integer() else f"{value:.1f}"
 
 
+def _plan_rate(row: dict, metric: str) -> str:
+    if row[f"{metric}_remaining"] <= 0:
+        return "План перевыполнен"
+    return f"{row[f'{metric}_per_hour_rounded']}/час"
+
+
 async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     users = await load_json(USERS_FILE)
@@ -635,10 +641,10 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📆 Дата: `{projection['as_of']}`",
             f"🗓 Осталось рабочих дней — {workdays_left}",
             "",
-            f"📈 План GT на 100% — `{target_100['gt_per_hour_rounded']}/час`",
-            f"📈 План GT на 111% — `{target_111['gt_per_hour_rounded']}/час`",
-            f"🎯 План общих микроактов на 100% — `{target_100['micro_per_hour_rounded']}/час`",
-            f"🎯 План общих микроактов на 111% — `{target_111['micro_per_hour_rounded']}/час`",
+            f"📈 План GT на 100% — `{_plan_rate(target_100, 'gt')}`",
+            f"📈 План GT на 111% — `{_plan_rate(target_111, 'gt')}`",
+            f"🎯 План общих микроактов на 100% — `{_plan_rate(target_100, 'micro')}`",
+            f"🎯 План общих микроактов на 111% — `{_plan_rate(target_111, 'micro')}`",
         ]
     )
     await update.message.reply_text(

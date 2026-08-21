@@ -52,7 +52,7 @@ def main() -> None:
     assert "📅 План" not in button_texts(get_main_keyboard(103, group="coor A"))
     assert "📅 План" not in button_texts(get_main_keyboard(104, group="SPV"))
 
-    async def handler_case(group: str) -> str:
+    async def handler_case(group: str, gt_fact: int = 86, micro_las_fact: int = 47, micro_lau_fact: int = 40) -> str:
         original_load = kpi_handler.load_json
         original_group = kpi_handler.get_user_group
         users = {"101": {"name": "A One"}}
@@ -61,10 +61,10 @@ def main() -> None:
             "a one": {
                 "original_name": "A One",
                 "gt_plan": 90,
-                "gt_fact": 86,
+                "gt_fact": gt_fact,
                 "micro_plan": 128,
-                "micro_las_fact": 47,
-                "micro_lau_fact": 40,
+                "micro_las_fact": micro_las_fact,
+                "micro_lau_fact": micro_lau_fact,
             }
         }
         issuance = {"_schema_version": 2}
@@ -93,6 +93,8 @@ def main() -> None:
         assert "Дата:" in text and "Осталось рабочих дней" in text
         assert "План GT на 100%" in text and "План GT на 111%" in text
         assert "План общих микроактов" in text and "/час" in text
+        overachieved = await handler_case("A LAMP", gt_fact=120, micro_las_fact=80, micro_lau_fact=80)
+        assert overachieved.count("План перевыполнен") == 4
         denied = await handler_case("coor A")
         assert "доступен только сотрудникам A LAMP и R LAMP" in denied
 
