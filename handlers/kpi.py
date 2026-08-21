@@ -625,29 +625,22 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     entry = kpi_data.get(employee.get("name_key", ""), {})
     projection = build_plan_projection(entry)
     workdays_left = projection["workdays_left"]
-    hours_left = projection["hours_left"]
-    header = (
-        f"📅 **План до конца месяца**\\n"
-        f"👤 Сотрудник: *{employee['name']}*\\n"
-        f"📆 На дату: `{projection['as_of']}`\\n"
-        f"🗓 **Осталось рабочих дней — {workdays_left}**\\n"
-        f"⏱️ Рабочий график: чт–вс, 4 часа в день\\n"
-        f"⌛ Осталось рабочих часов: `{hours_left}`\\n"
-        "━━━━━━━━━━━━━━━━━━\\n"
+    rows_by_target = {row["target_percent"]: row for row in projection["rows"]}
+    target_100 = rows_by_target[100]
+    target_111 = rows_by_target[111]
+    text = "\n".join(
+        [
+            "📅 **Планы на день для достижения целей**",
+            f"👤 *{employee['name']}*",
+            f"📆 Дата: `{projection['as_of']}`",
+            f"🗓 Осталось рабочих дней — {workdays_left}",
+            "",
+            f"📈 План GT на 100% — `{target_100['gt_per_hour_rounded']}/час`",
+            f"📈 План GT на 111% — `{target_111['gt_per_hour_rounded']}/час`",
+            f"🎯 План общих микроактов на 100% — `{target_100['micro_per_hour_rounded']}/час`",
+            f"🎯 План общих микроактов на 111% — `{target_111['micro_per_hour_rounded']}/час`",
+        ]
     )
-    if not workdays_left:
-        text = header + "\\nℹ️ Рабочий период текущего месяца завершён."
-    else:
-        lines = [header]
-        for row in projection["rows"]:
-            lines.extend(
-                [
-                    f"\\n🎯 **Цель {row['target_percent']}%**",
-                    f"📈 GT: осталось `{_plan_number(row['gt_remaining'])}` | минимум `{row['gt_per_hour_rounded']}` в час",
-                    f"🎯 Общие микроакты: осталось `{_plan_number(row['micro_remaining'])}` | минимум `{row['micro_per_hour_rounded']}` в час",
-                ]
-            )
-        text = "\\n".join(lines)
     await update.message.reply_text(
         text,
         parse_mode="Markdown",

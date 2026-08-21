@@ -90,9 +90,9 @@ def main() -> None:
 
     async def handler_tests() -> None:
         text = await handler_case("A LAMP")
-        assert "Осталось рабочих дней" in text
-        assert "Цель 100%" in text and "Цель 111%" in text
-        assert "Общие микроакты" in text and "в час" in text
+        assert "Дата:" in text and "Осталось рабочих дней" in text
+        assert "План GT на 100%" in text and "План GT на 111%" in text
+        assert "План общих микроактов" in text and "/час" in text
         denied = await handler_case("coor A")
         assert "доступен только сотрудникам A LAMP и R LAMP" in denied
 
