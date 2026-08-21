@@ -1,4 +1,3 @@
-"""Contract tests for staged Excel import application use cases."""
 from __future__ import annotations
 
 import asyncio
@@ -20,8 +19,19 @@ def test_import_service() -> None:
         kpi_path = root / "kpi.json"
         issuance_path = root / "issuance.json"
         users_path = root / "users.json"
-        for path in (kpi_path, issuance_path):
-            path.write_text("{}", encoding="utf-8")
+        kpi_path.write_text(
+            json.dumps(
+                {
+                    "old employee": {
+                        "original_name": "Old Employee",
+                        "gt_plan": 10,
+                        "gt_fact": 5,
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        issuance_path.write_text("{}", encoding="utf-8")
         users_path.write_text(
             json.dumps(
                 {
@@ -56,11 +66,14 @@ def test_import_service() -> None:
                 ]
             )
             assert kpi["new_names"] == []
-            assert kpi["removed_names"] == ["Old Employee", "nan"]
+            assert kpi["removed_names"] == []
+            assert kpi["stale_names"] == ["Old Employee"]
             await service.apply_kpi_import(kpi)
-            assert "test employee" in json.loads(kpi_path.read_text(encoding="utf-8"))
+            applied_kpi = json.loads(kpi_path.read_text(encoding="utf-8"))
+            assert "test employee" in applied_kpi
+            assert "old employee" in applied_kpi
             users = json.loads(users_path.read_text(encoding="utf-8"))
-            assert "excel_old employee" not in users
+            assert "excel_old employee" in users
             assert users["123"]["name"] == "Test Employee"
 
             issuance = await service.prepare_issuance_import([("Test Employee", 10.0, 2.0)], 99)

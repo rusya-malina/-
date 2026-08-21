@@ -1,4 +1,4 @@
-"""Application use cases for staged Excel imports."""
+"""Application service for staged, non-destructive Excel imports."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,7 +14,7 @@ from storage import replace_latest_file
 
 @dataclass
 class ImportService:
-    """Builds and applies validated import snapshots without Telegram dependencies."""
+    """Builds and applies validated import snapshots without destructive cleanup."""
 
     kpi: JsonRepository
     issuance: JsonRepository
@@ -30,6 +30,7 @@ class ImportService:
 
     async def prepare_kpi_import(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
         users_data = await self.users.load()
+        existing_kpi = await self.kpi.load()
         valid_rows: list[dict[str, Any]] = []
         for row in rows:
             employee_name = str(row.get("full_name", "")).strip()
@@ -37,21 +38,22 @@ class ImportService:
             if not normalized_name or normalized_name in {"nan", "none"}:
                 continue
             valid_rows.append(row)
-        latest_names = {_normalize_person_name(row["full_name"]) for row in valid_rows}
-        removed_user_ids: list[str] = []
-        removed_names: list[str] = []
-        for employee_id, record in list(users_data.items()):
-            employee_name = user_name(record)
-            if str(employee_id).startswith("excel_") and _normalize_person_name(employee_name) not in latest_names:
-                removed_user_ids.append(str(employee_id))
-                removed_names.append(employee_name)
-                users_data.pop(employee_id, None)
 
+        latest_names = {_normalize_person_name(row["full_name"]) for row in valid_rows}
         existing_names = {_normalize_person_name(user_name(value)) for value in users_data.values()}
-        kpi_data: dict[str, dict[str, Any]] = {}
+        kpi_data: dict[str, dict[str, Any]] = dict(existing_kpi)
         updated_names: list[str] = []
         new_names: list[str] = []
         updated_keys: set[str] = set()
+        stale_names = sorted(
+            {
+                str(record.get("original_name", key))
+                for key, record in existing_kpi.items()
+                if isinstance(record, dict)
+                and _normalize_person_name(record.get("original_name", key)) not in latest_names
+            },
+            key=str.casefold,
+        )
 
         for row in valid_rows:
             employee_name = str(row["full_name"]).strip()
@@ -73,7 +75,7 @@ class ImportService:
                 updated_keys.add(clean_name)
             if clean_name not in existing_names:
                 fake_uid = f"excel_{clean_name}"
-                users_data[fake_uid] = make_user_record(employee_name)
+                users_data.setdefault(fake_uid, make_user_record(employee_name))
                 existing_names.add(clean_name)
                 new_names.append(employee_name)
 
@@ -83,8 +85,9 @@ class ImportService:
             "users_data": users_data,
             "updated_names": updated_names,
             "new_names": new_names,
-            "removed_user_ids": removed_user_ids,
-            "removed_names": removed_names,
+            "removed_user_ids": [],
+            "removed_names": [],
+            "stale_names": stale_names,
             "row_count": len(valid_rows),
         }
 
@@ -112,7 +115,7 @@ class ImportService:
                 while user_id in users_data and _normalize_person_name(user_name(users_data[user_id])) != normalized_name:
                     user_id = f"excel_{normalized_name.replace(' ', '_')}_{suffix}"
                     suffix += 1
-                users_data[user_id] = make_user_record(employee_name)
+                users_data.setdefault(user_id, make_user_record(employee_name))
                 name_to_user_id[normalized_name] = user_id
                 added_without_telegram.append(employee_name)
 
@@ -144,10 +147,7 @@ class ImportService:
         users_data = staged["users_data"]
 
         def persist(files: dict[str, dict[str, Any]]) -> None:
-            files[self.kpi.path].clear()
             files[self.kpi.path].update(kpi_data)
-            for employee_id in staged.get("removed_user_ids", []):
-                files[self.users.path].pop(employee_id, None)
             for employee_id, record in users_data.items():
                 files[self.users.path].setdefault(employee_id, record)
 

@@ -1,6 +1,7 @@
 """Загрузка, ручное редактирование и просмотр KPI."""
 import contextlib
 
+from application.admin_service import EmployeeAdminService
 from application.kpi_service import KpiService, build_plan_projection
 from application.report_service import ReportService
 from bot_context import (
@@ -24,7 +25,7 @@ from config import (
 )
 from data_models import user_name
 from keyboards import cancel_keyboard, get_data_keyboard, get_main_keyboard
-from organization import get_employee_by_id, merge_employee_issuance
+from organization import build_employee_registry, get_employee_by_id, merge_employee_issuance
 from permissions import Permission, has_permission, is_admin_mode
 from roles import get_user_group
 from services import (
@@ -49,7 +50,7 @@ from states import (
     SET_PLAN_MICRO,
     SET_PLAN_RETRAFIC,
 )
-from storage import get_default_plans, load_json, update_many_json
+from storage import get_default_plans, load_json
 
 
 async def open_kpi_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -333,25 +334,33 @@ async def delete_employee_confirm(update: Update, context: ContextTypes.DEFAULT_
 
     if data.startswith("del_type:"):
         _, del_type, target_name = data.split(":", 2)
-        clean_name = target_name.strip().lower()
-
-        to_delete: list[str] = []
-
-        def remove_employee(files: dict[str, dict]) -> None:
-            files[KPI_FILE].pop(clean_name, None)
-            if del_type == "full":
-                for uid, record in list(files[USERS_FILE].items()):
-                    if user_name(record).casefold() == clean_name.casefold():
-                        to_delete.append(str(uid))
-                        files[USERS_FILE].pop(uid, None)
-
-        await update_many_json((KPI_FILE, USERS_FILE), remove_employee)
-
         status_text = f"🗑 **Сотрудник {target_name} удалён из списка KPI.**"
         if del_type == "full":
-            for uid in to_delete:
-                await notify_user_bot_stopped(context, uid)
-            status_text = f"🔥 **Сотрудник {target_name} полностью удалён!**"
+            users = await load_json(USERS_FILE)
+            groups = await load_json(GROUPS_FILE)
+            kpi_data = await load_json(KPI_FILE)
+            issuance_data = await load_json(ISSUANCE_FILE)
+            employees = build_employee_registry(users, groups, kpi_data, issuance_data)
+            target = next(
+                (employee for employee in employees if employee["name"].casefold() == target_name.casefold()),
+                None,
+            )
+            if target is None or not target.get("user_id"):
+                operation = await KpiService.from_default_storage().delete_entry(target_name)
+            else:
+                operation = await EmployeeAdminService.from_default_storage().delete_registered(
+                    target["user_id"],
+                    user_id_num,
+                )
+            if operation.ok and target is not None and str(target.get("user_id", "")).isdigit():
+                await notify_user_bot_stopped(context, target["user_id"])
+            status_text = f"🔥 **Сотрудник {target_name} полностью удалён!**" if operation.ok else (
+                f"⚠️ **Не удалось удалить сотрудника {target_name}.**"
+            )
+        else:
+            operation = await KpiService.from_default_storage().delete_entry(target_name)
+            if not operation.ok:
+                status_text = f"⚠️ **Запись KPI сотрудника {target_name} не найдена.**"
 
         await query.message.delete()
         await context.bot.send_message(

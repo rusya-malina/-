@@ -125,6 +125,17 @@ class KpiService:
         data = await self.kpi.load()
         return data.get(clean_name(name))
 
+    async def delete_entry(self, name: str) -> OperationResult:
+        key = clean_name(name)
+
+        def remove(data: dict[str, Any]) -> OperationResult:
+            if key not in data:
+                return OperationResult(False, "not_found", "kpi_entry_not_found", (key,))
+            data.pop(key, None)
+            return OperationResult(True, "deleted", "kpi_entry_deleted", (key,), {"name": name})
+
+        return await self.kpi.update(remove)
+
     async def set_default_plans(self, values: dict[str, Any]) -> OperationResult:
         plans: dict[str, float] = {}
         for field in PLAN_FIELDS:

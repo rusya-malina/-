@@ -1,6 +1,7 @@
 """Пользовательские сценарии: регистрация, расчёты и возврат в меню."""
 from telegram.error import TelegramError
 
+from application.identity_service import IdentityService
 from application.profile_service import ProfileService
 from bot_context import (
     ContextTypes,
@@ -56,6 +57,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         group = await get_user_group(user_id_num)
         await update.message.reply_text(
             f"👋 С возвращением, {name}!",
+            reply_markup=get_main_keyboard(user_id_num, group),
+        )
+        return ConversationHandler.END
+
+    restoration = await IdentityService.from_default_storage().restore_archived(user_id_num)
+    if restoration.ok:
+        users = await load_json(USERS_FILE)
+        name = user_name(users.get(user_id), restoration.details.get("name", "Пользователь"))
+        group = await get_user_group(user_id_num)
+        await update.message.reply_text(
+            f"👋 С возвращением, {name}! Ваш ранее зарегистрированный профиль восстановлен.",
             reply_markup=get_main_keyboard(user_id_num, group),
         )
         return ConversationHandler.END

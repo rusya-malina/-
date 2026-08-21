@@ -120,6 +120,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         updated_names = staged["updated_names"]
         new_names = staged["new_names"]
         removed_names = staged.get("removed_names", [])
+        stale_names = staged.get("stale_names", [])
         sample = ", ".join(updated_names[:8])
         if len(updated_names) > 8:
             sample += ", …"
@@ -127,7 +128,8 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "🔎 **Предпросмотр импорта KPI**\n\n"
             f"Строк в файле: **{len(df)}**\n"
             f"Новых сотрудников без Telegram ID: **{len(new_names)}**\n"
-            f"Устаревших Excel-записей к удалению: **{len(removed_names)}**\n"
+            f"Автоматически удаляемых сотрудников: **{len(removed_names)}**\n"
+            f"Существующих записей вне файла сохранено: **{len(stale_names)}**\n"
             f"Сотрудников в preview: **{len(updated_names)}**\n"
             f"Примеры: {sample or 'нет'}\n\n"
             "Данные ещё не записаны. Подтвердите импорт или отмените его."

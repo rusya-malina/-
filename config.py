@@ -19,6 +19,7 @@ TEAM_REQUESTS_FILE = "team_requests.json"
 USER_REQUESTS_FILE = "user_requests.json"
 GROUPS_FILE = "groups.json"
 REGISTRATION_DRAFTS_FILE = "registration_drafts.json"
+DELETED_USERS_FILE = "deleted_users.json"
 TEAMS_FILE = "teams.json"
 ISSUANCE_FILE = "issuance_data.json"
 ISSUANCE_SCHEMA_VERSION = 2
