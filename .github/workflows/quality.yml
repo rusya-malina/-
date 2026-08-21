@@ -49,6 +49,7 @@ jobs:
             tools/test_plan_edge_cases.py \
             tools/test_issuance_service.py \
             tools/test_import_service.py \
+            tools/test_kpi_notifications.py \
             tools/test_team_service.py \
             tools/test_shadow_validation.py \
             tools/test_excel_preview.py \

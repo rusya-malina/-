@@ -15,6 +15,7 @@ from config import (
     ADMIN_ID,
     USERS_FILE,
 )
+from data_models import user_name as get_user_name
 from storage import load_json, load_pending
 
 
@@ -51,19 +52,34 @@ def find_telegram_user_ids_by_name(users: dict, target_name: str) -> list[int]:
     """Находит Telegram ID только по полному имени, без учета группы пользователя."""
     clean_target = _normalize_person_name(target_name)
     result = []
-    for user_id, user_name in users.items():
+    for user_id, user_record in users.items():
         if not str(user_id).isdigit():
             continue
-        if _normalize_person_name(user_name) == clean_target:
+        if _normalize_person_name(get_user_name(user_record)) == clean_target:
             result.append(int(user_id))
     return result
 
 
-async def notify_user_kpi_updated(context: ContextTypes.DEFAULT_TYPE, target_name: str):
-    users = await load_json(USERS_FILE)
-    target_user_ids = find_telegram_user_ids_by_name(users, target_name)
+async def notify_users_kpi_updated(context: ContextTypes.DEFAULT_TYPE, target_names: list[str]) -> dict[str, int]:
+    """Notify every real Telegram user represented in an applied KPI snapshot."""
+    try:
+        users = await load_json(USERS_FILE)
+    except (OSError, TypeError, ValueError) as error:
+        logging.exception("Не удалось загрузить users.json для KPI notifications: %s", error)
+        return {"sent": 0, "failed": 0, "unmatched": len(target_names)}
 
-    for target_user_id in target_user_ids:
+    recipients: dict[int, str] = {}
+    unmatched = 0
+    for target_name in dict.fromkeys(str(name).strip() for name in target_names if str(name).strip()):
+        target_user_ids = find_telegram_user_ids_by_name(users, target_name)
+        if not target_user_ids:
+            unmatched += 1
+        for target_user_id in target_user_ids:
+            recipients[target_user_id] = target_name
+
+    sent = 0
+    failed = 0
+    for target_user_id, target_name in recipients.items():
         try:
             await context.bot.send_message(
                 chat_id=target_user_id,
@@ -73,8 +89,24 @@ async def notify_user_kpi_updated(context: ContextTypes.DEFAULT_TYPE, target_nam
                 ),
                 parse_mode="Markdown",
             )
-        except TelegramError as e:
-            logging.error(f"Не удалось отправить уведомление пользователю {target_user_id}: {e}")
+            sent += 1
+        except TelegramError as error:
+            failed += 1
+            logging.error("Не удалось отправить KPI notification пользователю %s: %s", target_user_id, error)
+
+    logging.info(
+        "KPI notifications completed: recipients=%s sent=%s failed=%s unmatched=%s",
+        len(recipients),
+        sent,
+        failed,
+        unmatched,
+    )
+    return {"sent": sent, "failed": failed, "unmatched": unmatched}
+
+
+async def notify_user_kpi_updated(context: ContextTypes.DEFAULT_TYPE, target_name: str):
+    """Backward-compatible single-user notification wrapper."""
+    return await notify_users_kpi_updated(context, [target_name])
 
 
 async def notify_user_bot_stopped(context: ContextTypes.DEFAULT_TYPE, user_id: str):

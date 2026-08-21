@@ -23,7 +23,7 @@ from permissions import Permission, has_permission
 from services import (
     _find_column,
     _parse_nonnegative_quantity,
-    notify_user_kpi_updated,
+    notify_users_kpi_updated,
 )
 from states import (
     ISSUANCE_EXCEL_UPLOAD,
@@ -199,8 +199,7 @@ async def _apply_kpi_import(staged: dict, context: ContextTypes.DEFAULT_TYPE) ->
     await ImportService.from_default_storage().apply_kpi_import(staged, source_path)
     staged["temp_path"] = None
     await sync_kpi_state()
-    for name in staged.get("updated_names", []):
-        await notify_user_kpi_updated(context, name)
+    await notify_users_kpi_updated(context, staged.get("updated_names", []))
 
 
 async def _apply_issuance_import(staged: dict) -> None:
