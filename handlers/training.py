@@ -1,5 +1,13 @@
-"""Coordinator training Excel delivery flow."""
+"""Coordinator delivery and employee retrieval flows for training files."""
 from __future__ import annotations
+
+import asyncio
+import os
+import tempfile
+from datetime import datetime
+from io import BytesIO
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from telegram.error import TelegramError
 
@@ -12,20 +20,35 @@ from bot_context import (
     Update,
     logging,
 )
-from config import GROUPS_FILE, GROUPS_WITH_TRAINING, ISSUANCE_FILE, KPI_FILE, USERS_FILE
+from config import (
+    BOT_TIMEZONE,
+    GROUPS_FILE,
+    GROUPS_WITH_MY_TRAINING,
+    GROUPS_WITH_TRAINING,
+    ISSUANCE_FILE,
+    KPI_FILE,
+    TRAINING_ONE_FILE,
+    TRAINING_TWO_FILE,
+    USERS_FILE,
+)
 from github_sync import sync_training_history
 from keyboards import cancel_keyboard, get_main_keyboard
 from navigation import main_menu_markup
 from organization import get_visible_users
-from roles import get_user_group
-from states import TRAINING_EMPLOYEE, TRAINING_TYPE, TRAINING_UPLOAD
+from roles import get_group_from_record, get_user_group
+from states import MY_TRAINING_MENU, TRAINING_EMPLOYEE, TRAINING_TYPE, TRAINING_UPLOAD
 from storage import load_json
 
 TRAINING_LABELS = {TRAINING_ONE: "Обучение один", TRAINING_TWO: "Обучение два"}
+TRAINING_FILE_PATHS = {TRAINING_ONE: TRAINING_ONE_FILE, TRAINING_TWO: TRAINING_TWO_FILE}
 
 
 def is_training_group(group: str | None) -> bool:
     return group in GROUPS_WITH_TRAINING
+
+
+def is_my_training_group(group: str | None) -> bool:
+    return group in GROUPS_WITH_MY_TRAINING
 
 
 def training_candidates(visible_users: list[dict]) -> list[dict]:
@@ -56,6 +79,24 @@ def training_type_markup() -> InlineKeyboardMarkup:
             [InlineKeyboardButton("Обучение два", callback_data="training_type:two")],
         ]
     )
+
+
+def my_training_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("Обучение 1", callback_data="my_training:one")],
+            [InlineKeyboardButton("Обучение 2", callback_data="my_training:two")],
+        ]
+    )
+
+
+def _training_month() -> str:
+    return datetime.now(ZoneInfo(BOT_TIMEZONE)).strftime("%Y-%m")
+
+
+def _clear_training_context(context: ContextTypes.DEFAULT_TYPE) -> None:
+    for key in ("training_recipient_id", "training_recipient_name", "training_type"):
+        context.user_data.pop(key, None)
 
 
 async def _visible_training_candidates(update: Update, context: ContextTypes.DEFAULT_TYPE) -> tuple[str | None, list[dict]]:
@@ -155,6 +196,22 @@ async def training_type_callback(update: Update, context: ContextTypes.DEFAULT_T
     return TRAINING_UPLOAD
 
 
+async def _save_latest_training_file(document, context: ContextTypes.DEFAULT_TYPE, training_type: str) -> None:
+    destination = Path(TRAINING_FILE_PATHS[training_type])
+    await asyncio.to_thread(destination.parent.mkdir, parents=True, exist_ok=True)
+    suffix = ".xlsx" if str(document.file_name or "").lower().endswith(".xlsx") else ".xls"
+    fd, temporary_path = tempfile.mkstemp(prefix=".training_", suffix=suffix, dir=str(destination.parent))
+    os.close(fd)
+    temporary = Path(temporary_path)
+    try:
+        telegram_file = await context.bot.get_file(document.file_id)
+        await telegram_file.download_to_drive(temporary_path)
+        await asyncio.to_thread(temporary.replace, destination)
+    finally:
+        if await asyncio.to_thread(temporary.exists):
+            await asyncio.to_thread(temporary.unlink)
+
+
 async def process_training_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     recipient_id = str(context.user_data.get("training_recipient_id", ""))
     recipient_name = str(context.user_data.get("training_recipient_name", "Сотрудник"))
@@ -177,6 +234,7 @@ async def process_training_file(update: Update, context: ContextTypes.DEFAULT_TY
         return TRAINING_UPLOAD
 
     try:
+        await _save_latest_training_file(document, context, training_type)
         await context.bot.copy_message(
             chat_id=int(recipient_id),
             from_chat_id=update.message.chat_id,
@@ -207,7 +265,7 @@ async def process_training_file(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup=main_menu_markup(update.effective_user.id, context, group=group),
             parse_mode="Markdown",
         )
-    except TelegramError as error:
+    except (OSError, TelegramError) as error:
         logging.warning("Не удалось отправить обучение пользователю %s: %s", recipient_id, error)
         await update.message.reply_text(
             f"❌ Не удалось отправить {training_label} сотруднику **{recipient_name}**. Попробуйте ещё раз.",
@@ -221,15 +279,109 @@ async def process_training_file(update: Update, context: ContextTypes.DEFAULT_TY
     return ConversationHandler.END
 
 
-def _clear_training_context(context: ContextTypes.DEFAULT_TYPE) -> None:
-    for key in ("training_recipient_id", "training_recipient_name", "training_type"):
-        context.user_data.pop(key, None)
+async def open_my_training_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    group = await get_user_group(update.effective_user.id)
+    if not is_my_training_group(group):
+        await update.message.reply_text("⛔️ Раздел «Мои обучения» доступен только сотрудникам A LAMP и R LAMP.")
+        return ConversationHandler.END
+    await update.message.reply_text(
+        "📚 **Мои обучения**\n\nВыберите обучение:",
+        reply_markup=my_training_markup(),
+        parse_mode="Markdown",
+    )
+    return MY_TRAINING_MENU
+
+
+async def my_training_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    training_type = query.data.split(":", 1)[1] if ":" in query.data else ""
+    if training_type not in TRAINING_FILE_PATHS:
+        return MY_TRAINING_MENU
+    group = await get_user_group(query.from_user.id)
+    if not is_my_training_group(group):
+        await query.answer("Раздел недоступен для вашей группы.", show_alert=True)
+        return ConversationHandler.END
+
+    path = Path(TRAINING_FILE_PATHS[training_type])
+    if not await asyncio.to_thread(path.exists):
+        await query.answer(f"{TRAINING_LABELS[training_type]} пока не загружено.", show_alert=True)
+        return MY_TRAINING_MENU
+    try:
+        content = await asyncio.to_thread(path.read_bytes)
+        await context.bot.send_document(
+            chat_id=query.from_user.id,
+            document=BytesIO(content),
+            caption=f"📚 {TRAINING_LABELS[training_type]}",
+        )
+        await query.message.reply_text("Выберите обучение ещё раз:", reply_markup=my_training_markup())
+    except (OSError, TelegramError) as error:
+        logging.warning("Не удалось выдать %s пользователю %s: %s", training_type, query.from_user.id, error)
+        await query.answer("Не удалось отправить файл. Попробуйте ещё раз.", show_alert=True)
+    return MY_TRAINING_MENU
+
+
+def build_training_compliance_text(
+    manager_group: str,
+    employees: list[dict],
+    history: dict,
+    month: str | None = None,
+) -> str:
+    selected_month = month or _training_month()
+    lines = [f"📚 **Контроль обучений — {manager_group}**", f"📆 Месяц: {selected_month}", ""]
+    missing_count = 0
+    for employee in employees:
+        missing_types = TrainingService.missing_types_from_data(history, employee["user_id"], selected_month)
+        if not missing_types:
+            continue
+        missing_count += 1
+        missing_labels = ", ".join("1" if item == TRAINING_ONE else "2" for item in missing_types)
+        lines.append(f"{missing_count}. {employee['name']} — не проведено обучение: **{missing_labels}**")
+    if not employees:
+        lines.append("_Нет зарегистрированных сотрудников в подчинённой команде._")
+    elif missing_count == 0:
+        lines.append("✅ Все сотрудники прошли оба обучения в текущем месяце.")
+    return "\n".join(lines)
+
+
+async def send_training_compliance_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    users = await load_json(USERS_FILE)
+    groups = await load_json(GROUPS_FILE)
+    kpi_data = await load_json(KPI_FILE)
+    issuance_data = await load_json(ISSUANCE_FILE)
+    history = await TrainingService.from_default_storage().history.load()
+    month = _training_month()
+
+    for manager_id, group_record in groups.items():
+        manager_group = get_group_from_record(group_record)
+        if not str(manager_id).isdigit() or not is_training_group(manager_group):
+            continue
+        visible = get_visible_users(
+            int(manager_id),
+            users,
+            groups,
+            exclude_user_id=manager_id,
+            kpi_data=kpi_data,
+            issuance_data=issuance_data,
+        )
+        employees = training_candidates(visible)
+        report_text = build_training_compliance_text(manager_group, employees, history, month)
+        try:
+            await context.bot.send_message(chat_id=int(manager_id), text=report_text, parse_mode="Markdown")
+        except TelegramError as error:
+            logging.warning("Не удалось отправить четверговой training report %s: %s", manager_id, error)
 
 
 __all__ = [
+    "build_training_compliance_text",
+    "is_my_training_group",
     "is_training_group",
+    "my_training_callback",
+    "my_training_markup",
+    "open_my_training_menu",
     "open_training_menu",
     "process_training_file",
+    "send_training_compliance_job",
     "training_candidates",
     "training_employee_callback",
     "training_markup",

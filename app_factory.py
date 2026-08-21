@@ -1,10 +1,15 @@
 """Application composition root for the Telegram bot."""
 from __future__ import annotations
 
+from datetime import time
+from zoneinfo import ZoneInfo
+
 from bot_context import Application, CallbackQueryHandler, HTTPXRequest, MessageHandler, filters
+from config import BOT_TIMEZONE
 from handlers.kpi import kpi_callback, kpi_menu, my_kpi_callback, my_kpi_menu, show_balances, show_plan
 from handlers.requests import requests_callback
 from handlers.teams import team_moderation_callback
+from handlers.training import send_training_compliance_job
 from handlers.uploads import process_excel_file, process_issuance_excel_file  # noqa: F401
 from presentation.router import build_conversation_handler
 from recovery import handle_application_error
@@ -19,6 +24,12 @@ def build_application(token: str) -> Application:
 
     if app.job_queue:
         app.job_queue.run_repeating(check_pending_requests_job, interval=300, first=60)
+        app.job_queue.run_daily(
+            send_training_compliance_job,
+            time=time(hour=10, minute=0, tzinfo=ZoneInfo(BOT_TIMEZONE)),
+            days=(4,),
+            name="training_compliance_thursday",
+        )
 
     app.add_handler(build_conversation_handler())
     app.add_handler(CallbackQueryHandler(team_moderation_callback, pattern=r"^team_(accept|reject):"))

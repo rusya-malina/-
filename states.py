@@ -37,4 +37,5 @@
     TRAINING_EMPLOYEE,
     TRAINING_TYPE,
     TRAINING_UPLOAD,
-) = range(36)
+    MY_TRAINING_MENU,
+) = range(37)

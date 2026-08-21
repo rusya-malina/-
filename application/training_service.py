@@ -10,7 +10,7 @@ from repositories.json_repository import JsonRepository
 
 TRAINING_ONE = "one"
 TRAINING_TWO = "two"
-TRAINING_TYPES = frozenset({TRAINING_ONE, TRAINING_TWO})
+TRAINING_TYPES = (TRAINING_ONE, TRAINING_TWO)
 
 
 class TrainingService:
@@ -27,19 +27,29 @@ class TrainingService:
     def current_month() -> str:
         return datetime.now(ZoneInfo(BOT_TIMEZONE)).strftime("%Y-%m")
 
+    @staticmethod
+    def missing_types_from_data(
+        data: dict,
+        user_id: int | str,
+        month: str | None = None,
+    ) -> tuple[str, ...]:
+        selected_month = month or TrainingService.current_month()
+        record = data.get(str(user_id), {})
+        deliveries = record.get("deliveries", []) if isinstance(record, dict) else []
+        sent_types = {
+            str(delivery.get("type"))
+            for delivery in deliveries
+            if isinstance(delivery, dict) and delivery.get("month") == selected_month
+        }
+        return tuple(training_type for training_type in TRAINING_TYPES if training_type not in sent_types)
+
     async def has_sent_this_month(self, user_id: int | str, training_type: str, month: str | None = None) -> bool:
-        target_id = str(user_id)
-        selected_month = month or self.current_month()
         data = await self.history.load()
-        record = data.get(target_id, {})
-        if not isinstance(record, dict):
-            return False
-        return any(
-            isinstance(delivery, dict)
-            and delivery.get("type") == training_type
-            and delivery.get("month") == selected_month
-            for delivery in record.get("deliveries", [])
-        )
+        return training_type not in self.missing_types_from_data(data, user_id, month)
+
+    async def missing_types(self, user_id: int | str, month: str | None = None) -> tuple[str, ...]:
+        data = await self.history.load()
+        return self.missing_types_from_data(data, user_id, month)
 
     async def record_delivery(
         self,
@@ -62,11 +72,8 @@ class TrainingService:
             deliveries = record.get("deliveries")
             if not isinstance(deliveries, list):
                 deliveries = []
-            if training_type == TRAINING_ONE and any(
-                isinstance(delivery, dict)
-                and delivery.get("type") == TRAINING_ONE
-                and delivery.get("month") == selected_month
-                for delivery in deliveries
+            if training_type == TRAINING_ONE and training_type not in self.missing_types_from_data(
+                {target_id: record}, target_id, selected_month
             ):
                 return OperationResult(False, "training_one_already_sent", "training_one_already_sent")
             deliveries.append(

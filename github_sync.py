@@ -18,12 +18,12 @@ from urllib.parse import quote
 import requests
 
 from bot_context import KPI_FILE, LATEST_KPI_FILE
-from config import TRAINING_HISTORY_FILE
+from config import TRAINING_HISTORY_FILE, TRAINING_ONE_FILE, TRAINING_TWO_FILE
 
 LOGGER = logging.getLogger(__name__)
 GITHUB_API_ROOT = "https://api.github.com"
 SYNC_PATHS = (KPI_FILE, LATEST_KPI_FILE)
-TRAINING_SYNC_PATHS = (TRAINING_HISTORY_FILE,)
+TRAINING_SYNC_PATHS = (TRAINING_HISTORY_FILE, TRAINING_ONE_FILE, TRAINING_TWO_FILE)
 _SYNC_LOCK = asyncio.Lock()
 
 
@@ -103,6 +103,11 @@ def _validate_remote_training_history_json(content: bytes) -> None:
     parsed = json.loads(content.decode("utf-8"))
     if not isinstance(parsed, dict):
         raise TypeError("Remote training_history.json is not a JSON object")
+
+
+def _validate_training_sync_content(path: str, content: bytes) -> None:
+    if path == TRAINING_HISTORY_FILE:
+        _validate_remote_training_history_json(content)
 
 
 def _get_remote(path: str) -> tuple[bytes, str | None] | None:
@@ -190,43 +195,46 @@ async def sync_kpi_state() -> bool:
 
 
 def restore_training_history_sync() -> bool:
-    """Restore monthly training history when a remote file exists."""
+    """Restore available training history and latest training files."""
     if not _enabled():
-        LOGGER.info("GitHub training history restore disabled: GITHUB_SYNC_TOKEN is not configured")
+        LOGGER.info("GitHub training state restore disabled: GITHUB_SYNC_TOKEN is not configured")
         return False
-    path = TRAINING_SYNC_PATHS[0]
+    restored = 0
     try:
-        remote = _get_remote(path)
-        if remote is None:
-            LOGGER.info("No remote training history yet; starting with empty history")
-            return True
-        content, _sha = remote
-        _validate_remote_training_history_json(content)
-        _write_atomic(path, content)
+        for path in TRAINING_SYNC_PATHS:
+            remote = _get_remote(path)
+            if remote is None:
+                LOGGER.info("No remote training state yet: %s", path)
+                continue
+            content, _sha = remote
+            _validate_training_sync_content(path, content)
+            _write_atomic(path, content)
+            restored += 1
         return True
     except Exception:
-        LOGGER.exception("Failed to restore training history from GitHub: %s", path)
+        LOGGER.exception("Failed to restore training state from GitHub")
         return False
 
 
 def _sync_training_history_local() -> bool:
     if not _enabled():
-        LOGGER.warning("GitHub training history sync skipped: GITHUB_SYNC_TOKEN is not configured")
+        LOGGER.warning("GitHub training state sync skipped: GITHUB_SYNC_TOKEN is not configured")
         return False
-    path = TRAINING_SYNC_PATHS[0]
-    if not os.path.exists(path):
-        LOGGER.error("Cannot sync training history; local file is missing: %s", path)
+    existing_paths = [path for path in TRAINING_SYNC_PATHS if os.path.exists(path)]
+    if not existing_paths:
+        LOGGER.error("Cannot sync training state; local files are missing")
         return False
     try:
-        local_content = _read_local(path)
-        _validate_remote_training_history_json(local_content)
-        remote = _get_remote(path)
-        sha = remote[1] if remote else None
-        _put_remote(path, local_content, sha, "Persist training delivery history")
-        LOGGER.info("Training history synchronized to GitHub repository %s", _repo())
+        for path in existing_paths:
+            local_content = _read_local(path)
+            _validate_training_sync_content(path, local_content)
+            remote = _get_remote(path)
+            sha = remote[1] if remote else None
+            _put_remote(path, local_content, sha, f"Persist training state: {Path(path).name}")
+        LOGGER.info("Training state synchronized to GitHub repository %s", _repo())
         return True
     except Exception:
-        LOGGER.exception("Failed to synchronize training history to GitHub")
+        LOGGER.exception("Failed to synchronize training state to GitHub")
         return False
 
 

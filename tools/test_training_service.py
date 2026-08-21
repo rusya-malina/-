@@ -31,7 +31,13 @@ def test_training_service_monthly_guard() -> None:
             assert second_first.ok and second_repeat.ok
             assert await service.has_sent_this_month("100", TRAINING_ONE, "2026-08") is True
             assert await service.has_sent_this_month("100", TRAINING_ONE, "2026-10") is False
-            assert len(json.loads(history_path.read_text(encoding="utf-8"))["100"]["deliveries"]) == 4
+            data = json.loads(history_path.read_text(encoding="utf-8"))
+            assert len(data["100"]["deliveries"]) == 4
+            assert TrainingService.missing_types_from_data(data, "100", "2026-08") == ()
+            data["200"] = {"deliveries": [{"type": TRAINING_ONE, "month": "2026-08"}]}
+            assert TrainingService.missing_types_from_data(data, "200", "2026-08") == (TRAINING_TWO,)
+            assert TrainingService.missing_types_from_data(data, "100", "2026-10") == (TRAINING_ONE, TRAINING_TWO)
+            assert TrainingService.missing_types_from_data(data, "missing", "2026-08") == (TRAINING_ONE, TRAINING_TWO)
 
         asyncio.run(scenario())
 

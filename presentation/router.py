@@ -43,6 +43,8 @@ from handlers.teams import (
     team_moderation_callback,
 )
 from handlers.training import (
+    my_training_callback,
+    open_my_training_menu,
     open_training_menu,
     process_training_file,
     training_employee_callback,
@@ -88,6 +90,7 @@ from states import (
     MANUAL_KPI_NEW_NAME,
     MANUAL_KPI_OFFICE_HOURS,
     MANUAL_KPI_RETRAFIC_FACT,
+    MY_TRAINING_MENU,
     PENDING_REQUESTS_STATE,
     REG_FIRST_NAME,
     REG_GROUP,
@@ -115,6 +118,7 @@ def build_conversation_handler() -> ConversationHandler:
             MessageHandler(filters.Regex(r"^Новый расчет$"), new_calculation),
             MessageHandler(filters.Regex(r"^Моя команда$"), open_my_team_menu),
             MessageHandler(filters.Regex(r"^Загрузить обучение$"), open_training_menu),
+            MessageHandler(filters.Regex(r"^Мои обучения$"), open_my_training_menu),
             MessageHandler(filters.Regex(r"^Определить команду$"), start_team_selection),
             MessageHandler(filters.Regex(r"^📢 Рассылка$"), start_broadcast),
             MessageHandler(filters.Regex(r"^Загрузить данные$"), open_kpi_admin_menu),
@@ -175,6 +179,10 @@ def build_conversation_handler() -> ConversationHandler:
             TRAINING_UPLOAD: [
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
                 MessageHandler(filters.Document.ALL, process_training_file),
+            ],
+            MY_TRAINING_MENU: [
+                CallbackQueryHandler(my_training_callback, pattern=r"^my_training:(one|two)$"),
+                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             ],
             TEAM_MENU_STATE: [
                 MessageHandler(filters.Regex(r"^📊 KPI команды$"), show_team_kpi),
