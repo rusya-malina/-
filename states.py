@@ -34,4 +34,6 @@
     TEAM_SELECTION,
     USER_REQUEST,
     TEAM_MENU_STATE,
-) = range(33)
+    TRAINING_EMPLOYEE,
+    TRAINING_UPLOAD,
+) = range(35)

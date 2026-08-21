@@ -53,6 +53,7 @@ jobs:
             tools/test_profile_service.py \
             tools/test_admin_delete_flow.py \
             tools/test_identity_archive.py \
+            tools/test_training_flow.py \
             tools/test_health_endpoints.py \
             tools/test_team_service.py \
             tools/test_shadow_validation.py \

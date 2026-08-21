@@ -42,6 +42,7 @@ from handlers.teams import (
     start_team_selection,
     team_moderation_callback,
 )
+from handlers.training import open_training_menu, process_training_file, training_employee_callback
 from handlers.uploads import (
     excel_preview_callback,
     process_excel_file,
@@ -92,6 +93,8 @@ from states import (
     SET_PLAN_RETRAFIC,
     TEAM_MENU_STATE,
     TEAM_SELECTION,
+    TRAINING_EMPLOYEE,
+    TRAINING_UPLOAD,
     UPLOAD_EXCEL,
 )
 
@@ -105,6 +108,7 @@ def build_conversation_handler() -> ConversationHandler:
             CommandHandler("coor", exit_admin_mode),
             MessageHandler(filters.Regex(r"^Новый расчет$"), new_calculation),
             MessageHandler(filters.Regex(r"^Моя команда$"), open_my_team_menu),
+            MessageHandler(filters.Regex(r"^Загрузить обучение$"), open_training_menu),
             MessageHandler(filters.Regex(r"^Определить команду$"), start_team_selection),
             MessageHandler(filters.Regex(r"^📢 Рассылка$"), start_broadcast),
             MessageHandler(filters.Regex(r"^Загрузить данные$"), open_kpi_admin_menu),
@@ -154,6 +158,14 @@ def build_conversation_handler() -> ConversationHandler:
             DELETE_BY_NUM_STATE: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, process_delete_user_by_number)],
             PENDING_REQUESTS_STATE: [CallbackQueryHandler(requests_callback, pattern=r"^req_"), CallbackQueryHandler(pending_requests_callback, pattern=r"^(pend_accept:|pend_accept_all|pend_back)$")],
             TEAM_SELECTION: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, process_team_selection)],
+            TRAINING_EMPLOYEE: [
+                CallbackQueryHandler(training_employee_callback, pattern=r"^training_(user:|empty$)"),
+                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
+            ],
+            TRAINING_UPLOAD: [
+                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
+                MessageHandler(filters.Document.ALL, process_training_file),
+            ],
             TEAM_MENU_STATE: [
                 MessageHandler(filters.Regex(r"^📊 KPI команды$"), show_team_kpi),
                 MessageHandler(filters.Regex(r"^📦 Остатки команды$"), show_team_balances),

@@ -361,7 +361,13 @@ async def get_lau(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cancel_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_navigation_state(context)
-    for key in ("issuance_type", "issuance_user_id", "issuance_amount"):
+    for key in (
+        "issuance_type",
+        "issuance_user_id",
+        "issuance_amount",
+        "training_recipient_id",
+        "training_recipient_name",
+    ):
         context.user_data.pop(key, None)
     group = await get_user_group(update.effective_user.id)
     await update.message.reply_text(
