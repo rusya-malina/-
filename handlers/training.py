@@ -23,7 +23,6 @@ from bot_context import (
 from config import (
     BOT_TIMEZONE,
     GROUPS_FILE,
-    GROUPS_WITH_COACHING,
     GROUPS_WITH_MY_TRAINING,
     GROUPS_WITH_TRAINING,
     ISSUANCE_FILE,
@@ -34,7 +33,7 @@ from config import (
 )
 from github_sync import sync_training_history
 from keyboards import cancel_keyboard
-from organization import ORG_STRUCTURE, get_visible_users
+from organization import get_visible_users
 from roles import get_group_from_record, get_user_group
 from states import MY_TRAINING_MENU, TRAINING_EMPLOYEE, TRAINING_TYPE, TRAINING_UPLOAD
 from storage import load_json
@@ -50,44 +49,6 @@ def is_training_group(group: str | None) -> bool:
 
 def is_my_training_group(group: str | None) -> bool:
     return group in GROUPS_WITH_MY_TRAINING
-
-
-def is_coaching_group(group: str | None) -> bool:
-    return group in GROUPS_WITH_COACHING
-
-
-def coaching_counts_from_data(history: dict, employee: dict) -> dict[str, int]:
-    counts = {TRAINING_ONE: 0, TRAINING_TWO: 0}
-    aliases = employee.get("aliases") or [employee.get("user_id")]
-    for alias in aliases:
-        record = history.get(str(alias), {})
-        deliveries = record.get("deliveries", []) if isinstance(record, dict) else []
-        if not isinstance(deliveries, list):
-            continue
-        for delivery in deliveries:
-            if isinstance(delivery, dict) and delivery.get("type") in counts:
-                counts[delivery["type"]] += 1
-    return counts
-
-
-def build_coaching_text(manager_group: str, employees: list[dict], history: dict) -> str:
-    lines = [f"📚 **Коучинги команды — {manager_group}**", ""]
-    if not employees:
-        lines.append("_Нет зарегистрированных сотрудников в подчинённой команде._")
-        return "\n".join(lines)
-    for index, employee in enumerate(employees, start=1):
-        counts = coaching_counts_from_data(history, employee)
-        total = counts[TRAINING_ONE] + counts[TRAINING_TWO]
-        lines.append(
-            f"{index}. {employee['name']} — **{total}** коуч. "
-            f"(обучение 1: {counts[TRAINING_ONE]}, обучение 2: {counts[TRAINING_TWO]})"
-        )
-    return "\n".join(lines)
-
-
-def coaching_candidates(visible_users: list[dict], manager_group: str) -> list[dict]:
-    child_groups = set(ORG_STRUCTURE.get(manager_group, {}).get("children", ()))
-    return [employee for employee in visible_users if employee.get("group") in child_groups]
 
 
 def training_candidates(visible_users: list[dict]) -> list[dict]:
@@ -157,30 +118,6 @@ async def _visible_training_candidates(update: Update, context: ContextTypes.DEF
         issuance_data=issuance_data,
     )
     return group, training_candidates(visible)
-
-
-async def open_coaching_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    group = await get_user_group(update.effective_user.id)
-    if not is_coaching_group(group):
-        await update.message.reply_text("⛔️ Раздел «Коучинги» доступен только coor A и coor R.")
-        return ConversationHandler.END
-
-    users = await load_json(USERS_FILE)
-    groups = await load_json(GROUPS_FILE)
-    kpi_data = await load_json(KPI_FILE)
-    issuance_data = await load_json(ISSUANCE_FILE)
-    history = await TrainingService.from_default_storage().history.load()
-    visible = get_visible_users(
-        update.effective_user.id,
-        users,
-        groups,
-        exclude_user_id=update.effective_user.id,
-        kpi_data=kpi_data,
-        issuance_data=issuance_data,
-    )
-    employees = coaching_candidates(visible, group)
-    await update.message.reply_text(build_coaching_text(group, employees, history), parse_mode="Markdown")
-    return ConversationHandler.END
 
 
 async def open_training_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -461,15 +398,11 @@ async def send_training_compliance_job(context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 __all__ = [
-    "build_coaching_text",
     "build_training_compliance_text",
-    "coaching_candidates",
-    "is_coaching_group",
     "is_my_training_group",
     "is_training_group",
     "my_training_callback",
     "my_training_markup",
-    "open_coaching_report",
     "open_my_training_menu",
     "open_training_menu",
     "process_training_file",

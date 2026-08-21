@@ -7,7 +7,7 @@ from bot_context import (
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
 )
-from config import GROUPS_WITH_COACHING, GROUPS_WITH_MY_TRAINING, GROUPS_WITH_PLAN, GROUPS_WITH_TRAINING
+from config import GROUPS_WITH_MY_TRAINING, GROUPS_WITH_PLAN, GROUPS_WITH_TRAINING
 from organization import is_management_group
 from permissions import is_admin_mode
 from roles import get_user_group_sync
@@ -35,8 +35,6 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
     group = group or get_user_group_sync(user_id)
     if is_management_group(group):
         keyboard = [["Моя команда"], ["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
-        if group in GROUPS_WITH_COACHING:
-            keyboard.append(["Коучинги"])
         if group in GROUPS_WITH_TRAINING:
             keyboard.append(["Загрузить обучение"])
         if group in GROUPS_WITH_BALANCES:

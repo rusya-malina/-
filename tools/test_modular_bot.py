@@ -83,11 +83,10 @@ def main() -> None:
     coor_buttons = {button.text for row in get_main_keyboard(101, "coor A").keyboard for button in row}
     spv_buttons = {button.text for row in get_main_keyboard(102, "SPV").keyboard for button in row}
     assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Мои обучения"}.issubset(r_lamp_buttons)
-    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Загрузить обучение", "Коучинги"}.issubset(coor_buttons)
+    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Загрузить обучение"}.issubset(coor_buttons)
     assert {"Новый расчет", "Мой KPI", "Справочник KPI"}.issubset(spv_buttons)
     assert "Остатки" not in spv_buttons
     assert "Мои обучения" not in coor_buttons
-    assert "Коучинги" not in spv_buttons
     assert "📝 Оставить заявку" not in r_lamp_buttons | coor_buttons | spv_buttons
     assert "R LAMP" in TEAM_OPTIONS
     assert "К LAMP" not in TEAM_OPTIONS
