@@ -4,6 +4,7 @@ import contextlib
 from application.admin_service import EmployeeAdminService
 from application.kpi_service import KpiService, build_plan_projection
 from application.report_service import ReportService
+from application.training_service import TrainingService
 from bot_context import (
     BadRequest,
     ContextTypes,
@@ -18,14 +19,16 @@ from config import (
     GROUPS_WITH_BALANCES,
     GROUPS_WITH_HOURS,
     GROUPS_WITH_PLAN,
+    GROUPS_WITH_TRAINING,
     ISSUANCE_FILE,
     KPI_FILE,
     TEAM_OPTIONS,
+    TRAINING_HISTORY_FILE,
     USERS_FILE,
 )
 from data_models import user_name
 from keyboards import cancel_keyboard, get_data_keyboard, get_main_keyboard
-from organization import build_employee_registry, get_employee_by_id, merge_employee_issuance
+from organization import build_employee_registry, get_employee_by_id, get_visible_users, merge_employee_issuance
 from permissions import Permission, has_permission, is_admin_mode
 from roles import get_user_group
 from services import (
@@ -491,6 +494,33 @@ async def manual_kpi_get_field_hours(update: Update, context: ContextTypes.DEFAU
     return ConversationHandler.END
 
 
+def my_kpi_markup(group: str | None, admin_mode: bool) -> InlineKeyboardMarkup:
+    inline_keyboard = [[InlineKeyboardButton("📊 KPI", callback_data="my_kpi_show_kpi")]]
+    if admin_mode or group in GROUPS_WITH_HOURS:
+        inline_keyboard.append([InlineKeyboardButton("⏱️ Часы", callback_data="my_kpi_show_hours")])
+    if group in GROUPS_WITH_TRAINING:
+        inline_keyboard.append([InlineKeyboardButton("📚 Обучения", callback_data="my_kpi_show_trainings")])
+    return InlineKeyboardMarkup(inline_keyboard)
+
+
+def build_monthly_training_report(
+    visible_users: list[dict],
+    training_history: dict,
+    month: str | None = None,
+) -> str:
+    selected_month = month or TrainingService.current_month()
+    lines = [f"📚 Обучения за текущий месяц ({selected_month})", "━━━━━━━━━━━━━━━━━━"]
+    employees = sorted(visible_users, key=lambda item: str(item.get("name", "")).casefold())
+    if not employees:
+        lines.append("Нет зарегистрированных подчинённых сотрудников.")
+    else:
+        for employee in employees:
+            aliases = employee.get("aliases", [])
+            count = TrainingService.delivery_count_from_data(training_history, aliases, selected_month)
+            lines.append(f"👤 {employee.get('name', 'Сотрудник')} — {count}")
+    return "\n".join(lines)
+
+
 async def my_kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id_num = update.effective_user.id
     user_id = str(user_id_num)
@@ -505,12 +535,9 @@ async def my_kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Ваша группа ещё не подтверждена. Нажмите /start.")
         return
 
-    inline_keyboard = [[InlineKeyboardButton("📊 KPI", callback_data="my_kpi_show_kpi")]]
-    if admin_mode or group in GROUPS_WITH_HOURS:
-        inline_keyboard.append([InlineKeyboardButton("⏱️ Часы", callback_data="my_kpi_show_hours")])
     await update.message.reply_text(
         "📌 **Раздел «Мой KPI»**\n\nВыберите интересующий раздел:",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard),
+        reply_markup=my_kpi_markup(group, admin_mode),
         parse_mode="Markdown",
     )
 
@@ -530,17 +557,36 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "my_kpi_show_hours" and not admin_mode and group not in GROUPS_WITH_HOURS:
         await query.answer("Раздел «Часы» недоступен для вашей группы.", show_alert=True)
         return
+    if data == "my_kpi_show_trainings" and group not in GROUPS_WITH_TRAINING:
+        await query.answer("Раздел «Обучения» доступен только coor A и coor R.", show_alert=True)
+        return
 
     await query.answer()
 
     if data == "my_kpi_back":
-        inline_keyboard = [[InlineKeyboardButton("📊 KPI", callback_data="my_kpi_show_kpi")]]
-        if admin_mode or group in GROUPS_WITH_HOURS:
-            inline_keyboard.append([InlineKeyboardButton("⏱️ Часы", callback_data="my_kpi_show_hours")])
         await query.message.edit_text(
             "📌 **Раздел «Мой KPI»**\n\nВыберите интересующий раздел:",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard),
+            reply_markup=my_kpi_markup(group, admin_mode),
             parse_mode="Markdown",
+        )
+        return
+
+    if data == "my_kpi_show_trainings":
+        visible_users = get_visible_users(
+            user_id_num,
+            users,
+            groups,
+            exclude_user_id=user_id_num,
+            kpi_data=kpi_data,
+            issuance_data=issuance_data,
+        )
+        training_history = await load_json(TRAINING_HISTORY_FILE)
+        report = build_monthly_training_report(visible_users, training_history)
+        await query.message.edit_text(
+            report,
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("⬅️ Назад к меню KPI", callback_data="my_kpi_back")]]
+            ),
         )
         return
 

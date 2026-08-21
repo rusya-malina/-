@@ -55,6 +55,7 @@ jobs:
             tools/test_identity_archive.py \
             tools/test_training_flow.py \
             tools/test_training_service.py \
+            tools/test_my_kpi_training.py \
             tools/test_training_sync.py \
             tools/test_health_endpoints.py \
             tools/test_team_service.py \

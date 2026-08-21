@@ -44,6 +44,29 @@ class TrainingService:
         return tuple(training_type for training_type in TRAINING_TYPES if training_type not in sent_types)
 
     @staticmethod
+    def delivery_count_from_data(
+        data: dict,
+        aliases: list[int | str] | tuple[int | str, ...],
+        month: str | None = None,
+    ) -> int:
+        selected_month = month or TrainingService.current_month()
+        alias_keys = {str(alias) for alias in aliases}
+        total = 0
+        for alias in alias_keys:
+            record = data.get(alias, {})
+            deliveries = record.get("deliveries", []) if isinstance(record, dict) else []
+            if not isinstance(deliveries, list):
+                continue
+            total += sum(
+                1
+                for delivery in deliveries
+                if isinstance(delivery, dict)
+                and delivery.get("month") == selected_month
+                and delivery.get("type") in TRAINING_TYPES
+            )
+        return total
+
+    @staticmethod
     def latest_file_id_from_data(data: dict, user_id: int | str, training_type: str) -> str | None:
         record = data.get(str(user_id), {})
         if not isinstance(record, dict):
