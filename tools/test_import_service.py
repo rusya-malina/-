@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from application.import_service import ImportService
+from application.import_service import ImportSafetyError, ImportService, build_user_import_audit
 from repositories.json_repository import JsonRepository
 
 
@@ -82,6 +82,45 @@ def test_import_service() -> None:
             assert record["mints_issued"] == 10.0
             assert record["sticks_issued"] == 2.0
             assert len(record["history"]) == 2
+
+        asyncio.run(scenario())
+
+
+def test_user_audit_and_decrease_guard() -> None:
+    before = {"1": {"name": "Алиса Смирнова"}, "2": {"name": "Борис Петров"}}
+    after = {"1": {"name": "Алиса Иванова"}, "3": {"name": "Вера Ким"}}
+    audit = build_user_import_audit(before, after)
+    assert audit["before_count"] == 2
+    assert audit["after_count"] == 2
+    assert audit["new_names"] == ["Вера Ким"]
+    assert audit["removed_names"] == ["Борис Петров"]
+    assert audit["changed_names"] == ["Алиса Смирнова → Алиса Иванова"]
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        kpi_path = root / "kpi.json"
+        issuance_path = root / "issuance.json"
+        users_path = root / "users.json"
+        for path in (kpi_path, issuance_path, users_path):
+            path.write_text("{}", encoding="utf-8")
+        service = ImportService(
+            JsonRepository(str(kpi_path)),
+            JsonRepository(str(issuance_path)),
+            JsonRepository(str(users_path)),
+        )
+
+        async def scenario() -> None:
+            try:
+                await service.apply_kpi_import(
+                    {
+                        "kpi_data": {},
+                        "users_data": {},
+                        "user_audit": {"before_count": 2, "after_count": 1},
+                    }
+                )
+            except ImportSafetyError:
+                return
+            raise AssertionError("KPI import with fewer users must be rejected")
 
         asyncio.run(scenario())
 

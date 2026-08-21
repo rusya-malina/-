@@ -1,7 +1,7 @@
 """Тяжёлые операции с Excel, изолированные от меню и основного роутера."""
 from telegram.error import TelegramError
 
-from application.import_service import ImportService
+from application.import_service import ImportSafetyError, ImportService
 from bot_context import (
     ContextTypes,
     ConversationHandler,
@@ -16,7 +16,7 @@ from bot_context import (
 )
 from config import ADMIN_ID, UPLOADED_DATA_DIR
 from errors import StorageError
-from github_sync import sync_kpi_state
+from github_sync import sync_data_state, sync_kpi_state
 from keyboards import cancel_keyboard, get_data_keyboard, get_issuance_keyboard
 from navigation import clear_pending_import
 from permissions import Permission, has_permission
@@ -121,14 +121,28 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         new_names = staged["new_names"]
         removed_names = staged.get("removed_names", [])
         stale_names = staged.get("stale_names", [])
+        audit = staged.get("user_audit", {})
+        if int(audit.get("after_count", 0)) < int(audit.get("before_count", 0)):
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            context.user_data.pop("pending_excel_import", None)
+            await update.message.reply_text(
+                "⛔ **Импорт остановлен:** количество зарегистрированных пользователей уменьшается. "
+                "Данные не изменены.",
+                parse_mode="Markdown",
+            )
+            return UPLOAD_EXCEL
         sample = ", ".join(updated_names[:8])
         if len(updated_names) > 8:
             sample += ", …"
         preview = (
             "🔎 **Предпросмотр импорта KPI**\n\n"
             f"Строк в файле: **{len(df)}**\n"
-            f"Новых сотрудников без Telegram ID: **{len(new_names)}**\n"
-            f"Автоматически удаляемых сотрудников: **{len(removed_names)}**\n"
+            f"Пользователей до импорта: **{audit.get('before_count', 0)}**\n"
+            f"Пользователей после импорта: **{audit.get('after_count', 0)}**\n"
+            f"Новых сотрудников: **{len(audit.get('new_names', new_names))}**\n"
+            f"Пропавших сотрудников: **{len(audit.get('removed_names', removed_names))}**\n"
+            f"Изменённых ФИО: **{len(audit.get('changed_names', []))}**\n"
             f"Существующих записей вне файла сохранено: **{len(stale_names)}**\n"
             f"Сотрудников в preview: **{len(updated_names)}**\n"
             f"Примеры: {sample or 'нет'}\n\n"
@@ -184,6 +198,14 @@ async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_T
             text = "✅ Импорт выдач подтверждён и применён."
         else:
             raise ValueError("Неизвестный тип staged Excel import")
+    except ImportSafetyError:
+        logging.exception("KPI import blocked by user-count safety guard")
+        clear_pending_import(context)
+        await query.message.edit_text(
+            "⛔ Импорт KPI остановлен: количество зарегистрированных пользователей не должно уменьшаться. "
+            "Данные не изменены."
+        )
+        return UPLOAD_EXCEL
     except (OSError, KeyError, StorageError, TypeError, ValueError, TelegramError) as error:
         logging.exception("Ошибка применения подтверждённого Excel import: %s", error)
         clear_pending_import(context)
@@ -198,6 +220,7 @@ async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_T
 
 async def _apply_kpi_import(staged: dict, context: ContextTypes.DEFAULT_TYPE) -> None:
     source_path = staged["temp_path"]
+    await sync_data_state()
     await ImportService.from_default_storage().apply_kpi_import(staged, source_path)
     staged["temp_path"] = None
     await sync_kpi_state()

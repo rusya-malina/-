@@ -12,6 +12,30 @@ from services import _normalize_person_name
 from storage import replace_latest_file
 
 
+def build_user_import_audit(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    before_names = {str(user_id): user_name(record) for user_id, record in before.items()}
+    after_names = {str(user_id): user_name(record) for user_id, record in after.items()}
+    new_ids = sorted(set(after_names) - set(before_names))
+    removed_ids = sorted(set(before_names) - set(after_names))
+    changed_ids = sorted(
+        user_id
+        for user_id in set(before_names) & set(after_names)
+        if _normalize_person_name(before_names[user_id]) != _normalize_person_name(after_names[user_id])
+    )
+    return {
+        "before_count": len(before_names),
+        "after_count": len(after_names),
+        "new_names": [after_names[user_id] for user_id in new_ids],
+        "removed_names": [before_names[user_id] for user_id in removed_ids],
+        "changed_names": [f"{before_names[user_id]} → {after_names[user_id]}" for user_id in changed_ids],
+        "removed_user_ids": removed_ids,
+    }
+
+
+class ImportSafetyError(ValueError):
+    """Raised when an import would reduce or remove registered users."""
+
+
 @dataclass
 class ImportService:
     """Builds and applies validated import snapshots without destructive cleanup."""
@@ -31,6 +55,7 @@ class ImportService:
     async def prepare_kpi_import(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
         users_data = await self.users.load()
         existing_kpi = await self.kpi.load()
+        users_before = dict(users_data)
         valid_rows: list[dict[str, Any]] = []
         for row in rows:
             employee_name = str(row.get("full_name", "")).strip()
@@ -79,16 +104,18 @@ class ImportService:
                 existing_names.add(clean_name)
                 new_names.append(employee_name)
 
+        user_audit = build_user_import_audit(users_before, users_data)
         return {
             "kind": "kpi",
             "kpi_data": kpi_data,
             "users_data": users_data,
             "updated_names": updated_names,
             "new_names": new_names,
-            "removed_user_ids": [],
-            "removed_names": [],
+            "removed_user_ids": user_audit["removed_user_ids"],
+            "removed_names": user_audit["removed_names"],
             "stale_names": stale_names,
             "row_count": len(valid_rows),
+            "user_audit": user_audit,
         }
 
     async def prepare_issuance_import(
@@ -145,6 +172,12 @@ class ImportService:
     async def apply_kpi_import(self, staged: dict[str, Any], source_path: str | None = None) -> None:
         kpi_data = staged["kpi_data"]
         users_data = staged["users_data"]
+        audit = staged.get("user_audit", {})
+        if int(audit.get("after_count", 0)) < int(audit.get("before_count", 0)):
+            raise ImportSafetyError("KPI import would reduce registered users")
+        current_users = await self.users.load()
+        if len(current_users) < int(audit.get("before_count", len(current_users))):
+            raise ImportSafetyError("registered users changed after preview")
 
         def persist(files: dict[str, dict[str, Any]]) -> None:
             files[self.kpi.path].update(kpi_data)
@@ -170,4 +203,4 @@ class ImportService:
             replace_latest_file(source_path, LATEST_ISSUANCE_FILE)
 
 
-__all__ = ["ImportService"]
+__all__ = ["ImportSafetyError", "ImportService", "build_user_import_audit"]
