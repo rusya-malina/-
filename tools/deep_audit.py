@@ -42,6 +42,8 @@ def load_json_files() -> list[str]:
     errors = []
     for name in JSON_FILES:
         path = ROOT / name
+        if not path.exists():
+            continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
@@ -79,7 +81,8 @@ def main() -> None:
         for error in errors:
             print(f"  ERROR {error}")
         raise SystemExit(1)
-    print(f"  OK {len(JSON_FILES)} files")
+    present_count = sum((ROOT / name).exists() for name in JSON_FILES)
+    print(f"  OK {present_count} local fixture/data files; missing production files are restored from private backup")
 
     print("AUDIT: source definitions")
     for filename, defs in source_audit().items():

@@ -18,8 +18,8 @@ def digest(path: Path) -> str:
 def main() -> None:
     users = ROOT / "users.json"
     kpi = ROOT / "kpi_data.json"
-    users_before = digest(users)
-    kpi_before = digest(kpi)
+    users_before = digest(users) if users.exists() else None
+    kpi_before = digest(kpi) if kpi.exists() else None
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp = Path(temp_dir)
@@ -36,8 +36,10 @@ def main() -> None:
         assert latest.read_bytes() == b"second workbook"
         assert not second.exists()
 
-    assert digest(users) == users_before
-    assert digest(kpi) == kpi_before
+    if users_before is not None:
+        assert digest(users) == users_before
+    if kpi_before is not None:
+        assert digest(kpi) == kpi_before
     print("latest file policy tests passed")
 
 

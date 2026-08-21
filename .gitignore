@@ -6,3 +6,19 @@ __pycache__/
 venv/
 temp_kpi.xlsx
 /backups/
+
+# Runtime data belongs in the private data repository, not the public code repository.
+users.json
+groups.json
+kpi_data.json
+issuance_data.json
+pending_requests.json
+team_requests.json
+teams.json
+user_requests.json
+registration_drafts.json
+deleted_users.json
+plans_config.json
+training_history.json
+uploaded_data/*.xlsx
+XLS Worksheet.xlsx

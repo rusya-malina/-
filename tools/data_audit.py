@@ -24,6 +24,9 @@ def main() -> None:
     print("DATA AUDIT")
     for filename in JSON_FILES:
         path = ROOT / filename
+        if not path.exists():
+            print(f"{filename}: not present in public code checkout; expected from private runtime backup")
+            continue
         data = json.loads(path.read_text(encoding="utf-8"))
         print(f"{filename}: records={len(data)} type={type(data).__name__}")
         if filename == "users.json":

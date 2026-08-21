@@ -37,7 +37,7 @@ def test_training_history_sync() -> None:
             assert github_sync._sync_training_history_local() is True
             assert uploaded["content"] == remote_content
             assert uploaded["sha"] == "remote-sha"
-            assert uploaded["message"] == "Persist training state: training_history.json"
+            assert uploaded["message"] == "Persist bot data: training_history.json"
 
         history_path.write_text("{}", encoding="utf-8")
         with (

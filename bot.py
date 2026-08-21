@@ -9,7 +9,8 @@ from runtime.startup import prepare_data, restore_external_state
 
 
 def main() -> None:
-    """Prepare data, expose health and supervise Telegram polling."""
+    """Restore runtime data, prepare schemas, expose health and supervise polling."""
+    restore_external_state()
     prepare_data()
     token = os.getenv("BOT_TOKEN")
     if not token:
@@ -20,8 +21,6 @@ def main() -> None:
 
     health_server = HealthServer(int(os.getenv("PORT", "10000")))
     health_server.start()
-    restore_external_state()
-
     supervisor = PollingSupervisor(token, build_application)
     supervisor.install_signal_handlers()
     try:

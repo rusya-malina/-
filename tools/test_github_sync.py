@@ -90,6 +90,37 @@ def test_restore_and_sync() -> None:
         assert base64.b64decode(puts[1]["content"]) == b"new-xlsx-bytes"
 
 
+def test_runtime_data_sync() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        directory = Path(tmp)
+        users_path = directory / "users.json"
+        groups_path = directory / "groups.json"
+        users_path.write_text('{"100": {"name": "Тест"}}', encoding="utf-8")
+        groups_path.write_text('{"100": {"name": "Тест", "group": "A LAMP"}}', encoding="utf-8")
+        os.environ["GITHUB_SYNC_TOKEN"] = "test-token"
+        os.environ["GITHUB_SYNC_REPO"] = "rusya-malina/kpi-bot-private-data"
+        os.environ["GITHUB_SYNC_BRANCH"] = "main"
+        puts = []
+
+        def sync_request(method, url, **kwargs):
+            if method == "GET":
+                return Response(404)
+            assert method == "PUT"
+            puts.append((url, kwargs["json"]))
+            return Response(200, {})
+
+        original_request = github_sync.requests.request
+        github_sync.requests.request = sync_request
+        try:
+            assert asyncio.run(github_sync.sync_data_state((str(users_path), str(groups_path)))) is True
+        finally:
+            github_sync.requests.request = original_request
+
+        assert len(puts) == 2
+        assert {url.rsplit("/", 1)[-1] for url, _payload in puts} == {"users.json", "groups.json"}
+
+
 if __name__ == "__main__":
     test_restore_and_sync()
+    test_runtime_data_sync()
     print("github sync tests passed")

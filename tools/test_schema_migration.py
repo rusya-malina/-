@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import json
-import os
-import shutil
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from storage import migrate_json_schemas
+import storage
 
 JSON_FILES = (
     "users.json",
@@ -27,14 +26,31 @@ JSON_FILES = (
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="schema_migration_") as temp_dir:
         temp = Path(temp_dir)
-        for filename in JSON_FILES:
-            shutil.copy2(ROOT / filename, temp / filename)
-        original_cwd = Path.cwd()
-        os.chdir(temp)
-        try:
-            migrate_json_schemas()
-        finally:
-            os.chdir(original_cwd)
+        fixtures = {
+            "users.json": {"excel_test": {"name": "Тестовый сотрудник"}},
+            "groups.json": {"excel_test": {"name": "Тестовый сотрудник", "group": "A LAMP"}},
+            "pending_requests.json": {},
+            "team_requests.json": {},
+            "user_requests.json": {},
+            "teams.json": {},
+            "registration_drafts.json": {},
+            "issuance_data.json": {},
+        }
+        for filename, data in fixtures.items():
+            (temp / filename).write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+        paths = {name.removesuffix(".json").upper() + "_FILE": str(temp / name) for name in JSON_FILES}
+        with (
+            patch.object(storage, "USERS_FILE", paths["USERS_FILE"]),
+            patch.object(storage, "GROUPS_FILE", paths["GROUPS_FILE"]),
+            patch.object(storage, "PENDING_FILE", paths["PENDING_REQUESTS_FILE"]),
+            patch.object(storage, "TEAM_REQUESTS_FILE", paths["TEAM_REQUESTS_FILE"]),
+            patch.object(storage, "USER_REQUESTS_FILE", paths["USER_REQUESTS_FILE"]),
+            patch.object(storage, "TEAMS_FILE", paths["TEAMS_FILE"]),
+            patch.object(storage, "REGISTRATION_DRAFTS_FILE", paths["REGISTRATION_DRAFTS_FILE"]),
+            patch.object(storage, "ISSUANCE_FILE", paths["ISSUANCE_DATA_FILE"]),
+        ):
+            storage.migrate_json_schemas()
 
         users = json.loads((temp / "users.json").read_text(encoding="utf-8"))
         groups = json.loads((temp / "groups.json").read_text(encoding="utf-8"))

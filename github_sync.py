@@ -1,8 +1,8 @@
-"""Temporary durable storage bridge for KPI data using the GitHub Contents API.
+"""Private GitHub backup for runtime state.
 
-The repository must be treated as a temporary public backup until the bot is
-migrated to private object storage or a database. Tokens are read only from
-runtime environment variables and are never written to the repository.
+The code repository contains application code only. Runtime JSON and uploaded files are
+stored locally under ``BOT_DATA_DIR`` and mirrored to a separate private repository when
+``GITHUB_SYNC_TOKEN`` is configured.
 """
 from __future__ import annotations
 
@@ -12,29 +12,72 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
 from urllib.parse import quote
 
 import requests
 
-from bot_context import KPI_FILE, LATEST_KPI_FILE
-from config import TRAINING_HISTORY_FILE, TRAINING_ONE_FILE, TRAINING_TWO_FILE
+from config import (
+    BASE_DIR,
+    DELETED_USERS_FILE,
+    GROUPS_FILE,
+    ISSUANCE_FILE,
+    KPI_FILE,
+    LATEST_ISSUANCE_FILE,
+    LATEST_KPI_FILE,
+    PENDING_FILE,
+    PLANS_FILE,
+    REGISTRATION_DRAFTS_FILE,
+    TEAM_REQUESTS_FILE,
+    TEAMS_FILE,
+    TRAINING_HISTORY_FILE,
+    TRAINING_ONE_FILE,
+    TRAINING_TWO_FILE,
+    USER_REQUESTS_FILE,
+    USERS_FILE,
+)
 
 LOGGER = logging.getLogger(__name__)
 GITHUB_API_ROOT = "https://api.github.com"
 SYNC_PATHS = (KPI_FILE, LATEST_KPI_FILE)
 TRAINING_SYNC_PATHS = (TRAINING_HISTORY_FILE, TRAINING_ONE_FILE, TRAINING_TWO_FILE)
+JSON_SYNC_PATHS = (
+    USERS_FILE,
+    GROUPS_FILE,
+    KPI_FILE,
+    PLANS_FILE,
+    PENDING_FILE,
+    TEAM_REQUESTS_FILE,
+    USER_REQUESTS_FILE,
+    REGISTRATION_DRAFTS_FILE,
+    DELETED_USERS_FILE,
+    TEAMS_FILE,
+    ISSUANCE_FILE,
+    TRAINING_HISTORY_FILE,
+)
+DATA_SYNC_PATHS = tuple(
+    dict.fromkeys(
+        (
+            *JSON_SYNC_PATHS,
+            LATEST_KPI_FILE,
+            LATEST_ISSUANCE_FILE,
+            TRAINING_ONE_FILE,
+            TRAINING_TWO_FILE,
+        )
+    )
+)
 _SYNC_LOCK = asyncio.Lock()
 
 
 def _enabled() -> bool:
     token = os.getenv("GITHUB_SYNC_TOKEN", "").strip()
     enabled = os.getenv("GITHUB_SYNC_ENABLED", "true").strip().lower()
-    return bool(token) and enabled not in {"0", "false", "no", "off"}
+    return bool(token and _repo()) and enabled not in {"0", "false", "no", "off"}
 
 
 def _repo() -> str:
-    return os.getenv("GITHUB_SYNC_REPO", "rusya-malina/-").strip().strip("/")
+    return os.getenv("GITHUB_SYNC_REPO", "").strip().strip("/")
 
 
 def _branch() -> str:
@@ -50,8 +93,21 @@ def _headers() -> dict[str, str]:
     }
 
 
+def _repo_path(path: str) -> str:
+    local_path = Path(path)
+    base_path = Path(BASE_DIR)
+    try:
+        if base_path != Path(".") and not local_path.is_absolute():
+            return local_path.relative_to(base_path).as_posix()
+        if local_path.is_absolute():
+            return local_path.resolve().relative_to(base_path.resolve()).as_posix()
+    except ValueError:
+        return local_path.name
+    return local_path.as_posix()
+
+
 def _api_url(path: str) -> str:
-    encoded_path = "/".join(quote(part, safe="") for part in path.split("/"))
+    encoded_path = "/".join(quote(part, safe="") for part in _repo_path(path).split("/"))
     return f"{GITHUB_API_ROOT}/repos/{_repo()}/contents/{encoded_path}"
 
 
@@ -59,7 +115,7 @@ def _request(method: str, path: str, **kwargs) -> requests.Response:
     params = kwargs.pop("params", {})
     if method.upper() == "GET":
         params.setdefault("ref", _branch())
-    response = requests.request(
+    return requests.request(
         method,
         _api_url(path),
         headers=_headers(),
@@ -67,7 +123,6 @@ def _request(method: str, path: str, **kwargs) -> requests.Response:
         timeout=(10, 45),
         **kwargs,
     )
-    return response
 
 
 def _decode_contents(payload: dict) -> bytes:
@@ -89,25 +144,15 @@ def _write_atomic(path: str, content: bytes) -> None:
         tmp.write(content)
         tmp.flush()
         os.fsync(tmp.fileno())
-        temp_path = tmp.name
-    os.replace(temp_path, destination)
+        temporary_path = tmp.name
+    os.replace(temporary_path, destination)
 
 
-def _validate_remote_kpi_json(content: bytes) -> None:
-    parsed = json.loads(content.decode("utf-8"))
-    if not isinstance(parsed, dict):
-        raise TypeError("Remote kpi_data.json is not a JSON object")
-
-
-def _validate_remote_training_history_json(content: bytes) -> None:
-    parsed = json.loads(content.decode("utf-8"))
-    if not isinstance(parsed, dict):
-        raise TypeError("Remote training_history.json is not a JSON object")
-
-
-def _validate_training_sync_content(path: str, content: bytes) -> None:
-    if path == TRAINING_HISTORY_FILE:
-        _validate_remote_training_history_json(content)
+def _validate_sync_content(path: str, content: bytes) -> None:
+    if _repo_path(path).lower().endswith(".json"):
+        parsed = json.loads(content.decode("utf-8"))
+        if not isinstance(parsed, dict):
+            raise TypeError(f"Remote JSON file is not an object: {_repo_path(path)}")
 
 
 def _get_remote(path: str) -> tuple[bytes, str | None] | None:
@@ -131,114 +176,101 @@ def _put_remote(path: str, content: bytes, sha: str | None, message: str) -> Non
     response.raise_for_status()
 
 
-def _restore_sync() -> bool:
+def _restore_paths(paths: Iterable[str]) -> bool:
     if not _enabled():
-        LOGGER.info("GitHub KPI restore disabled: GITHUB_SYNC_TOKEN is not configured")
+        LOGGER.info("GitHub state restore disabled: GITHUB_SYNC_TOKEN is not configured")
         return False
 
+    failed = False
     restored = 0
-    for path in SYNC_PATHS:
+    for path in dict.fromkeys(paths):
         try:
             remote = _get_remote(path)
             if remote is None:
-                LOGGER.warning("GitHub KPI file not found: %s", path)
+                LOGGER.info("No remote state yet: %s", _repo_path(path))
                 continue
             content, _sha = remote
-            if path == KPI_FILE:
-                _validate_remote_kpi_json(content)
+            _validate_sync_content(path, content)
             _write_atomic(path, content)
             restored += 1
         except Exception:
-            LOGGER.exception("Failed to restore KPI file from GitHub: %s", path)
-    return restored == len(SYNC_PATHS)
+            failed = True
+            LOGGER.exception("Failed to restore state from GitHub: %s", _repo_path(path))
+    LOGGER.info("Restored %s runtime state file(s) from GitHub repository %s", restored, _repo())
+    return not failed
 
 
-def _sync_local_state() -> bool:
+def _sync_paths_local(paths: Iterable[str]) -> bool:
     if not _enabled():
-        LOGGER.warning("GitHub KPI sync skipped: GITHUB_SYNC_TOKEN is not configured")
+        LOGGER.warning("GitHub state sync skipped: GITHUB_SYNC_TOKEN is not configured")
         return False
 
-    missing = [path for path in SYNC_PATHS if not os.path.exists(path)]
-    if missing:
-        LOGGER.error("Cannot sync KPI state; local files are missing: %s", ", ".join(missing))
-        return False
-
-    try:
-        for path in SYNC_PATHS:
-            local_content = _read_local(path)
-            if path == KPI_FILE:
-                _validate_remote_kpi_json(local_content)
-            remote = _get_remote(path)
-            sha = remote[1] if remote else None
-            _put_remote(
-                path,
-                local_content,
-                sha,
-                f"Persist latest KPI data: {Path(path).name}",
-            )
-        LOGGER.info("Latest KPI state synchronized to GitHub repository %s", _repo())
-        return True
-    except Exception:
-        LOGGER.exception("Failed to synchronize latest KPI state to GitHub")
-        return False
-
-
-def restore_kpi_state_sync() -> bool:
-    """Restore the latest remote KPI state before polling starts."""
-    return _restore_sync()
-
-
-async def sync_kpi_state() -> bool:
-    """Upload the current KPI JSON and latest Excel without blocking handlers."""
-    async with _SYNC_LOCK:
-        return await asyncio.to_thread(_sync_local_state)
-
-
-def restore_training_history_sync() -> bool:
-    """Restore available training history and latest training files."""
-    if not _enabled():
-        LOGGER.info("GitHub training state restore disabled: GITHUB_SYNC_TOKEN is not configured")
-        return False
-    restored = 0
-    try:
-        for path in TRAINING_SYNC_PATHS:
-            remote = _get_remote(path)
-            if remote is None:
-                LOGGER.info("No remote training state yet: %s", path)
-                continue
-            content, _sha = remote
-            _validate_training_sync_content(path, content)
-            _write_atomic(path, content)
-            restored += 1
-        return True
-    except Exception:
-        LOGGER.exception("Failed to restore training state from GitHub")
-        return False
-
-
-def _sync_training_history_local() -> bool:
-    if not _enabled():
-        LOGGER.warning("GitHub training state sync skipped: GITHUB_SYNC_TOKEN is not configured")
-        return False
-    existing_paths = [path for path in TRAINING_SYNC_PATHS if os.path.exists(path)]
+    existing_paths = [path for path in dict.fromkeys(paths) if os.path.exists(path)]
     if not existing_paths:
-        LOGGER.error("Cannot sync training state; local files are missing")
+        LOGGER.warning("Cannot sync state; local files are missing")
         return False
+
     try:
         for path in existing_paths:
             local_content = _read_local(path)
-            _validate_training_sync_content(path, local_content)
+            _validate_sync_content(path, local_content)
             remote = _get_remote(path)
             sha = remote[1] if remote else None
-            _put_remote(path, local_content, sha, f"Persist training state: {Path(path).name}")
-        LOGGER.info("Training state synchronized to GitHub repository %s", _repo())
+            _put_remote(path, local_content, sha, f"Persist bot data: {_repo_path(path)}")
+        LOGGER.info("Runtime state synchronized to GitHub repository %s", _repo())
         return True
     except Exception:
-        LOGGER.exception("Failed to synchronize training state to GitHub")
+        LOGGER.exception("Failed to synchronize runtime state to GitHub")
         return False
 
 
-async def sync_training_history() -> bool:
-    """Upload monthly training history without blocking Telegram handlers."""
+def restore_data_state_sync() -> bool:
+    """Restore all available runtime JSON and uploaded files before polling starts."""
+    return _restore_paths(DATA_SYNC_PATHS)
+
+
+async def sync_data_state(filepaths: Iterable[str] | None = None) -> bool:
+    """Upload selected runtime state without blocking Telegram handlers."""
+    paths = tuple(filepaths) if filepaths is not None else DATA_SYNC_PATHS
     async with _SYNC_LOCK:
-        return await asyncio.to_thread(_sync_training_history_local)
+        return await asyncio.to_thread(_sync_paths_local, paths)
+
+
+def restore_kpi_state_sync() -> bool:
+    """Backward-compatible restore for KPI files."""
+    return _restore_paths(SYNC_PATHS)
+
+
+async def sync_kpi_state() -> bool:
+    """Backward-compatible upload for KPI files."""
+    return await sync_data_state(SYNC_PATHS)
+
+
+def restore_training_history_sync() -> bool:
+    """Backward-compatible restore for training files."""
+    return _restore_paths(TRAINING_SYNC_PATHS)
+
+
+def _sync_training_history_local() -> bool:
+    """Backward-compatible synchronous helper for training tests and tooling."""
+    return _sync_paths_local(TRAINING_SYNC_PATHS)
+
+
+async def sync_training_history() -> bool:
+    """Backward-compatible upload for training files."""
+    return await sync_data_state(TRAINING_SYNC_PATHS)
+
+
+__all__ = [
+    "DATA_SYNC_PATHS",
+    "JSON_SYNC_PATHS",
+    "SYNC_PATHS",
+    "TRAINING_SYNC_PATHS",
+    "restore_data_state_sync",
+    "restore_kpi_state_sync",
+    "restore_training_history_sync",
+    "sync_data_state",
+    "_sync_training_history_local",
+    "sync_kpi_state",
+    "sync_training_history",
+]

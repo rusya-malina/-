@@ -107,10 +107,11 @@ def main() -> None:
     )
     assert balances["mints_balance"] == 5
     assert balances["sticks_balance"] == 5
-    users_data = __import__("json").loads((ROOT / "users.json").read_text(encoding="utf-8"))
-    kpi_data = __import__("json").loads((ROOT / "kpi_data.json").read_text(encoding="utf-8"))
-    assert users_data, "users.json must not be cleared by a code fix"
-    assert kpi_data, "kpi_data.json must not be cleared by a code fix"
+    for data_name in ("users.json", "kpi_data.json"):
+        data_path = ROOT / data_name
+        if data_path.exists():
+            data = __import__("json").loads(data_path.read_text(encoding="utf-8"))
+            assert data, f"{data_name} must not be empty when present"
     assert Path("handlers/uploads.py").exists()
     assert hasattr(app_factory, "process_excel_file")
     assert hasattr(app_factory, "process_issuance_excel_file")

@@ -14,6 +14,12 @@ from bot_context import (
     logging,
     os,
 )
+from config import (
+    GROUPS_FILE,
+    REGISTRATION_DRAFTS_FILE,
+    USER_REQUESTS_FILE,
+    USERS_FILE,
+)
 from data_models import (
     group_name,
     make_group_record,
@@ -94,13 +100,25 @@ async def save_json(data: dict, filepath: str) -> None:
     await asyncio.to_thread(_sync_save_json, data, filepath)
 
 
+async def _sync_saved_paths(filepaths: Iterable[str]) -> None:
+    try:
+        from github_sync import DATA_SYNC_PATHS, sync_data_state
+
+        selected_paths = tuple(path for path in filepaths if path in DATA_SYNC_PATHS)
+        if selected_paths:
+            await sync_data_state(selected_paths)
+    except (ImportError, OSError, RuntimeError) as error:
+        logging.warning("Не удалось запустить синхронизацию сохранённых данных: %s", error)
+
+
 async def update_json(filepath: str, mutator):
     """Атомарно выполняет read-modify-write под блокировкой одного файла."""
     async with _get_json_lock(filepath):
         data = await load_json(filepath)
         result = mutator(data)
         await save_json(data, filepath)
-        return result
+    await _sync_saved_paths((filepath,))
+    return result
 
 
 async def update_many_json(filepaths: Iterable[str], mutator: Callable[[dict[str, dict]], object]):
@@ -117,12 +135,13 @@ async def update_many_json(filepaths: Iterable[str], mutator: Callable[[dict[str
         result = mutator(data)
         for filepath in paths:
             await save_json(data[filepath], filepath)
-        return result
+    await _sync_saved_paths(paths)
+    return result
 
 
 def migrate_json_schemas() -> None:
     """Upgrade legacy JSON values to canonical schema-versioned records."""
-    users = _sync_load_json("users.json")
+    users = _sync_load_json(USERS_FILE)
     migrated_users = {}
     for user_id, record in users.items():
         if isinstance(record, dict) and record.get("schema_version") == 1 and record.get("name"):
@@ -130,28 +149,28 @@ def migrate_json_schemas() -> None:
         else:
             migrated_users[str(user_id)] = make_user_record(user_name(record, str(user_id)))
     if migrated_users != users:
-        _sync_save_json(migrated_users, "users.json")
+        _sync_save_json(migrated_users, USERS_FILE)
 
-    groups = _sync_load_json("groups.json")
+    groups = _sync_load_json(GROUPS_FILE)
     migrated_groups = {}
     for user_id, record in groups.items():
         group = group_name(record)
         name = user_name(record, user_name(migrated_users.get(str(user_id)), str(user_id)))
         migrated_groups[str(user_id)] = make_group_record(name, group or "")
     if migrated_groups != groups:
-        _sync_save_json(migrated_groups, "groups.json")
+        _sync_save_json(migrated_groups, GROUPS_FILE)
 
     for filepath, normalizer in (
         (PENDING_FILE, registration_request),
         (TEAM_REQUESTS_FILE, team_request),
-        ("user_requests.json", user_request),
+        (USER_REQUESTS_FILE, user_request),
     ):
         data = _sync_load_json(filepath)
         migrated = {str(key): normalizer(record, user_id=key) for key, record in data.items()}
         if migrated != data:
             _sync_save_json(migrated, filepath)
 
-    drafts = _sync_load_json("registration_drafts.json")
+    drafts = _sync_load_json(REGISTRATION_DRAFTS_FILE)
     migrated_drafts = {
         str(key): {
             "schema_version": 1,
@@ -161,7 +180,7 @@ def migrate_json_schemas() -> None:
         for key, record in drafts.items()
     }
     if migrated_drafts != drafts:
-        _sync_save_json(migrated_drafts, "registration_drafts.json")
+        _sync_save_json(migrated_drafts, REGISTRATION_DRAFTS_FILE)
 
     teams = _sync_load_json(TEAMS_FILE)
     migrated_teams = {
