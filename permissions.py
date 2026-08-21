@@ -61,6 +61,9 @@ def _persist_admin_mode(enabled: bool) -> None:
             },
             ADMIN_SESSION_FILE,
         )
+        from github_sync import sync_data_state_sync
+
+        sync_data_state_sync((ADMIN_SESSION_FILE,))
         _PERSISTED_ADMIN_MODE = bool(enabled)
         _PERSISTENCE_LOADED = True
     except StorageError:

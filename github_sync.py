@@ -19,6 +19,7 @@ from urllib.parse import quote
 import requests
 
 from config import (
+    ADMIN_SESSION_FILE,
     BASE_DIR,
     DELETED_USERS_FILE,
     GROUPS_FILE,
@@ -55,6 +56,7 @@ JSON_SYNC_PATHS = (
     TEAMS_FILE,
     ISSUANCE_FILE,
     TRAINING_HISTORY_FILE,
+    ADMIN_SESSION_FILE,
 )
 DATA_SYNC_PATHS = tuple(
     dict.fromkeys(
@@ -229,6 +231,12 @@ def restore_data_state_sync() -> bool:
     return _restore_paths(DATA_SYNC_PATHS)
 
 
+def sync_data_state_sync(filepaths: Iterable[str] | None = None) -> bool:
+    """Synchronous runtime sync for tiny startup/session metadata writes."""
+    paths = tuple(filepaths) if filepaths is not None else DATA_SYNC_PATHS
+    return _sync_paths_local(paths)
+
+
 async def sync_data_state(filepaths: Iterable[str] | None = None) -> bool:
     """Upload selected runtime state without blocking Telegram handlers."""
     paths = tuple(filepaths) if filepaths is not None else DATA_SYNC_PATHS
@@ -270,6 +278,7 @@ __all__ = [
     "restore_kpi_state_sync",
     "restore_training_history_sync",
     "sync_data_state",
+    "sync_data_state_sync",
     "_sync_training_history_local",
     "sync_kpi_state",
     "sync_training_history",
