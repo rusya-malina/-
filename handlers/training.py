@@ -131,14 +131,11 @@ async def training_type_callback(update: Update, context: ContextTypes.DEFAULT_T
     recipient_id = str(context.user_data.get("training_recipient_id", ""))
     recipient_name = str(context.user_data.get("training_recipient_name", "Сотрудник"))
     service = TrainingService.from_default_storage()
-    if await service.has_sent_this_month(recipient_id, training_type):
-        if training_type == TRAINING_ONE:
-            await query.answer(
-                "Обучение один уже было отправлено ранее. Выберите обучение два",
-                show_alert=True,
-            )
-        else:
-            await query.answer("Это обучение уже было отправлено в текущем месяце.", show_alert=True)
+    if training_type == TRAINING_ONE and await service.has_sent_this_month(recipient_id, TRAINING_ONE):
+        await query.answer(
+            "Обучение один уже было отправлено ранее. Выберите обучение два",
+            show_alert=True,
+        )
         return TRAINING_TYPE
 
     context.user_data["training_type"] = training_type
