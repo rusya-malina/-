@@ -367,6 +367,7 @@ async def cancel_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "issuance_amount",
         "training_recipient_id",
         "training_recipient_name",
+        "training_type",
     ):
         context.user_data.pop(key, None)
     group = await get_user_group(update.effective_user.id)

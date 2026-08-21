@@ -18,10 +18,12 @@ from urllib.parse import quote
 import requests
 
 from bot_context import KPI_FILE, LATEST_KPI_FILE
+from config import TRAINING_HISTORY_FILE
 
 LOGGER = logging.getLogger(__name__)
 GITHUB_API_ROOT = "https://api.github.com"
 SYNC_PATHS = (KPI_FILE, LATEST_KPI_FILE)
+TRAINING_SYNC_PATHS = (TRAINING_HISTORY_FILE,)
 _SYNC_LOCK = asyncio.Lock()
 
 
@@ -95,6 +97,12 @@ def _validate_remote_kpi_json(content: bytes) -> None:
     parsed = json.loads(content.decode("utf-8"))
     if not isinstance(parsed, dict):
         raise TypeError("Remote kpi_data.json is not a JSON object")
+
+
+def _validate_remote_training_history_json(content: bytes) -> None:
+    parsed = json.loads(content.decode("utf-8"))
+    if not isinstance(parsed, dict):
+        raise TypeError("Remote training_history.json is not a JSON object")
 
 
 def _get_remote(path: str) -> tuple[bytes, str | None] | None:
@@ -179,3 +187,50 @@ async def sync_kpi_state() -> bool:
     """Upload the current KPI JSON and latest Excel without blocking handlers."""
     async with _SYNC_LOCK:
         return await asyncio.to_thread(_sync_local_state)
+
+
+def restore_training_history_sync() -> bool:
+    """Restore monthly training history when a remote file exists."""
+    if not _enabled():
+        LOGGER.info("GitHub training history restore disabled: GITHUB_SYNC_TOKEN is not configured")
+        return False
+    path = TRAINING_SYNC_PATHS[0]
+    try:
+        remote = _get_remote(path)
+        if remote is None:
+            LOGGER.info("No remote training history yet; starting with empty history")
+            return True
+        content, _sha = remote
+        _validate_remote_training_history_json(content)
+        _write_atomic(path, content)
+        return True
+    except Exception:
+        LOGGER.exception("Failed to restore training history from GitHub: %s", path)
+        return False
+
+
+def _sync_training_history_local() -> bool:
+    if not _enabled():
+        LOGGER.warning("GitHub training history sync skipped: GITHUB_SYNC_TOKEN is not configured")
+        return False
+    path = TRAINING_SYNC_PATHS[0]
+    if not os.path.exists(path):
+        LOGGER.error("Cannot sync training history; local file is missing: %s", path)
+        return False
+    try:
+        local_content = _read_local(path)
+        _validate_remote_training_history_json(local_content)
+        remote = _get_remote(path)
+        sha = remote[1] if remote else None
+        _put_remote(path, local_content, sha, "Persist training delivery history")
+        LOGGER.info("Training history synchronized to GitHub repository %s", _repo())
+        return True
+    except Exception:
+        LOGGER.exception("Failed to synchronize training history to GitHub")
+        return False
+
+
+async def sync_training_history() -> bool:
+    """Upload monthly training history without blocking Telegram handlers."""
+    async with _SYNC_LOCK:
+        return await asyncio.to_thread(_sync_training_history_local)

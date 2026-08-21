@@ -35,5 +35,6 @@
     USER_REQUEST,
     TEAM_MENU_STATE,
     TRAINING_EMPLOYEE,
+    TRAINING_TYPE,
     TRAINING_UPLOAD,
-) = range(35)
+) = range(36)

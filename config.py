@@ -35,4 +35,5 @@ GROUPS_WITH_PLAN = frozenset({"A LAMP", "R LAMP"})
 GROUPS_WITH_TRAINING = frozenset({"coor A", "coor R"})
 
 BASE_DIR = Path(os.getenv("BOT_DATA_DIR", ".")).expanduser()
+TRAINING_HISTORY_FILE = "training_history.json"
 ADMIN_SESSION_FILE = str(BASE_DIR / "admin_session.json")

@@ -42,7 +42,12 @@ from handlers.teams import (
     start_team_selection,
     team_moderation_callback,
 )
-from handlers.training import open_training_menu, process_training_file, training_employee_callback
+from handlers.training import (
+    open_training_menu,
+    process_training_file,
+    training_employee_callback,
+    training_type_callback,
+)
 from handlers.uploads import (
     excel_preview_callback,
     process_excel_file,
@@ -94,6 +99,7 @@ from states import (
     TEAM_MENU_STATE,
     TEAM_SELECTION,
     TRAINING_EMPLOYEE,
+    TRAINING_TYPE,
     TRAINING_UPLOAD,
     UPLOAD_EXCEL,
 )
@@ -160,6 +166,10 @@ def build_conversation_handler() -> ConversationHandler:
             TEAM_SELECTION: [MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.TEXT & ~filters.COMMAND, process_team_selection)],
             TRAINING_EMPLOYEE: [
                 CallbackQueryHandler(training_employee_callback, pattern=r"^training_(user:|empty$)"),
+                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
+            ],
+            TRAINING_TYPE: [
+                CallbackQueryHandler(training_type_callback, pattern=r"^training_type:(one|two)$"),
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             ],
             TRAINING_UPLOAD: [

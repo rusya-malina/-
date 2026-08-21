@@ -1,7 +1,7 @@
 """Deterministic startup stages for the bot process."""
 from __future__ import annotations
 
-from github_sync import restore_kpi_state_sync
+from github_sync import restore_kpi_state_sync, restore_training_history_sync
 from permissions import load_persisted_admin_mode
 from storage import _migrate_team_label, _reset_issuance_if_legacy, migrate_json_schemas
 
@@ -17,6 +17,7 @@ def prepare_data() -> None:
 def restore_external_state() -> None:
     """Restore the latest externally synchronized KPI snapshot."""
     restore_kpi_state_sync()
+    restore_training_history_sync()
 
 
 __all__ = ["prepare_data", "restore_external_state"]
