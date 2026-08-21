@@ -43,6 +43,22 @@ class TrainingService:
         }
         return tuple(training_type for training_type in TRAINING_TYPES if training_type not in sent_types)
 
+    @staticmethod
+    def latest_file_id_from_data(data: dict, user_id: int | str, training_type: str) -> str | None:
+        record = data.get(str(user_id), {})
+        if not isinstance(record, dict):
+            return None
+        deliveries = record.get("deliveries", [])
+        if not isinstance(deliveries, list):
+            return None
+        for delivery in reversed(deliveries):
+            if not isinstance(delivery, dict) or delivery.get("type") != training_type:
+                continue
+            file_id = str(delivery.get("file_id", "")).strip()
+            if file_id:
+                return file_id
+        return None
+
     async def has_sent_this_month(self, user_id: int | str, training_type: str, month: str | None = None) -> bool:
         data = await self.history.load()
         return training_type not in self.missing_types_from_data(data, user_id, month)
@@ -58,6 +74,7 @@ class TrainingService:
         training_type: str,
         sender_id: int | str,
         month: str | None = None,
+        file_id: str | None = None,
     ) -> OperationResult:
         target_id = str(user_id)
         name = str(user_name).strip()
@@ -76,14 +93,15 @@ class TrainingService:
                 {target_id: record}, target_id, selected_month
             ):
                 return OperationResult(False, "training_one_already_sent", "training_one_already_sent")
-            deliveries.append(
-                {
-                    "type": training_type,
-                    "month": selected_month,
-                    "sent_at": datetime.now(ZoneInfo(BOT_TIMEZONE)).isoformat(),
-                    "sender_id": str(sender_id),
-                }
-            )
+            delivery = {
+                "type": training_type,
+                "month": selected_month,
+                "sent_at": datetime.now(ZoneInfo(BOT_TIMEZONE)).isoformat(),
+                "sender_id": str(sender_id),
+            }
+            if file_id:
+                delivery["file_id"] = str(file_id)
+            deliveries.append(delivery)
             record.update({"schema_version": 1, "name": name, "deliveries": deliveries})
             data[target_id] = record
             return OperationResult(

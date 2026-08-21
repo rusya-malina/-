@@ -19,10 +19,14 @@ def test_training_service_monthly_guard() -> None:
         service = TrainingService(JsonRepository(str(history_path)))
 
         async def scenario() -> None:
-            first = await service.record_delivery("100", "Сотрудник A", TRAINING_ONE, "900", month="2026-08")
+            first = await service.record_delivery(
+                "100", "Сотрудник A", TRAINING_ONE, "900", month="2026-08", file_id="telegram-file-one"
+            )
             duplicate = await service.record_delivery("100", "Сотрудник A", TRAINING_ONE, "900", month="2026-08")
             next_month = await service.record_delivery("100", "Сотрудник A", TRAINING_ONE, "900", month="2026-09")
-            second_first = await service.record_delivery("100", "Сотрудник A", TRAINING_TWO, "900", month="2026-08")
+            second_first = await service.record_delivery(
+                "100", "Сотрудник A", TRAINING_TWO, "900", month="2026-08", file_id="telegram-file-two"
+            )
             second_repeat = await service.record_delivery("100", "Сотрудник A", TRAINING_TWO, "900", month="2026-08")
 
             assert first.ok and first.code == "training_recorded"
@@ -38,6 +42,9 @@ def test_training_service_monthly_guard() -> None:
             assert TrainingService.missing_types_from_data(data, "200", "2026-08") == (TRAINING_TWO,)
             assert TrainingService.missing_types_from_data(data, "100", "2026-10") == (TRAINING_ONE, TRAINING_TWO)
             assert TrainingService.missing_types_from_data(data, "missing", "2026-08") == (TRAINING_ONE, TRAINING_TWO)
+            assert TrainingService.latest_file_id_from_data(data, "100", TRAINING_ONE) == "telegram-file-one"
+            assert TrainingService.latest_file_id_from_data(data, "100", TRAINING_TWO) == "telegram-file-two"
+            assert TrainingService.latest_file_id_from_data(data, "missing", TRAINING_ONE) is None
 
         asyncio.run(scenario())
 

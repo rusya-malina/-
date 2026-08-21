@@ -245,6 +245,7 @@ async def process_training_file(update: Update, context: ContextTypes.DEFAULT_TY
             recipient_name,
             training_type,
             update.effective_user.id,
+            file_id=document.file_id,
         )
         if not result.ok:
             await update.message.reply_text(
@@ -294,18 +295,33 @@ async def open_my_training_menu(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def my_training_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     training_type = query.data.split(":", 1)[1] if ":" in query.data else ""
     if training_type not in TRAINING_FILE_PATHS:
+        await query.answer()
         return MY_TRAINING_MENU
     group = await get_user_group(query.from_user.id)
     if not is_my_training_group(group):
         await query.answer("Раздел недоступен для вашей группы.", show_alert=True)
         return ConversationHandler.END
+    await query.answer()
+
+    history = await TrainingService.from_default_storage().history.load()
+    file_id = TrainingService.latest_file_id_from_data(history, query.from_user.id, training_type)
+    if file_id:
+        try:
+            await context.bot.send_document(
+                chat_id=query.from_user.id,
+                document=file_id,
+                caption=f"📚 {TRAINING_LABELS[training_type]}",
+            )
+            await query.message.reply_text("Выберите обучение ещё раз:", reply_markup=my_training_markup())
+            return MY_TRAINING_MENU
+        except TelegramError as error:
+            logging.warning("Не удалось выдать Telegram file_id для %s пользователю %s: %s", training_type, query.from_user.id, error)
 
     path = Path(TRAINING_FILE_PATHS[training_type])
     if not await asyncio.to_thread(path.exists):
-        await query.answer(f"{TRAINING_LABELS[training_type]} пока не загружено.", show_alert=True)
+        await query.message.reply_text(f"{TRAINING_LABELS[training_type]} пока не загружено.")
         return MY_TRAINING_MENU
     try:
         content = await asyncio.to_thread(path.read_bytes)
@@ -317,7 +333,7 @@ async def my_training_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.message.reply_text("Выберите обучение ещё раз:", reply_markup=my_training_markup())
     except (OSError, TelegramError) as error:
         logging.warning("Не удалось выдать %s пользователю %s: %s", training_type, query.from_user.id, error)
-        await query.answer("Не удалось отправить файл. Попробуйте ещё раз.", show_alert=True)
+        await query.message.reply_text("Не удалось отправить файл. Попробуйте ещё раз.")
     return MY_TRAINING_MENU
 
 
