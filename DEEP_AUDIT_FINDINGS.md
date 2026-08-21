@@ -9,7 +9,7 @@
 
 ## Confirmed findings
 
-F-004 and F-005 are resolved by the uncommitted changes currently under validation and will be marked production-ready only after the GitHub commit and Render deploy are verified.
+F-004 and F-005 are resolved and production-verified in commit `9b8d710`. Render reports the deploy as `live`, and the service responds with HTTP 200 on `/` and `/healthz`.
 
 ### F-001: GitHub remote drift from production KPI sync
 
@@ -36,3 +36,7 @@ Focused regression coverage now includes `tools/test_profile_service.py` for cro
 ### F-005: Delete notification precedes delete commit — fixed
 
 `handlers/admin.py::process_delete_user_by_number` now performs a permission check at the state boundary, invokes `EmployeeAdminService.delete_registered()`, and sends the stop notification only after a successful operation result. The delete-flow regression test verifies that failed deletion does not notify and successful deletion does notify.
+
+## Publication and production verification
+
+The changes were rebased onto the KPI snapshot commit `f863ab6` and published to `origin/main` as commit `9b8d710`. Render deploy `dep-da43f51srm7s73dd0kn0` for that commit reached `live`. The service is `not_suspended`; `https://test-project-0seb.onrender.com/` and `/healthz` both returned HTTP 200 with body `OK`. The `/health` path is not implemented and correctly returns HTTP 404.
