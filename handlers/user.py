@@ -1,6 +1,7 @@
 """Пользовательские сценарии: регистрация, расчёты и возврат в меню."""
 from telegram.error import TelegramError
 
+from application.profile_service import ProfileService
 from bot_context import (
     ContextTypes,
     ConversationHandler,
@@ -17,7 +18,7 @@ from config import (
     TEAM_OPTIONS,
     USERS_FILE,
 )
-from data_models import make_user_record, user_name
+from data_models import user_name
 from keyboards import cancel_keyboard, get_main_keyboard, get_registration_group_keyboard
 from navigation import clear_navigation_state, main_menu_markup
 from permissions import is_admin_mode
@@ -31,7 +32,7 @@ from states import (
     REG_GROUP,
     REG_LAST_NAME,
 )
-from storage import load_json, load_pending, update_json, update_pending
+from storage import load_json, load_pending, update_pending
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -253,12 +254,17 @@ async def save_new_full_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
     new_full_name = f"{first_name} {last_name}"
     user_id_num = update.effective_user.id
 
-    def update_user(data: dict) -> None:
-        previous = data.get(str(user_id_num))
-        created_at = previous.get("created_at") if isinstance(previous, dict) else None
-        data[str(user_id_num)] = make_user_record(new_full_name, created_at=created_at)
-
-    await update_json(USERS_FILE, update_user)
+    operation = await ProfileService.from_default_storage().rename(user_id_num, new_full_name)
+    if not operation.ok:
+        await update.message.reply_text(
+            "⚠️ Не удалось изменить имя: такое имя уже существует или пользователь не зарегистрирован.",
+            reply_markup=get_main_keyboard(
+                user_id_num,
+                group=await get_user_group(user_id_num),
+                admin_mode=is_admin_mode(user_id_num, context),
+            ),
+        )
+        return ConversationHandler.END
 
     context.user_data["name"] = new_full_name
 

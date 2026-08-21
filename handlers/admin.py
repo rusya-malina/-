@@ -203,6 +203,10 @@ async def request_user_number_to_delete(update: Update, context: ContextTypes.DE
 
 
 async def process_delete_user_by_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not has_permission(update.effective_user.id, context, Permission.USER_MANAGEMENT):
+        await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
+        return ConversationHandler.END
+
     input_text = update.message.text.strip()
 
     if not input_text.isdigit():
@@ -234,8 +238,6 @@ async def process_delete_user_by_number(update: Update, context: ContextTypes.DE
         )
         return EXTRA_MENU_STATE
 
-    await notify_user_bot_stopped(context, target_uid)
-
     operation = await EmployeeAdminService.from_default_storage().delete_registered(
         target_uid,
         update.effective_user.id,
@@ -246,6 +248,8 @@ async def process_delete_user_by_number(update: Update, context: ContextTypes.DE
             reply_markup=get_extra_keyboard(),
         )
         return EXTRA_MENU_STATE
+
+    await notify_user_bot_stopped(context, target_uid)
 
     del user_map[num]
     context.user_data["user_index_map"] = user_map
