@@ -32,8 +32,7 @@ from config import (
     USERS_FILE,
 )
 from github_sync import sync_training_history
-from keyboards import cancel_keyboard, get_main_keyboard
-from navigation import main_menu_markup
+from keyboards import cancel_keyboard
 from organization import get_visible_users
 from roles import get_group_from_record, get_user_group
 from states import MY_TRAINING_MENU, TRAINING_EMPLOYEE, TRAINING_TYPE, TRAINING_UPLOAD
@@ -136,10 +135,10 @@ async def open_training_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def training_employee_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     if query.data == "training_empty":
         await query.answer("В вашей команде нет зарегистрированных сотрудников.", show_alert=True)
         return TRAINING_EMPLOYEE
+    await query.answer()
     if not query.data.startswith("training_user:"):
         return TRAINING_EMPLOYEE
 
@@ -162,22 +161,24 @@ async def training_employee_callback(update: Update, context: ContextTypes.DEFAU
 
 async def training_type_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     if not query.data.startswith("training_type:"):
+        await query.answer()
         return TRAINING_TYPE
 
     training_type = query.data.split(":", 1)[1]
     if training_type not in TRAINING_LABELS:
+        await query.answer()
         return TRAINING_TYPE
     recipient_id = str(context.user_data.get("training_recipient_id", ""))
     recipient_name = str(context.user_data.get("training_recipient_name", "Сотрудник"))
     service = TrainingService.from_default_storage()
     if training_type == TRAINING_ONE and await service.has_sent_this_month(recipient_id, TRAINING_ONE):
         await query.answer(
-            "Обучение один уже было отправлено ранее. Выберите обучение два",
+            "Обучение один уже отправлено в этом месяце. Выберите обучение два",
             show_alert=True,
         )
         return TRAINING_TYPE
+    await query.answer()
 
     context.user_data["training_type"] = training_type
     await query.message.edit_text(
@@ -249,10 +250,10 @@ async def process_training_file(update: Update, context: ContextTypes.DEFAULT_TY
         )
         if not result.ok:
             await update.message.reply_text(
-                "Обучение один уже было отправлено ранее. Выберите обучение два",
-                reply_markup=main_menu_markup(update.effective_user.id, context, group=group),
+                "Обучение один уже отправлено в этом месяце. Выберите обучение два",
+                reply_markup=training_markup(candidates),
             )
-            return ConversationHandler.END
+            return TRAINING_EMPLOYEE
         await sync_training_history()
         try:
             await context.bot.send_message(
@@ -263,21 +264,21 @@ async def process_training_file(update: Update, context: ContextTypes.DEFAULT_TY
             logging.warning("Файл обучения отправлен, но уведомление не доставлено %s: %s", recipient_id, error)
         await update.message.reply_text(
             f"✅ {training_label} отправлено сотруднику **{recipient_name}**.",
-            reply_markup=main_menu_markup(update.effective_user.id, context, group=group),
+            reply_markup=training_markup(candidates),
             parse_mode="Markdown",
         )
     except (OSError, TelegramError) as error:
         logging.warning("Не удалось отправить обучение пользователю %s: %s", recipient_id, error)
         await update.message.reply_text(
             f"❌ Не удалось отправить {training_label} сотруднику **{recipient_name}**. Попробуйте ещё раз.",
-            reply_markup=get_main_keyboard(update.effective_user.id, group),
+            reply_markup=training_markup(candidates),
             parse_mode="Markdown",
         )
-        return TRAINING_UPLOAD
+        return TRAINING_EMPLOYEE
     finally:
         _clear_training_context(context)
 
-    return ConversationHandler.END
+    return TRAINING_EMPLOYEE
 
 
 async def open_my_training_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
