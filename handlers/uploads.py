@@ -1,4 +1,6 @@
 """Тяжёлые операции с Excel, изолированные от меню и основного роутера."""
+import re
+
 from telegram.error import TelegramError
 
 from application.import_service import ImportSafetyError, ImportService
@@ -15,7 +17,7 @@ from bot_context import (
     pd,
     tempfile,
 )
-from config import ADMIN_ID, GROUPS_FILE, UPLOADED_DATA_DIR, USERS_FILE
+from config import ADMIN_ID, GROUPS_FILE, TEAMS_FILE, UPLOADED_DATA_DIR, USERS_FILE
 from errors import StorageError
 from github_sync import sync_data_state, sync_kpi_state
 from keyboards import cancel_keyboard, get_data_keyboard, get_issuance_keyboard
@@ -66,37 +68,55 @@ def _text(value: object) -> str:
     return str(value or "").strip()
 
 
-def _management_names(users: dict, groups: dict) -> dict[str, str]:
+def _management_group(value: object) -> str | None:
+    normalized = _normalize_person_name(value)
+    if not normalized:
+        return None
+    for marker, group in sorted(MANAGEMENT_LABELS.items(), key=lambda item: len(item[0]), reverse=True):
+        if re.search(rf"(?:^|[\s/()_\-]){re.escape(marker)}(?:$|[\s/()_\-])", normalized):
+            return group
+    return None
+
+
+def _management_names(users: dict, groups: dict, teams: dict) -> dict[str, str]:
     names: dict[str, str] = {}
-    for user_id, group_record in groups.items():
-        if not isinstance(group_record, dict):
-            continue
-        group = _text(group_record.get("group") or group_record.get("team"))
-        if group not in MANAGEMENT_GROUPS:
-            continue
-        user_record = users.get(str(user_id), group_record)
-        name = _text(user_record.get("name") if isinstance(user_record, dict) else user_record)
-        if not name:
-            name = _text(group_record.get("name"))
-        if name:
-            names[_normalize_person_name(name)] = group
+    for source in (users, groups, teams):
+        for user_id, record in source.items():
+            if not isinstance(record, dict):
+                continue
+            group = _management_group(record.get("group") or record.get("team") or record.get("role") or record.get("position"))
+            if not group:
+                continue
+            user_record = users.get(str(user_id), record)
+            name = _text(user_record.get("name") if isinstance(user_record, dict) else user_record)
+            name = name or _text(record.get("name") or record.get("full_name"))
+            if name:
+                names[_normalize_person_name(name)] = group
     return names
 
 
-def _blocked_management_rows(frame, users: dict, groups: dict) -> list[str]:
+def _group_column_name(columns) -> object | None:
+    return _find_column(
+        columns,
+        ["group", "team", "group_name", "team_name", "role", "position", "группа", "команда", "уровень", "должность"],
+    )
+
+
+def _blocked_management_rows(frame, users: dict, groups: dict, teams: dict | None = None) -> list[str]:
     """Return human-readable Excel rows that contain management KPI entries."""
     name_column = _find_column(frame.columns, ["full_name", "name", "employee", "employee_name", "фио", "сотрудник"])
-    group_column = _find_column(frame.columns, ["group", "team", "группа", "команда", "уровень"])
-    management_names = _management_names(users, groups)
+    group_column = _group_column_name(frame.columns)
+    management_names = _management_names(users, groups, teams or {})
     blocked: list[str] = []
 
     for excel_row_number, (_, row) in enumerate(frame.iterrows(), start=2):
         employee_name = _text(row.get(name_column)) if name_column else ""
         explicit_group = _text(row.get(group_column)) if group_column else ""
-        normalized_group = _normalize_person_name(explicit_group)
-        detected_group = MANAGEMENT_LABELS.get(normalized_group)
-        matched_group = management_names.get(_normalize_person_name(employee_name)) if employee_name else None
-        group = detected_group or matched_group
+        detected_group = _management_group(explicit_group)
+        normalized_name = _normalize_person_name(employee_name)
+        token_group = _management_group(normalized_name)
+        matched_group = management_names.get(normalized_name) if employee_name else None
+        group = detected_group or matched_group or token_group
         if group:
             label = employee_name or "без ФИО"
             blocked.append(f"строка {excel_row_number}: {label} ({group})")
@@ -176,7 +196,8 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         users = await load_json(USERS_FILE)
         groups = await load_json(GROUPS_FILE)
-        blocked_rows = _blocked_management_rows(df, users, groups)
+        teams = await load_json(TEAMS_FILE)
+        blocked_rows = _blocked_management_rows(df, users, groups, teams)
         if blocked_rows:
             if os.path.exists(file_path):
                 os.remove(file_path)
@@ -192,6 +213,19 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         service = ImportService.from_default_storage()
         staged = await service.prepare_kpi_import(df.to_dict("records"))
+        unresolved_team_names = staged.get("unresolved_team_names", [])
+        if unresolved_team_names:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            await update.message.reply_text(
+                "⛔ **Импорт KPI заблокирован.** Не удалось определить команду для сотрудников:\n\n"
+                + "\n".join(f"• {name}" for name in unresolved_team_names[:10])
+                + ("\n…" if len(unresolved_team_names) > 10 else "")
+                + "\n\nДобавьте колонку `group`/`team` со значением `A LAMP` или `R LAMP` "
+                "либо сначала назначьте сотрудникам команду через администратора.",
+                parse_mode="Markdown",
+            )
+            return UPLOAD_EXCEL
         staged["temp_path"] = file_path
         context.user_data["pending_excel_import"] = staged
         updated_names = staged["updated_names"]
@@ -228,6 +262,16 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(preview, reply_markup=_excel_preview_markup(), parse_mode="Markdown")
         return UPLOAD_EXCEL
 
+    except ImportSafetyError as error:
+        logging.warning("KPI Excel blocked by management-row guard: %s", error)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        await update.message.reply_text(
+            "⛔ **Импорт KPI заблокирован.** В файле нельзя загружать KPI руководителей. "
+            "Удалите строки `coor A`, `coor R`, `SPV` и `MNG`, затем отправьте Excel повторно.",
+            parse_mode="Markdown",
+        )
+        return UPLOAD_EXCEL
     except (OSError, KeyError, StorageError, TypeError, ValueError, TelegramError) as e:
         logging.error(f"Ошибка при обработке Excel: {e}")
         if os.path.exists(file_path):

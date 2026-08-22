@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from application.import_service import ImportSafetyError, ImportService, build_user_import_audit
+from application.team_kpi_service import build_team_kpi_snapshot
 from repositories.json_repository import JsonRepository
 
 
@@ -125,6 +126,55 @@ def test_user_audit_and_decrease_guard() -> None:
         asyncio.run(scenario())
 
 
+def test_excel_only_employee_keeps_team_assignment_for_team_kpi() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        kpi_path = root / "kpi.json"
+        issuance_path = root / "issuance.json"
+        users_path = root / "users.json"
+        groups_path = root / "groups.json"
+        for path in (kpi_path, issuance_path, users_path, groups_path):
+            path.write_text("{}", encoding="utf-8")
+        service = ImportService(
+            JsonRepository(str(kpi_path)),
+            JsonRepository(str(issuance_path)),
+            JsonRepository(str(users_path)),
+            JsonRepository(str(groups_path)),
+        )
+
+        async def scenario() -> None:
+            staged = await service.prepare_kpi_import(
+                [
+                    {
+                        "full_name": "Excel Employee",
+                        "group": "A LAMP",
+                        "gt_plan": 100,
+                        "gt_fact": 50,
+                        "micro_plan": 100,
+                        "micro_las_fact": 20,
+                        "micro_lau_fact": 30,
+                        "retrafic_plan": 10,
+                        "retrafic_fact": 5,
+                        "office_hours": 0,
+                        "field_hours": 0,
+                    }
+                ]
+            )
+            assert staged["unresolved_team_names"] == []
+            assert staged["groups_data"]["excel_excel_employee"]["group"] == "A LAMP"
+            await service.apply_kpi_import(staged)
+            users = json.loads(users_path.read_text(encoding="utf-8"))
+            groups = json.loads(groups_path.read_text(encoding="utf-8"))
+            kpi_data = json.loads(kpi_path.read_text(encoding="utf-8"))
+            snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08")
+            assert snapshot["teams"]["A LAMP"]["employee_ids"] == ["excel_excel_employee"]
+            assert snapshot["manager_reports"]["coor A"]["employee_count"] == 1
+
+        asyncio.run(scenario())
+
+
 if __name__ == "__main__":
     test_import_service()
+    test_user_audit_and_decrease_guard()
+    test_excel_only_employee_keeps_team_assignment_for_team_kpi()
     print("IMPORT_SERVICE PASS")

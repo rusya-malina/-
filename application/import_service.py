@@ -5,11 +5,34 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from config import ISSUANCE_FILE, KPI_FILE, LATEST_ISSUANCE_FILE, LATEST_KPI_FILE, USERS_FILE
-from data_models import make_user_record, normalize_issuance_record, user_name
+from config import GROUPS_FILE, ISSUANCE_FILE, KPI_FILE, LATEST_ISSUANCE_FILE, LATEST_KPI_FILE, USERS_FILE
+from data_models import make_group_record, make_user_record, normalize_issuance_record, user_name
 from repositories.json_repository import JsonRepository, transaction
 from services import _normalize_person_name
 from storage import replace_latest_file
+
+SOURCE_GROUPS = frozenset({"A LAMP", "R LAMP"})
+MANAGEMENT_GROUPS = frozenset({"coor A", "coor R", "SPV", "MNG"})
+_GROUP_ALIASES = {
+    "a lamp": "A LAMP",
+    "r lamp": "R LAMP",
+    "coor a": "coor A",
+    "coor r": "coor R",
+    "коор a": "coor A",
+    "коор р": "coor R",
+    "spv": "SPV",
+    "mng": "MNG",
+}
+
+
+def _group_from_row(row: dict[str, Any]) -> str | None:
+    for key, value in row.items():
+        normalized_key = str(key or "").strip().casefold().replace(" ", "_")
+        if normalized_key not in {"group", "team", "группа", "команда", "уровень"}:
+            continue
+        normalized_value = str(value or "").strip().casefold()
+        return _GROUP_ALIASES.get(normalized_value)
+    return None
 
 
 def build_user_import_audit(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
@@ -43,6 +66,7 @@ class ImportService:
     kpi: JsonRepository
     issuance: JsonRepository
     users: JsonRepository
+    groups: JsonRepository | None = None
 
     @classmethod
     def from_default_storage(cls) -> "ImportService":
@@ -50,11 +74,13 @@ class ImportService:
             kpi=JsonRepository(KPI_FILE),
             issuance=JsonRepository(ISSUANCE_FILE),
             users=JsonRepository(USERS_FILE),
+            groups=JsonRepository(GROUPS_FILE),
         )
 
     async def prepare_kpi_import(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
         users_data = await self.users.load()
         existing_kpi = await self.kpi.load()
+        groups_data = await self.groups.load() if self.groups is not None else {}
         users_before = dict(users_data)
         valid_rows: list[dict[str, Any]] = []
         for row in rows:
@@ -66,9 +92,20 @@ class ImportService:
 
         latest_names = {_normalize_person_name(row["full_name"]) for row in valid_rows}
         existing_names = {_normalize_person_name(user_name(value)) for value in users_data.values()}
+        name_to_user_id = {
+            _normalize_person_name(user_name(value)): str(user_id)
+            for user_id, value in users_data.items()
+            if _normalize_person_name(user_name(value)) not in {"", "nan"}
+        }
+        group_by_name = {
+            _normalize_person_name(user_name(record)): str(record.get("group") or record.get("team") or "").strip()
+            for record in groups_data.values()
+            if isinstance(record, dict) and user_name(record)
+        }
         kpi_data: dict[str, dict[str, Any]] = dict(existing_kpi)
         updated_names: list[str] = []
         new_names: list[str] = []
+        unresolved_team_names: list[str] = []
         updated_keys: set[str] = set()
         stale_names = sorted(
             {
@@ -98,19 +135,35 @@ class ImportService:
             if clean_name not in updated_keys:
                 updated_names.append(employee_name)
                 updated_keys.add(clean_name)
-            if clean_name not in existing_names:
-                fake_uid = f"excel_{clean_name}"
-                users_data.setdefault(fake_uid, make_user_record(employee_name))
+            employee_id = name_to_user_id.get(clean_name)
+            if not employee_id:
+                employee_id = f"excel_{clean_name.replace(' ', '_')}"
+                users_data.setdefault(employee_id, make_user_record(employee_name))
+                name_to_user_id[clean_name] = employee_id
                 existing_names.add(clean_name)
                 new_names.append(employee_name)
+
+            row_group = _group_from_row(row)
+            assigned_group = row_group or group_by_name.get(clean_name)
+            if assigned_group in MANAGEMENT_GROUPS:
+                raise ImportSafetyError(
+                    f"KPI import contains management employee: {employee_name} ({assigned_group})"
+                )
+            if assigned_group:
+                groups_data[employee_id] = make_group_record(employee_name, assigned_group)
+                group_by_name[clean_name] = assigned_group
+            elif clean_name not in unresolved_team_names:
+                unresolved_team_names.append(employee_name)
 
         user_audit = build_user_import_audit(users_before, users_data)
         return {
             "kind": "kpi",
             "kpi_data": kpi_data,
             "users_data": users_data,
+            "groups_data": groups_data,
             "updated_names": updated_names,
             "new_names": new_names,
+            "unresolved_team_names": unresolved_team_names,
             "removed_user_ids": user_audit["removed_user_ids"],
             "removed_names": user_audit["removed_names"],
             "stale_names": stale_names,
@@ -172,6 +225,7 @@ class ImportService:
     async def apply_kpi_import(self, staged: dict[str, Any], source_path: str | None = None) -> None:
         kpi_data = staged["kpi_data"]
         users_data = staged["users_data"]
+        groups_data = staged.get("groups_data", {})
         audit = staged.get("user_audit", {})
         if int(audit.get("after_count", 0)) < int(audit.get("before_count", 0)):
             raise ImportSafetyError("KPI import would reduce registered users")
@@ -183,8 +237,13 @@ class ImportService:
             files[self.kpi.path].update(kpi_data)
             for employee_id, record in users_data.items():
                 files[self.users.path].setdefault(employee_id, record)
+            if self.groups is not None:
+                files[self.groups.path].update(groups_data)
 
-        await transaction((self.kpi.path, self.users.path)).run(persist)
+        paths = [self.kpi.path, self.users.path]
+        if self.groups is not None:
+            paths.append(self.groups.path)
+        await transaction(paths).run(persist)
         if source_path:
             replace_latest_file(source_path, LATEST_KPI_FILE)
 
