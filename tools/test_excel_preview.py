@@ -8,6 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pandas as pd
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -66,6 +68,34 @@ async def test_cancel_issuance_preview_returns_issuance_menu() -> None:
     assert "pending_excel_import" not in context.user_data
 
 
+def test_management_rows_are_blocked() -> None:
+    frame = pd.DataFrame(
+        [
+            {"full_name": "Supervisor", "group": "SPV"},
+            {"full_name": "Manager", "group": "MNG"},
+            {"full_name": "Coordinator A", "group": "coor A"},
+            {"full_name": "A Employee", "group": "A LAMP"},
+        ]
+    )
+    users = {
+        "1": {"name": "Supervisor"},
+        "2": {"name": "Manager"},
+        "3": {"name": "Coordinator A"},
+        "4": {"name": "A Employee"},
+    }
+    groups = {
+        "1": {"name": "Supervisor", "group": "SPV"},
+        "2": {"name": "Manager", "group": "MNG"},
+        "3": {"name": "Coordinator A", "group": "coor A"},
+        "4": {"name": "A Employee", "group": "A LAMP"},
+    }
+    blocked = uploads._blocked_management_rows(frame, users, groups)
+    assert len(blocked) == 3
+    assert "SPV" in blocked[0]
+    assert "MNG" in blocked[1]
+    assert "coor A" in blocked[2]
+
+
 def test_preview_markup() -> None:
     callbacks = [
         button.callback_data
@@ -79,7 +109,9 @@ async def main() -> None:
     await test_cancel_kpi_preview()
     await test_confirm_kpi_preview_does_not_rewrite_callback_contract()
     await test_cancel_issuance_preview_returns_issuance_menu()
+    test_management_rows_are_blocked()
     test_preview_markup()
+
     print("EXCEL_PREVIEW PASS")
 
 

@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from application.team_kpi_service import build_team_kpi_snapshot
+from handlers.kpi import build_team_kpi_report, my_kpi_markup
 
 
 def _source_data() -> tuple[dict, dict, dict]:
@@ -88,6 +89,30 @@ def test_hierarchical_weighted_aggregation() -> None:
     assert snapshot["manager_reports"]["MNG"]["employee_count"] == 3
 
 
+def test_manager_kpi_menu_and_report() -> None:
+    users, groups, kpi_data = _source_data()
+    snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08")
+
+    manager_buttons = {
+        button.text
+        for row in my_kpi_markup("SPV", admin_mode=False).inline_keyboard
+        for button in row
+    }
+    employee_buttons = {
+        button.text
+        for row in my_kpi_markup("A LAMP", admin_mode=False).inline_keyboard
+        for button in row
+    }
+    assert "👥 KPI команды" in manager_buttons
+    assert "👥 KPI команды" not in employee_buttons
+
+    report = build_team_kpi_report(snapshot, "SPV")
+    assert "KPI команды — SPV" in report
+    assert "A LAMP" in report
+    assert "R LAMP" in report
+    assert "Общий KPI" in report
+
+
 def test_missing_employee_kpi_is_reported_without_becoming_zero_data() -> None:
     users, groups, kpi_data = _source_data()
     del kpi_data["a two"]
@@ -102,5 +127,6 @@ def test_missing_employee_kpi_is_reported_without_becoming_zero_data() -> None:
 
 if __name__ == "__main__":
     test_hierarchical_weighted_aggregation()
+    test_manager_kpi_menu_and_report()
     test_missing_employee_kpi_is_reported_without_becoming_zero_data()
     print("TEAM_KPI_SERVICE PASS")

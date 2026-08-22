@@ -29,7 +29,13 @@ from config import (
 )
 from data_models import user_name
 from keyboards import cancel_keyboard, get_data_keyboard, get_main_keyboard
-from organization import build_employee_registry, get_employee_by_id, get_visible_users, merge_employee_issuance
+from organization import (
+    build_employee_registry,
+    get_employee_by_id,
+    get_visible_users,
+    is_management_group,
+    merge_employee_issuance,
+)
 from permissions import Permission, has_permission, is_admin_mode
 from roles import get_user_group
 from services import (
@@ -498,6 +504,8 @@ async def manual_kpi_get_field_hours(update: Update, context: ContextTypes.DEFAU
 
 def my_kpi_markup(group: str | None, admin_mode: bool) -> InlineKeyboardMarkup:
     inline_keyboard = [[InlineKeyboardButton("📊 KPI", callback_data="my_kpi_show_kpi")]]
+    if admin_mode or is_management_group(group):
+        inline_keyboard.append([InlineKeyboardButton("👥 KPI команды", callback_data="my_kpi_show_team")])
     if admin_mode or group in GROUPS_WITH_HOURS:
         inline_keyboard.append([InlineKeyboardButton("⏱️ Часы", callback_data="my_kpi_show_hours")])
     if group in GROUPS_WITH_TRAINING:
@@ -520,6 +528,51 @@ def build_monthly_training_report(
             aliases = employee.get("aliases", [])
             count = TrainingService.delivery_count_from_data(training_history, aliases, selected_month)
             lines.append(f"👤 {employee.get('name', 'Сотрудник')} — {count}")
+    return "\n".join(lines)
+
+
+def _team_metric_line(label: str, metric: dict) -> str:
+    return f"{label}: план {float(metric.get('plan', 0)):.0f} | факт {float(metric.get('fact', 0)):.0f} | {float(metric.get('percent', 0)):.1f}%"
+
+
+def build_team_kpi_report(snapshot: dict, manager_group: str) -> str:
+    report = snapshot.get("manager_reports", {}).get(manager_group)
+    if not isinstance(report, dict):
+        return "ℹ️ Командный KPI пока не рассчитан."
+
+    metrics = report.get("metrics", {})
+    lines = [
+        f"👥 **KPI команды — {manager_group}**",
+        f"📆 Период: `{snapshot.get('period', '—')}`",
+        f"👤 Сотрудников в расчёте: **{report.get('employee_count', 0)}**",
+        "━━━━━━━━━━━━━━━━━━",
+        f"📈 {_team_metric_line('GT', metrics.get('gt', {}))}",
+        f"🎯 {_team_metric_line('Микроакты', metrics.get('microacts', {}))}",
+        f"🔄 {_team_metric_line('Re-trafic', metrics.get('retrafic', {}))}",
+    ]
+    overall = report.get("overall", {})
+    if overall.get("percent") is None:
+        lines.append("🏆 Общий KPI: не настроен")
+    else:
+        lines.append(f"🏆 Общий KPI: **{float(overall['percent']):.1f}%**")
+
+    if manager_group in {"SPV", "MNG"}:
+        lines.extend(["", "📌 **По командам**"])
+        for team_group in ("A LAMP", "R LAMP"):
+            team_report = snapshot.get("teams", {}).get(team_group, {})
+            team_metrics = team_report.get("metrics", {})
+            lines.extend(
+                [
+                    f"**{team_group}** — сотрудников: {team_report.get('employee_count', 0)}",
+                    f"  GT: {float(team_metrics.get('gt', {}).get('percent', 0)):.1f}% | "
+                    f"Микроакты: {float(team_metrics.get('microacts', {}).get('percent', 0)):.1f}% | "
+                    f"Re-trafic: {float(team_metrics.get('retrafic', {}).get('percent', 0)):.1f}%",
+                ]
+            )
+    quality = report.get("quality", {})
+    missing_count = len(quality.get("missing_employee_ids", []))
+    if missing_count:
+        lines.append(f"⚠️ Нет KPI-данных у сотрудников: **{missing_count}**")
     return "\n".join(lines)
 
 
@@ -559,11 +612,29 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "my_kpi_show_hours" and not admin_mode and group not in GROUPS_WITH_HOURS:
         await query.answer("Раздел «Часы» недоступен для вашей группы.", show_alert=True)
         return
+    if data == "my_kpi_show_team" and not admin_mode and not is_management_group(group):
+        await query.answer("Командный KPI доступен только руководителям.", show_alert=True)
+        return
     if data == "my_kpi_show_trainings" and group not in GROUPS_WITH_TRAINING:
         await query.answer("Раздел «Обучения» доступен только coor A и coor R.", show_alert=True)
         return
 
     await query.answer()
+
+    if data == "my_kpi_show_team":
+        manager_group = "MNG" if admin_mode else group
+        service = TeamKpiService.from_default_storage()
+        snapshot = await service.load_current()
+        if snapshot is None:
+            snapshot = await service.rebuild()
+        await query.message.edit_text(
+            build_team_kpi_report(snapshot, manager_group),
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("⬅️ Назад к меню KPI", callback_data="my_kpi_back")]]
+            ),
+            parse_mode="Markdown",
+        )
+        return
 
     if data == "my_kpi_back":
         await query.message.edit_text(

@@ -15,7 +15,7 @@ from bot_context import (
     pd,
     tempfile,
 )
-from config import ADMIN_ID, UPLOADED_DATA_DIR
+from config import ADMIN_ID, GROUPS_FILE, UPLOADED_DATA_DIR, USERS_FILE
 from errors import StorageError
 from github_sync import sync_data_state, sync_kpi_state
 from keyboards import cancel_keyboard, get_data_keyboard, get_issuance_keyboard
@@ -23,6 +23,7 @@ from navigation import clear_pending_import
 from permissions import Permission, has_permission
 from services import (
     _find_column,
+    _normalize_person_name,
     _parse_nonnegative_quantity,
     notify_users_kpi_updated,
 )
@@ -32,6 +33,19 @@ from states import (
     KPI_MENU_STATE,
     UPLOAD_EXCEL,
 )
+from storage import load_json
+
+MANAGEMENT_GROUPS = frozenset({"coor A", "coor R", "SPV", "MNG"})
+MANAGEMENT_LABELS = {
+    "coor": "coor",
+    "coor a": "coor A",
+    "coor r": "coor R",
+    "коор": "coor",
+    "коор a": "coor A",
+    "коор р": "coor R",
+    "spv": "SPV",
+    "mng": "MNG",
+}
 
 
 def _excel_preview_markup() -> InlineKeyboardMarkup:
@@ -41,6 +55,52 @@ def _excel_preview_markup() -> InlineKeyboardMarkup:
             [InlineKeyboardButton("❌ Отменить", callback_data="excel_cancel")],
         ]
     )
+
+
+def _text(value: object) -> str:
+    try:
+        if bool(pd.isna(value)):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    return str(value or "").strip()
+
+
+def _management_names(users: dict, groups: dict) -> dict[str, str]:
+    names: dict[str, str] = {}
+    for user_id, group_record in groups.items():
+        if not isinstance(group_record, dict):
+            continue
+        group = _text(group_record.get("group") or group_record.get("team"))
+        if group not in MANAGEMENT_GROUPS:
+            continue
+        user_record = users.get(str(user_id), group_record)
+        name = _text(user_record.get("name") if isinstance(user_record, dict) else user_record)
+        if not name:
+            name = _text(group_record.get("name"))
+        if name:
+            names[_normalize_person_name(name)] = group
+    return names
+
+
+def _blocked_management_rows(frame, users: dict, groups: dict) -> list[str]:
+    """Return human-readable Excel rows that contain management KPI entries."""
+    name_column = _find_column(frame.columns, ["full_name", "name", "employee", "employee_name", "фио", "сотрудник"])
+    group_column = _find_column(frame.columns, ["group", "team", "группа", "команда", "уровень"])
+    management_names = _management_names(users, groups)
+    blocked: list[str] = []
+
+    for excel_row_number, (_, row) in enumerate(frame.iterrows(), start=2):
+        employee_name = _text(row.get(name_column)) if name_column else ""
+        explicit_group = _text(row.get(group_column)) if group_column else ""
+        normalized_group = _normalize_person_name(explicit_group)
+        detected_group = MANAGEMENT_LABELS.get(normalized_group)
+        matched_group = management_names.get(_normalize_person_name(employee_name)) if employee_name else None
+        group = detected_group or matched_group
+        if group:
+            label = employee_name or "без ФИО"
+            blocked.append(f"строка {excel_row_number}: {label} ({group})")
+    return blocked
 
 
 async def start_excel_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -87,18 +147,18 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         def read_and_clean_excel(path):
             df = pd.read_excel(path)
             required_cols = [
-                "full_name", "gt_plan", "gt_fact", "micro_plan", 
-                "micro_las_fact", "micro_lau_fact", "retrafic_plan", 
+                "full_name", "gt_plan", "gt_fact", "micro_plan",
+                "micro_las_fact", "micro_lau_fact", "retrafic_plan",
                 "retrafic_fact", "office_hours", "field_hours",
             ]
             if not all(col in df.columns for col in required_cols):
                 return None
-            
+
             # Заменяем NaN на 0 для числовых столбцов
             numeric_cols = [
-                "gt_plan", "gt_fact", "micro_plan", "micro_las_fact", 
-                "micro_lau_fact", "retrafic_plan", "retrafic_fact", 
-                "office_hours", "field_hours"
+                "gt_plan", "gt_fact", "micro_plan", "micro_las_fact",
+                "micro_lau_fact", "retrafic_plan", "retrafic_fact",
+                "office_hours", "field_hours",
             ]
             df[numeric_cols] = df[numeric_cols].fillna(0)
             return df
@@ -112,6 +172,22 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
             )
             if os.path.exists(file_path):
                 os.remove(file_path)
+            return UPLOAD_EXCEL
+
+        users = await load_json(USERS_FILE)
+        groups = await load_json(GROUPS_FILE)
+        blocked_rows = _blocked_management_rows(df, users, groups)
+        if blocked_rows:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            await update.message.reply_text(
+                "⛔ **Импорт KPI заблокирован.** В Excel найдены строки руководителей "
+                "(`coor A`, `coor R`, `SPV` или `MNG`).\n\n"
+                + "\n".join(blocked_rows[:10])
+                + ("\n…" if len(blocked_rows) > 10 else "")
+                + "\n\nЗагрузите файл только с сотрудниками `A LAMP` и `R LAMP`.",
+                parse_mode="Markdown",
+            )
             return UPLOAD_EXCEL
 
         service = ImportService.from_default_storage()
