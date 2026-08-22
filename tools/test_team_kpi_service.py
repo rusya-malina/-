@@ -103,11 +103,16 @@ def test_manager_kpi_menu_and_report() -> None:
         for row in my_kpi_markup("A LAMP", admin_mode=False).inline_keyboard
         for button in row
     }
-    assert "👥 KPI команды" in manager_buttons
-    assert "👥 KPI команды" not in employee_buttons
+    assert "📊 KPI" in manager_buttons
+    assert "📊 KPI" in employee_buttons
+    manager_markup = my_kpi_markup("SPV", admin_mode=False)
+    employee_markup = my_kpi_markup("A LAMP", admin_mode=False)
+    assert manager_markup.inline_keyboard[0][0].callback_data == "my_kpi_show_team"
+    assert employee_markup.inline_keyboard[0][0].callback_data == "my_kpi_show_kpi"
 
     report = build_team_kpi_report(snapshot, "SPV")
-    assert "KPI команды — SPV" in report
+    assert "Показатели KPI" in report
+    assert "Руководитель: *SPV*" in report
     assert "A LAMP" in report
     assert "R LAMP" in report
     assert "Общий KPI" in report

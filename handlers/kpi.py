@@ -503,9 +503,9 @@ async def manual_kpi_get_field_hours(update: Update, context: ContextTypes.DEFAU
 
 
 def my_kpi_markup(group: str | None, admin_mode: bool) -> InlineKeyboardMarkup:
-    inline_keyboard = [[InlineKeyboardButton("📊 KPI", callback_data="my_kpi_show_kpi")]]
-    if admin_mode or is_management_group(group):
-        inline_keyboard.append([InlineKeyboardButton("👥 KPI команды", callback_data="my_kpi_show_team")])
+    manager_mode = admin_mode or is_management_group(group)
+    kpi_callback = "my_kpi_show_team" if manager_mode else "my_kpi_show_kpi"
+    inline_keyboard = [[InlineKeyboardButton("📊 KPI", callback_data=kpi_callback)]]
     if admin_mode or group in GROUPS_WITH_HOURS:
         inline_keyboard.append([InlineKeyboardButton("⏱️ Часы", callback_data="my_kpi_show_hours")])
     if group in GROUPS_WITH_TRAINING:
@@ -532,7 +532,31 @@ def build_monthly_training_report(
 
 
 def _team_metric_line(label: str, metric: dict) -> str:
-    return f"{label}: план {float(metric.get('plan', 0)):.0f} | факт {float(metric.get('fact', 0)):.0f} | {float(metric.get('percent', 0)):.1f}%"
+    return (
+        f"{label}: План: `{float(metric.get('plan', 0)):.0f}` | "
+        f"Факт: `{float(metric.get('fact', 0)):.0f}` (`{float(metric.get('percent', 0)):.1f}%`)"
+    )
+
+
+def _team_report_lines(report: dict, title: str) -> list[str]:
+    metrics = report.get("metrics", {})
+    microacts = metrics.get("microacts", {})
+    las_fact = float(microacts.get("las_fact", 0))
+    lau_fact = float(microacts.get("lau_fact", 0))
+    las_percent = float(microacts.get("las_percent", 0))
+    overall = report.get("overall", {})
+    lines = [
+        f"🏷 **{title}**",
+        f"👥 Сотрудников: **{report.get('employee_count', 0)}**",
+        f"📈 {_team_metric_line('GT', metrics.get('gt', {}))}",
+        f"🎯 {_team_metric_line('Микроакты', microacts)}",
+        f"  ├ Факт по LAS: `{las_fact:.0f}` | Факт по LAU: `{lau_fact:.0f}`",
+        f"  └ Итоговый LAS %: `{las_percent:.2f}%`",
+        f"🔄 {_team_metric_line('Re-trafic', metrics.get('retrafic', {}))}",
+    ]
+    if overall.get("percent") is not None:
+        lines.append(f"🏆 Общий KPI: **{float(overall['percent']):.1f}%**")
+    return lines
 
 
 def build_team_kpi_report(snapshot: dict, manager_group: str) -> str:
@@ -540,37 +564,22 @@ def build_team_kpi_report(snapshot: dict, manager_group: str) -> str:
     if not isinstance(report, dict):
         return "ℹ️ Командный KPI пока не рассчитан."
 
-    metrics = report.get("metrics", {})
     lines = [
-        f"👥 **KPI команды — {manager_group}**",
+        "📊 **Показатели KPI**",
+        f"👤 Руководитель: *{manager_group}*",
         f"📆 Период: `{snapshot.get('period', '—')}`",
-        f"👤 Сотрудников в расчёте: **{report.get('employee_count', 0)}**",
         "━━━━━━━━━━━━━━━━━━",
-        f"📈 {_team_metric_line('GT', metrics.get('gt', {}))}",
-        f"🎯 {_team_metric_line('Микроакты', metrics.get('microacts', {}))}",
-        f"🔄 {_team_metric_line('Re-trafic', metrics.get('retrafic', {}))}",
     ]
-    overall = report.get("overall", {})
-    if overall.get("percent") is None:
-        lines.append("🏆 Общий KPI: не настроен")
-    else:
-        lines.append(f"🏆 Общий KPI: **{float(overall['percent']):.1f}%**")
+    lines.extend(_team_report_lines(report, "Командный KPI"))
 
     if manager_group in {"SPV", "MNG"}:
-        lines.extend(["", "📌 **По командам**"])
+        lines.extend(["", "━━━━━━━━━━━━━━━━━━", "📌 **Показатели по командам**"])
         for team_group in ("A LAMP", "R LAMP"):
-            team_report = snapshot.get("teams", {}).get(team_group, {})
-            team_metrics = team_report.get("metrics", {})
-            lines.extend(
-                [
-                    f"**{team_group}** — сотрудников: {team_report.get('employee_count', 0)}",
-                    f"  GT: {float(team_metrics.get('gt', {}).get('percent', 0)):.1f}% | "
-                    f"Микроакты: {float(team_metrics.get('microacts', {}).get('percent', 0)):.1f}% | "
-                    f"Re-trafic: {float(team_metrics.get('retrafic', {}).get('percent', 0)):.1f}%",
-                ]
-            )
-    quality = report.get("quality", {})
-    missing_count = len(quality.get("missing_employee_ids", []))
+            team_report = snapshot.get("teams", {}).get(team_group)
+            if isinstance(team_report, dict):
+                lines.extend(["", *_team_report_lines(team_report, team_group)])
+
+    missing_count = len(report.get("quality", {}).get("missing_employee_ids", []))
     if missing_count:
         lines.append(f"⚠️ Нет KPI-данных у сотрудников: **{missing_count}**")
     return "\n".join(lines)
