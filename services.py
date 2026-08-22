@@ -13,6 +13,7 @@ from bot_context import (
 )
 from config import (
     ADMIN_ID,
+    GROUPS_FILE,
     USERS_FILE,
 )
 from data_models import user_name as get_user_name
@@ -107,6 +108,61 @@ async def notify_users_kpi_updated(context: ContextTypes.DEFAULT_TYPE, target_na
 async def notify_user_kpi_updated(context: ContextTypes.DEFAULT_TYPE, target_name: str):
     """Backward-compatible single-user notification wrapper."""
     return await notify_users_kpi_updated(context, [target_name])
+
+
+async def notify_managers_team_kpi_recalculated(context: ContextTypes.DEFAULT_TYPE) -> dict[str, int]:
+    """Notify registered coor/SPV/MNG users after a team KPI recalculation."""
+    try:
+        users = await load_json(USERS_FILE)
+        groups = await load_json(GROUPS_FILE)
+    except (OSError, TypeError, ValueError) as error:
+        logging.exception("Не удалось загрузить users/groups для KPI manager notification: %s", error)
+        return {"sent": 0, "failed": 0, "unmatched": 0}
+
+    management_groups = {"coor A", "coor R", "SPV", "MNG"}
+    recipients: dict[int, tuple[str, str]] = {}
+    for user_id, user_record in users.items():
+        if not str(user_id).isdigit():
+            continue
+        group_record = groups.get(str(user_id), {})
+        group = ""
+        if isinstance(group_record, dict):
+            group = str(group_record.get("group") or group_record.get("team") or "").strip()
+        if not group and isinstance(user_record, dict):
+            group = str(user_record.get("group") or user_record.get("team") or "").strip()
+        if group in management_groups:
+            name = (
+                str(user_record.get("name") or user_record.get("full_name") or "Руководитель")
+                if isinstance(user_record, dict)
+                else "Руководитель"
+            )
+            recipients[int(user_id)] = (name, group)
+
+    sent = 0
+    failed = 0
+    for manager_id, (name, group) in recipients.items():
+        try:
+            await context.bot.send_message(
+                chat_id=manager_id,
+                text=(
+                    "🔔 **Загружен новый файл KPI.**\n\n"
+                    f"{name}, ваши командные показатели были перерасчитаны для группы **{group}**.\n\n"
+                    "Откройте **«Мои KPI» → «KPI команды»**, чтобы посмотреть актуальные данные."
+                ),
+                parse_mode="Markdown",
+            )
+            sent += 1
+        except TelegramError as error:
+            failed += 1
+            logging.error("Не удалось отправить manager KPI notification пользователю %s: %s", manager_id, error)
+
+    logging.info(
+        "Manager KPI notifications completed: recipients=%s sent=%s failed=%s",
+        len(recipients),
+        sent,
+        failed,
+    )
+    return {"sent": sent, "failed": failed, "unmatched": 0}
 
 
 async def notify_user_bot_stopped(context: ContextTypes.DEFAULT_TYPE, user_id: str):

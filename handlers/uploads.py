@@ -27,6 +27,7 @@ from services import (
     _find_column,
     _normalize_person_name,
     _parse_nonnegative_quantity,
+    notify_managers_team_kpi_recalculated,
     notify_users_kpi_updated,
 )
 from states import (
@@ -347,6 +348,7 @@ async def _apply_kpi_import(staged: dict, context: ContextTypes.DEFAULT_TYPE) ->
     await TeamKpiService.from_default_storage().rebuild()
     await sync_kpi_state()
     await notify_users_kpi_updated(context, staged.get("updated_names", []))
+    await notify_managers_team_kpi_recalculated(context)
 
 
 async def _apply_issuance_import(staged: dict) -> None:

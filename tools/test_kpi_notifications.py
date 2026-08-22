@@ -13,6 +13,38 @@ sys.path.insert(0, str(ROOT))
 import services
 
 
+async def test_manager_notification() -> None:
+    original_load = services.load_json
+    users = {
+        "101": {"name": "Coordinator A"},
+        "102": {"name": "Supervisor"},
+        "103": {"name": "Manager"},
+        "excel_employee": {"name": "Excel Employee"},
+    }
+    groups = {
+        "101": {"name": "Coordinator A", "group": "coor A"},
+        "102": {"name": "Supervisor", "group": "SPV"},
+        "103": {"name": "Manager", "group": "MNG"},
+        "excel_employee": {"name": "Excel Employee", "group": "A LAMP"},
+    }
+
+    async def load_json(path: str):
+        return users if path == services.USERS_FILE else groups
+
+    try:
+        services.load_json = load_json
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()))
+        result = await services.notify_managers_team_kpi_recalculated(context)
+        assert result == {"sent": 3, "failed": 0, "unmatched": 0}
+        assert context.bot.send_message.await_count == 3
+        texts = [call.kwargs["text"] for call in context.bot.send_message.await_args_list]
+        assert all("Загружен новый файл KPI" in text for text in texts)
+        assert all("перерасчитаны" in text for text in texts)
+        assert all("Мои KPI" in text for text in texts)
+    finally:
+        services.load_json = original_load
+
+
 async def main() -> None:
     original_load = services.load_json
     users = {
@@ -39,6 +71,7 @@ async def main() -> None:
     finally:
         services.load_json = original_load
 
+    await test_manager_notification()
     print("KPI_NOTIFICATIONS PASS")
 
 
