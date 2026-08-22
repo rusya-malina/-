@@ -4,6 +4,7 @@ import contextlib
 from application.admin_service import EmployeeAdminService
 from application.kpi_service import KpiService, build_plan_projection
 from application.report_service import ReportService
+from application.team_kpi_service import TeamKpiService
 from application.training_service import TrainingService
 from bot_context import (
     BadRequest,
@@ -484,6 +485,7 @@ async def manual_kpi_get_field_hours(update: Update, context: ContextTypes.DEFAU
         await update.message.reply_text("❌ Не удалось сохранить KPI. Проверьте введённые значения.")
         return MANUAL_KPI_FIELD_HOURS
 
+    await TeamKpiService.from_default_storage().rebuild()
     await notify_user_kpi_updated(context, target_name)
 
     await update.message.reply_text(

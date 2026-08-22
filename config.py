@@ -14,6 +14,7 @@ BASE_DIR = Path(os.getenv("BOT_DATA_DIR", ".")).expanduser()
 
 USERS_FILE = str(BASE_DIR / "users.json")
 KPI_FILE = str(BASE_DIR / "kpi_data.json")
+TEAM_KPI_FILE = str(BASE_DIR / "team_kpi_data.json")
 PLANS_FILE = str(BASE_DIR / "plans_config.json")
 PENDING_FILE = str(BASE_DIR / "pending_requests.json")
 TEAM_REQUESTS_FILE = str(BASE_DIR / "team_requests.json")

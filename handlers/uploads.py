@@ -2,6 +2,7 @@
 from telegram.error import TelegramError
 
 from application.import_service import ImportSafetyError, ImportService
+from application.team_kpi_service import TeamKpiService
 from bot_context import (
     ContextTypes,
     ConversationHandler,
@@ -223,6 +224,7 @@ async def _apply_kpi_import(staged: dict, context: ContextTypes.DEFAULT_TYPE) ->
     await sync_data_state()
     await ImportService.from_default_storage().apply_kpi_import(staged, source_path)
     staged["temp_path"] = None
+    await TeamKpiService.from_default_storage().rebuild()
     await sync_kpi_state()
     await notify_users_kpi_updated(context, staged.get("updated_names", []))
 

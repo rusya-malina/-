@@ -1,6 +1,7 @@
 """Выбор команды сотрудником и административное подтверждение."""
 from telegram.error import TelegramError
 
+from application.team_kpi_service import TeamKpiService
 from application.team_service import TeamService
 from bot_context import (
     ContextTypes,
@@ -88,6 +89,24 @@ def _report_sections(group: str, visible_users: list[dict]) -> list[tuple[str | 
     return [(None, visible_users)]
 
 
+def _summary_lines(report: dict, title: str) -> list[str]:
+    metrics = report.get("metrics", {})
+    gt = metrics.get("gt", {})
+    microacts = metrics.get("microacts", {})
+    retrafic = metrics.get("retrafic", {})
+    overall = report.get("overall", {})
+    overall_percent = overall.get("percent")
+    overall_text = f"{float(overall_percent):.1f}%" if overall_percent is not None else "не настроен"
+    return [
+        f"📌 **Сводный KPI — {title}**",
+        f"👥 В расчёте сотрудников: **{report.get('employee_count', 0)}**",
+        f"📈 GT: **{float(gt.get('percent', 0)):.1f}%**",
+        f"🎯 Микроакты: **{float(microacts.get('percent', 0)):.1f}%**",
+        f"🔄 Re-trafic: **{float(retrafic.get('percent', 0)):.1f}%**",
+        f"🏆 Общий KPI: **{overall_text}**",
+    ]
+
+
 async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     team_context = await _get_team_context(update, context)
     if team_context is None:
@@ -96,10 +115,23 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     title = "MNG" if is_admin_mode(user_id, context) else group
     report_sections = _report_sections(group, visible_users)
     report_users = [person for _section, section_users in report_sections for person in section_users]
+    snapshot = await TeamKpiService.from_default_storage().load_current()
+    if snapshot is None:
+        snapshot = await TeamKpiService.from_default_storage().rebuild()
+    manager_report = snapshot.get("manager_reports", {}).get(group)
     lines = [
         f"📊 **KPI команды — {title}**",
-        f"👤 Сотрудников в командах: **{len(report_users)}**\n",
+        f"👤 Сотрудников в командах: **{len(report_users)}**",
     ]
+    if manager_report:
+        lines.extend(["", *_summary_lines(manager_report, title)])
+        if group in {"MNG", "SPV"}:
+            lines.append("")
+            for branch_group in ("A LAMP", "R LAMP"):
+                branch_report = snapshot.get("teams", {}).get(branch_group)
+                if branch_report:
+                    lines.extend(_summary_lines(branch_report, branch_group))
+                    lines.append("")
     for section_name, section_users in report_sections:
         if section_name:
             lines.append(f"🏷 **{section_name}** — сотрудников: **{len(section_users)}**")
