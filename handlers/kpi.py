@@ -544,7 +544,6 @@ def _team_report_lines(report: dict, title: str) -> list[str]:
     las_fact = float(microacts.get("las_fact", 0))
     lau_fact = float(microacts.get("lau_fact", 0))
     las_percent = float(microacts.get("las_percent", 0))
-    overall = report.get("overall", {})
     lines = [
         f"🏷 **{title}**",
         f"👥 Сотрудников: **{report.get('employee_count', 0)}**",
@@ -554,8 +553,6 @@ def _team_report_lines(report: dict, title: str) -> list[str]:
         f"  └ Итоговый LAS %: `{las_percent:.2f}%`",
         f"🔄 {_team_metric_line('Re-trafic', metrics.get('retrafic', {}))}",
     ]
-    if overall.get("percent") is not None:
-        lines.append(f"🏆 Общий KPI: **{float(overall['percent']):.1f}%**")
     return lines
 
 

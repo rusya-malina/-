@@ -115,7 +115,7 @@ def test_manager_kpi_menu_and_report() -> None:
     assert "Руководитель: *SPV*" in report
     assert "A LAMP" in report
     assert "R LAMP" in report
-    assert "Общий KPI" in report
+    assert "Общий KPI" not in report
 
 
 def test_missing_employee_kpi_is_reported_without_becoming_zero_data() -> None:
