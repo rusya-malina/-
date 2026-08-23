@@ -42,6 +42,7 @@ jobs:
             tools/test_admin_modes.py \
             tools/test_permissions.py \
             tools/test_polling_recovery.py \
+            tools/test_webhook_server.py \
             tools/test_rewrite_contracts.py \
             tools/test_runtime_contracts.py \
             tools/test_kpi_service.py \
