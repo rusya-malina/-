@@ -69,7 +69,9 @@ async def start_monthly_kpi_upload(update: Update, context: ContextTypes.DEFAULT
         "📅 **Загрузка месячного KPI**\n\n"
         "Отправьте Excel-файл из трёх колонок без обязательной строки заголовков:\n"
         "1. Название KPI\n2. План\n3. Вес\n\n"
-        "Сумма весов должна быть равна 100%.",
+        "Если сумма весов отличается от 100%, бот автоматически нормализует её. "
+        "Нулевые и отрицательные веса будут отклонены.",
+
         parse_mode="Markdown",
     )
     return MONTHLY_KPI_UPLOAD
@@ -102,9 +104,14 @@ async def process_monthly_kpi_file(update: Update, context: ContextTypes.DEFAULT
             "🔎 **Проверка месячного KPI**",
             f"Текущий период: `{period}`",
             f"KPI в файле: **{prepared['row_count']}**",
-            f"Сумма весов: **{prepared['total_weight']:.2f}%**",
-            "",
+            f"Сумма весов после проверки: **{prepared['total_weight']:.2f}%**",
         ]
+        if prepared.get("weights_adjusted"):
+            lines.append(
+                f"⚠️ Веса нормализованы автоматически: "
+                f"{prepared['original_total_weight']:.2f}% → {prepared['total_weight']:.2f}%"
+            )
+        lines.append("")
         for index, metric in enumerate(prepared["metrics"], start=1):
             lines.append(f"{index}. **{metric['name']}** — план: `{metric['plan']:g}`, вес: `{metric['weight']:g}%`")
         lines.extend(["", "Данные ещё не применены. Выберите срок загрузки:"])

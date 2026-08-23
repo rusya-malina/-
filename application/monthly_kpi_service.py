@@ -82,14 +82,23 @@ class MonthlyKpiService:
 
         if not metrics:
             raise MonthlyKpiValidationError("В Excel не найдено ни одного KPI")
-        total_weight = sum(metric["weight"] for metric in metrics)
-        if abs(total_weight - 100.0) > 0.01:
-            raise MonthlyKpiValidationError(f"Сумма весов должна быть 100%, сейчас: {total_weight:g}%")
+        original_total_weight = sum(metric["weight"] for metric in metrics)
+        if original_total_weight <= 0:
+            raise MonthlyKpiValidationError("Сумма весов должна быть больше 0%")
+        weights_adjusted = abs(original_total_weight - 100.0) > 0.01
+        if weights_adjusted:
+            multiplier = 100.0 / original_total_weight
+            for metric in metrics:
+                metric["weight"] = round(metric["weight"] * multiplier, 6)
+            correction = 100.0 - sum(metric["weight"] for metric in metrics)
+            metrics[-1]["weight"] = round(metrics[-1]["weight"] + correction, 6)
         return {
             "schema_version": MONTHLY_KPI_SCHEMA_VERSION,
             "metrics": metrics,
             "row_count": len(metrics),
-            "total_weight": total_weight,
+            "total_weight": sum(metric["weight"] for metric in metrics),
+            "original_total_weight": original_total_weight,
+            "weights_adjusted": weights_adjusted,
         }
 
     async def get_active(self) -> dict[str, Any] | None:
@@ -109,6 +118,8 @@ class MonthlyKpiService:
                 "activated_at": datetime.now().astimezone().isoformat(),
                 "metrics": prepared["metrics"],
                 "total_weight": prepared["total_weight"],
+                "original_total_weight": prepared.get("original_total_weight", prepared["total_weight"]),
+                "weights_adjusted": bool(prepared.get("weights_adjusted", False)),
             }
             history = monthly.get("history", [])
             if not isinstance(history, list):
@@ -133,6 +144,8 @@ class MonthlyKpiService:
                 "created_at": datetime.now().astimezone().isoformat(),
                 "metrics": prepared["metrics"],
                 "total_weight": prepared["total_weight"],
+                "original_total_weight": prepared.get("original_total_weight", prepared["total_weight"]),
+                "weights_adjusted": bool(prepared.get("weights_adjusted", False)),
             }
             monthly.update({"schema_version": MONTHLY_KPI_SCHEMA_VERSION, "pending": pending})
             data[MONTHLY_KPI_KEY] = monthly

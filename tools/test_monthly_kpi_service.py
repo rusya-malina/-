@@ -26,8 +26,14 @@ def test_prepare_validates_and_normalizes() -> None:
     assert prepared["metrics"][0]["key"] == "продажи"
     assert prepared["metrics"][1]["name"] == "Качество"
 
+    normalized = MonthlyKpiService.prepare([{"name": "GT", "plan": 10, "weight": 50}])
+    assert normalized["weights_adjusted"] is True
+    assert normalized["original_total_weight"] == 50
+    assert normalized["total_weight"] == 100
+    assert normalized["metrics"][0]["weight"] == 100
+
     for rows, expected in (
-        ([{"name": "GT", "plan": 10, "weight": 50}], "Сумма весов"),
+        ([{"name": "GT", "plan": 10, "weight": 0}], "больше 0"),
         ([{"name": "GT", "plan": -1, "weight": 100}], "план не может"),
         ([{"name": "GT", "plan": 10, "weight": -1}], "вес не может"),
         ([{"name": "GT", "plan": 10, "weight": 50}, {"name": "gt", "plan": 10, "weight": 50}], "Дубликат"),
