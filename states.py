@@ -38,5 +38,4 @@
     TRAINING_TYPE,
     TRAINING_UPLOAD,
     MY_TRAINING_MENU,
-    MONTHLY_KPI_UPLOAD,
-) = range(38)
+) = range(37)
