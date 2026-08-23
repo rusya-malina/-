@@ -5,23 +5,24 @@ from telegram.error import Conflict, TelegramError
 
 from bot_context import logging
 
+POLLING_CONFLICT_FLAG = "polling_conflict_detected"
+
 
 async def handle_application_error(update, context) -> None:
-    """Restarts polling after a Telegram getUpdates conflict.
-
-    PTB delivers polling errors through ``Application.process_error``. Without
-    an error handler, a Conflict is only logged inside the running application,
-    so the outer retry loop in bot.py never gets a chance to recreate polling.
-    Stopping the current application lets bot.py wait and start a fresh one.
-    """
+    """Handle polling errors without leaking task exceptions to the event loop."""
     error = context.error
+    application = context.application
     if isinstance(error, Conflict):
         logging.warning(
             "Telegram getUpdates conflict detected; stopping current application "
             "so the outer polling supervisor can recover: %s",
             error,
         )
-        context.application.stop_running()
+        application.bot_data[POLLING_CONFLICT_FLAG] = True
+        try:
+            application.stop_running()
+        except (OSError, RuntimeError, TelegramError):
+            logging.exception("Failed to stop application after Telegram polling conflict")
         return
 
     if isinstance(error, TelegramError):
@@ -31,4 +32,4 @@ async def handle_application_error(update, context) -> None:
     logging.exception("Unhandled application error: %s", error)
 
 
-__all__ = ["handle_application_error"]
+__all__ = ["POLLING_CONFLICT_FLAG", "handle_application_error"]

@@ -17,6 +17,7 @@ from recovery import handle_application_error
 class FakeApplication:
     def __init__(self) -> None:
         self.stop_calls = 0
+        self.bot_data = {}
 
     def stop_running(self) -> None:
         self.stop_calls += 1
@@ -27,6 +28,7 @@ async def test_conflict_stops_application() -> None:
     context = SimpleNamespace(application=application, error=Conflict("duplicate polling"))
     await handle_application_error(None, context)
     assert application.stop_calls == 1
+    assert application.bot_data["polling_conflict_detected"] is True
 
 
 async def test_regular_telegram_error_does_not_stop_application() -> None:

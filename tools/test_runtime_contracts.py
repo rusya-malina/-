@@ -7,6 +7,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from telegram.error import Conflict
+
 from runtime.polling_supervisor import PollingSupervisor
 
 
@@ -41,7 +43,24 @@ def test_supervisor_run_stops_after_runtime_signal() -> None:
     assert app.poll_calls == 0
 
 
+def test_supervisor_stops_after_conflict_without_second_cycle() -> None:
+    supervisor = None
+
+    class ConflictApplication(FakeApplication):
+        def run_polling(self, **kwargs):
+            self.poll_calls += 1
+            supervisor.stop()
+            raise Conflict("duplicate polling")
+
+    app = ConflictApplication()
+    supervisor = PollingSupervisor("token", lambda _: app, retry_delay=0, jitter=0)
+    supervisor.run()
+    assert app.poll_calls == 1
+    assert app.stop_calls == 1
+
+
 if __name__ == "__main__":
     test_supervisor_stop_delegates_to_application()
     test_supervisor_run_stops_after_runtime_signal()
+    test_supervisor_stops_after_conflict_without_second_cycle()
     print("RUNTIME_CONTRACTS PASS")
