@@ -33,6 +33,7 @@ from handlers.kpi import (
     set_plan_micro,
     set_plan_retrafic,
 )
+from handlers.monthly_kpi import monthly_kpi_callback, process_monthly_kpi_file, start_monthly_kpi_upload
 from handlers.requests import requests_callback, show_requests_menu
 from handlers.teams import (
     open_my_team_menu,
@@ -90,6 +91,7 @@ from states import (
     MANUAL_KPI_NEW_NAME,
     MANUAL_KPI_OFFICE_HOURS,
     MANUAL_KPI_RETRAFIC_FACT,
+    MONTHLY_KPI_UPLOAD,
     MY_TRAINING_MENU,
     PENDING_REQUESTS_STATE,
     REG_FIRST_NAME,
@@ -140,10 +142,16 @@ def build_conversation_handler() -> ConversationHandler:
             ],
             KPI_MENU_STATE: [
                 MessageHandler(filters.Regex(r"^📥 Загрузить KPI \(Excel\)$"), start_excel_upload),
+                MessageHandler(filters.Regex(r"^📅 Загрузить месячный KPI$"), start_monthly_kpi_upload),
                 MessageHandler(filters.Regex(r"^(MINTS|Стики|📥 Загрузить выдачи \(Excel\)|📊 Выгрузка статистики)$"), issuance_menu_message),
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             ],
             UPLOAD_EXCEL: [CallbackQueryHandler(excel_preview_callback, pattern=r"^excel_(confirm|cancel)$"), MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.Document.ALL, process_excel_file)],
+            MONTHLY_KPI_UPLOAD: [
+                CallbackQueryHandler(monthly_kpi_callback, pattern=r"^monthly_kpi_(now|next|cancel)$"),
+                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
+                MessageHandler(filters.Document.ALL, process_monthly_kpi_file),
+            ],
             MANUAL_KPI_NAME: [CallbackQueryHandler(manual_kpi_select_employee, pattern=r"^manual_emp_")],
             SELECT_PREVIOUS_EMP: [CallbackQueryHandler(select_previous_employee_handler, pattern=r"^(sel_emp:|manual_emp_)")],
             CONFIRM_DELETE_EMP: [CallbackQueryHandler(delete_employee_confirm, pattern=r"^(del_select:|del_type:|del_back_list|manual_emp_)")],

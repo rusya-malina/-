@@ -3,6 +3,7 @@ import contextlib
 
 from application.admin_service import EmployeeAdminService
 from application.kpi_service import KpiService, build_plan_projection
+from application.monthly_kpi_service import MonthlyKpiService
 from application.report_service import ReportService
 from application.team_kpi_service import TeamKpiService
 from application.training_service import TrainingService
@@ -847,12 +848,19 @@ async def kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Сначала завершите регистрацию через /start.")
         return
 
+    active = await MonthlyKpiService.from_default_storage().get_active()
+    metrics = active.get("metrics", []) if active else []
+    if not metrics:
+        metrics = [
+            {"key": "gt", "name": "GT", "plan": 90, "weight": 40},
+            {"key": "microacts", "name": "Микроакты", "plan": 128, "weight": 40},
+            {"key": "retrafic", "name": "Re-trafic", "plan": 15, "weight": 20},
+        ]
     inline_keyboard = [
-        [InlineKeyboardButton("📈 GT", callback_data="kpi_gt")],
-        [InlineKeyboardButton("🎯 Микроакты", callback_data="kpi_microacts")],
-        [InlineKeyboardButton("🔄 Re-trafic", callback_data="kpi_retrafic")],
-        [InlineKeyboardButton("🔙 Закрыть меню", callback_data="kpi_close")],
+        [InlineKeyboardButton(str(metric["name"]), callback_data=f"kpi_metric:{metric['key']}")]
+        for metric in metrics
     ]
+    inline_keyboard.append([InlineKeyboardButton("🔙 Закрыть меню", callback_data="kpi_close")])
     await update.message.reply_text("Убираем клавиатуру...", reply_markup=ReplyKeyboardRemove())
     await update.message.reply_text("📌 **Выберите KPI:**", reply_markup=InlineKeyboardMarkup(inline_keyboard), parse_mode="Markdown")
 
@@ -863,7 +871,19 @@ async def kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
 
-    if data == "kpi_gt":
+    if data.startswith("kpi_metric:"):
+        metric_key = data.split(":", 1)[1]
+        active = await MonthlyKpiService.from_default_storage().get_active()
+        metric = next((item for item in (active or {}).get("metrics", []) if item.get("key") == metric_key), None)
+        if not isinstance(metric, dict):
+            text = "ℹ️ Этот KPI больше не входит в активный месячный справочник."
+        else:
+            text = (
+                f"📌 **KPI: {metric['name']}**\n\n"
+                f"🎯 План: `{float(metric.get('plan', 0)):g}`\n"
+                f"⚖️ Вес: `{float(metric.get('weight', 0)):g}%`"
+            )
+    elif data == "kpi_gt":
         text = "📈 **KPI: GT** (План: 90, Вес: 40%)"
     elif data == "kpi_microacts":
         text = "🎯 **KPI: Микроакты** (План: 128, Вес: 40%, Трешхолд LAS ≥ 40%)"

@@ -64,6 +64,7 @@ def get_data_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
             ["📥 Загрузить KPI (Excel)"],
+            ["📅 Загрузить месячный KPI"],
             ["MINTS", "Стики"],
             ["📥 Загрузить выдачи (Excel)"],
             ["📊 Выгрузка статистики"],
