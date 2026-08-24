@@ -19,6 +19,7 @@ from bot_context import (
     tempfile,
 )
 from config import (
+    GROUPS_FILE,
     ISSUANCE_FILE,
     KPI_FILE,
     USERS_FILE,
@@ -27,7 +28,8 @@ from data_models import user_name
 from errors import StorageError
 from keyboards import cancel_keyboard, get_issuance_confirmation_markup, get_issuance_keyboard
 from navigation import main_menu_markup
-from permissions import Permission, has_permission
+from permissions import Permission, has_permission, is_admin_mode
+from roles import get_group_from_record, get_user_group
 from services import (
     _format_quantity,
     _normalize_person_name,
@@ -42,12 +44,26 @@ from states import (
 from storage import load_json
 
 
-async def _get_issuance_users_markup(context: ContextTypes.DEFAULT_TYPE) -> InlineKeyboardMarkup:
+async def _allowed_issuance_groups(user_id: int | str, context: ContextTypes.DEFAULT_TYPE) -> set[str]:
+    if is_admin_mode(user_id, context):
+        return {"A LAMP", "R LAMP"}
+    group = await get_user_group(user_id)
+    return {"A LAMP"} if group == "coor A" else {"R LAMP"} if group == "coor R" else set()
+
+
+async def _get_issuance_users_markup(
+    context: ContextTypes.DEFAULT_TYPE,
+    allowed_groups: set[str],
+) -> InlineKeyboardMarkup:
     users = await load_json(USERS_FILE)
+    groups = await load_json(GROUPS_FILE)
     valid_users = [
         (str(user_id), user_name(name))
         for user_id, name in users.items()
-        if str(user_id).isdigit() and user_name(name) and user_name(name).lower() != "nan"
+        if str(user_id).isdigit()
+        and user_name(name)
+        and user_name(name).lower() != "nan"
+        and get_group_from_record(groups.get(str(user_id))) in allowed_groups
     ]
     valid_users.sort(key=lambda item: item[1].lower())
 
@@ -56,6 +72,16 @@ async def _get_issuance_users_markup(context: ContextTypes.DEFAULT_TYPE) -> Inli
         keyboard.append([InlineKeyboardButton(name, callback_data=f"issue_user:{user_id}")])
     keyboard.append([InlineKeyboardButton("⬅️ Отмена", callback_data="issue_cancel")])
     return InlineKeyboardMarkup(keyboard)
+
+
+async def _target_is_allowed(
+    actor_id: int | str,
+    target_id: int | str,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> bool:
+    allowed_groups = await _allowed_issuance_groups(actor_id, context)
+    groups = await load_json(GROUPS_FILE)
+    return get_group_from_record(groups.get(str(target_id))) in allowed_groups
 
 
 async def issuance_menu_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -69,6 +95,9 @@ async def issuance_menu_message(update: Update, context: ContextTypes.DEFAULT_TY
     if action == "Стики":
         return await issuance_type_message(update, context, "sticks")
     if action == "📥 Загрузить выдачи (Excel)":
+        if not has_permission(update.effective_user.id, context, Permission.DATA_UPLOAD):
+            await update.message.reply_text("⛔️ Загрузка выдач из Excel доступна только администратору.")
+            return ISSUANCE_MENU
         await update.message.reply_text(
             "📥 **Загрузка выдач из Excel**\n\n"
             "Отправьте файл `.xlsx` с колонками имени сотрудника, MINTS и стиков.\n"
@@ -80,12 +109,15 @@ async def issuance_menu_message(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return ISSUANCE_EXCEL_UPLOAD
     if action == "📊 Выгрузка статистики":
+        if not has_permission(update.effective_user.id, context, Permission.DATA_UPLOAD):
+            await update.message.reply_text("⛔️ Выгрузка статистики доступна только администратору.")
+            return ISSUANCE_MENU
         return await export_issuance_statistics(update, context)
     return ISSUANCE_MENU
 
 
 async def export_issuance_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not has_permission(update.effective_user.id, context, Permission.ISSUANCE):
+    if not has_permission(update.effective_user.id, context, Permission.DATA_UPLOAD):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
         return ConversationHandler.END
 
@@ -146,11 +178,16 @@ async def issuance_type_message(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("❌ Неизвестный тип выдачи.")
         return ISSUANCE_USER
 
+    allowed_groups = await _allowed_issuance_groups(update.effective_user.id, context)
+    if not allowed_groups:
+        await update.message.reply_text("⛔️ Для вашей группы нет доступных сотрудников для выдачи.")
+        return ConversationHandler.END
+
     context.user_data["issuance_type"] = issuance_type
     type_label = "MINTS" if issuance_type == "mints" else "стиков"
     await update.message.reply_text(
         f"👥 **Выдача {type_label}**\n\nВыберите пользователя:",
-        reply_markup=await _get_issuance_users_markup(context),
+        reply_markup=await _get_issuance_users_markup(context, allowed_groups),
         parse_mode="Markdown",
     )
     return ISSUANCE_USER
@@ -186,6 +223,10 @@ async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("issuance_type", None)
         context.user_data.pop("issuance_user_id", None)
         context.user_data.pop("issuance_amount", None)
+        return ConversationHandler.END
+
+    if not await _target_is_allowed(actor_id, user_id, context):
+        await query.message.edit_text("⛔️ Выдача разрешена только сотрудникам A LAMP или R LAMP.")
         return ConversationHandler.END
 
     result = await IssuanceService.from_default_storage().issue(
@@ -233,9 +274,10 @@ async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("issuance_amount", None)
         issuance_type = context.user_data.get("issuance_type")
         type_label = "MINTS" if issuance_type == "mints" else "стиков"
+        allowed_groups = await _allowed_issuance_groups(query.from_user.id, context)
         await query.message.edit_text(
             f"👥 **Выдача {type_label}**\n\nВыберите пользователя:",
-            reply_markup=await _get_issuance_users_markup(context),
+            reply_markup=await _get_issuance_users_markup(context, allowed_groups),
             parse_mode="Markdown",
         )
         return ISSUANCE_USER
@@ -271,6 +313,9 @@ async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_name_value = user_name(users.get(user_id))
         if not user_id.isdigit() or not user_name_value:
             await query.message.edit_text("❌ Пользователь не найден.")
+            return ISSUANCE_USER
+        if not await _target_is_allowed(query.from_user.id, user_id, context):
+            await query.message.edit_text("⛔️ Этот сотрудник не входит в доступную для вас группу выдачи.")
             return ISSUANCE_USER
 
         context.user_data["issuance_user_id"] = user_id
