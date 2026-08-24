@@ -145,13 +145,19 @@ class WebhookServer:
             self.http_server.server_close()
             self.http_server = None
         loop = self.application_loop
-        if loop is not None:
-            future = asyncio.run_coroutine_threadsafe(self._stop_application(), loop)
+        if loop is not None and not loop.is_closed():
             try:
+                future = asyncio.run_coroutine_threadsafe(self._stop_application(), loop)
                 future.result(timeout=WEBHOOK_READY_TIMEOUT)
             except (OSError, RuntimeError, TimeoutError, TelegramError):
                 logging.exception("Failed to stop Telegram webhook application gracefully")
-            loop.call_soon_threadsafe(loop.stop)
+            try:
+                if not loop.is_closed():
+                    loop.call_soon_threadsafe(loop.stop)
+            except RuntimeError:
+                logging.info("Telegram webhook event loop was already closed during shutdown")
+        elif loop is not None:
+            logging.info("Telegram webhook event loop was already closed during shutdown")
         if self.http_thread is not None:
             self.http_thread.join(timeout=WEBHOOK_READY_TIMEOUT)
             self.http_thread = None
