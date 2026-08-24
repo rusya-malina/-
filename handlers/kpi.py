@@ -583,6 +583,10 @@ def build_team_kpi_report(snapshot: dict, manager_group: str) -> str:
 
 
 async def my_kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Switching to KPI must close any stale training flow in the same chat.
+    for key in ("training_recipient_id", "training_recipient_name", "training_type"):
+        context.user_data.pop(key, None)
+    context.user_data["active_flow"] = "my_kpi"
     user_id_num = update.effective_user.id
     user_id = str(user_id_num)
     users = await load_json(USERS_FILE)
@@ -591,16 +595,17 @@ async def my_kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin_mode = is_admin_mode(user_id_num, context)
     if user_id not in users and not admin_mode:
         await update.message.reply_text("⚠️ Вы еще не зарегистрированы. Нажмите /start.")
-        return
+        return ConversationHandler.END
     if not admin_mode and group not in TEAM_OPTIONS:
         await update.message.reply_text("⚠️ Ваша группа ещё не подтверждена. Нажмите /start.")
-        return
+        return ConversationHandler.END
 
     await update.message.reply_text(
         "📌 **Раздел «Мой KPI»**\n\nВыберите интересующий раздел:",
         reply_markup=my_kpi_markup(group, admin_mode),
         parse_mode="Markdown",
     )
+    return ConversationHandler.END
 
 
 async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

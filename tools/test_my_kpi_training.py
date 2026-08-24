@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 import handlers.kpi as kpi_handler
 from application.training_service import TrainingService
+from bot_context import ConversationHandler
 from config import GROUPS_FILE, ISSUANCE_FILE, KPI_FILE, TRAINING_HISTORY_FILE, USERS_FILE
 
 
@@ -40,11 +41,39 @@ def test_delivery_count_and_zero_value() -> None:
 def test_button_is_visible_only_for_coordinators() -> None:
     coor_a = {button.text for row in kpi_handler.my_kpi_markup("coor A", False).inline_keyboard for button in row}
     coor_r = {button.text for row in kpi_handler.my_kpi_markup("coor R", False).inline_keyboard for button in row}
-    lamp = {button.text for row in kpi_handler.my_kpi_markup("A LAMP", False).inline_keyboard for button in row}
+    lamp_a = {button.text for row in kpi_handler.my_kpi_markup("A LAMP", False).inline_keyboard for button in row}
+    lamp_r = {button.text for row in kpi_handler.my_kpi_markup("R LAMP", False).inline_keyboard for button in row}
 
     assert "📚 Обучения" in coor_a
     assert "📚 Обучения" in coor_r
-    assert "📚 Обучения" not in lamp
+    assert "📚 Обучения" not in lamp_a
+    assert "📚 Обучения" not in lamp_r
+
+
+async def test_kpi_menu_clears_stale_training_state() -> None:
+    message = SimpleNamespace(reply_text=AsyncMock())
+    update = SimpleNamespace(effective_user=SimpleNamespace(id=100), message=message)
+    context = SimpleNamespace(
+        user_data={
+            "training_recipient_id": "200",
+            "training_recipient_name": "Сотрудник",
+            "training_type": "one",
+        }
+    )
+
+    async def fake_load(path):
+        return {USERS_FILE: {"100": "Сотрудник"}}[path]
+
+    with (
+        patch("handlers.kpi.load_json", new=AsyncMock(side_effect=fake_load)),
+        patch("handlers.kpi.get_user_group", new=AsyncMock(return_value="A LAMP")),
+        patch("handlers.kpi.is_admin_mode", return_value=False),
+    ):
+        result = await kpi_handler.my_kpi_menu(update, context)
+
+    assert result == ConversationHandler.END
+    assert not any(key.startswith("training_") for key in context.user_data)
+    assert message.reply_text.await_count == 1
 
 
 async def test_training_callback_inside_my_kpi() -> None:
@@ -93,6 +122,7 @@ async def test_training_callback_inside_my_kpi() -> None:
 async def main() -> None:
     test_delivery_count_and_zero_value()
     test_button_is_visible_only_for_coordinators()
+    await test_kpi_menu_clears_stale_training_state()
     await test_training_callback_inside_my_kpi()
     print("MY_KPI_TRAINING PASS")
 
