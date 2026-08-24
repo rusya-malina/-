@@ -743,6 +743,30 @@ def _plan_rate(row: dict, metric: str) -> str:
     return f"{row[f'{metric}_per_hour_rounded']}/час"
 
 
+def _plan_metric_status(target_100: dict, target_111: dict, metric: str) -> str:
+    """Return a concise status for one KPI metric in the plan card."""
+    remaining_100 = target_100[f"{metric}_remaining"]
+    remaining_111 = target_111[f"{metric}_remaining"]
+    if remaining_111 <= 0:
+        return "План перевыполнен"
+    if remaining_100 <= 0:
+        return "Цель 100% выполнена"
+    return "В работе"
+
+
+def _plan_overall_status(target_100: dict, target_111: dict) -> str:
+    """Return the overall status without hiding an unfinished KPI metric."""
+    if target_111["gt_remaining"] <= 0 and target_111["micro_remaining"] <= 0:
+        return "План перевыполнен"
+    if target_100["gt_remaining"] <= 0 and target_100["micro_remaining"] <= 0:
+        return "Цель 100% выполнена"
+    if target_100["gt_remaining"] <= 0:
+        return "Требуется выполнить общие микроакты"
+    if target_100["micro_remaining"] <= 0:
+        return "Требуется выполнить GT"
+    return "В работе"
+
+
 async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     users = await load_json(USERS_FILE)
@@ -768,17 +792,27 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows_by_target = {row["target_percent"]: row for row in projection["rows"]}
     target_100 = rows_by_target[100]
     target_111 = rows_by_target[111]
+    gt_status = _plan_metric_status(target_100, target_111, "gt")
+    micro_status = _plan_metric_status(target_100, target_111, "micro")
+    overall_status = _plan_overall_status(target_100, target_111)
     text = "\n".join(
         [
-            "📅 **Планы на день для достижения целей**",
+            "📊 **Персональная карточка плана**",
             f"👤 *{employee['name']}*",
-            f"📆 Дата: `{projection['as_of']}`",
+            f"📆 На дату: `{projection['as_of']}`",
             f"🗓 Осталось рабочих дней — {workdays_left}",
             "",
-            f"📈 План GT на 100% — `{_plan_rate(target_100, 'gt')}`",
-            f"📈 План GT на 111% — `{_plan_rate(target_111, 'gt')}`",
-            f"🎯 План общих микроактов на 100% — `{_plan_rate(target_100, 'micro')}`",
-            f"🎯 План общих микроактов на 111% — `{_plan_rate(target_111, 'micro')}`",
+            "📈 **GT**",
+            f"100% — `{_plan_rate(target_100, 'gt')}`",
+            f"111% — `{_plan_rate(target_111, 'gt')}`",
+            f"Статус — **{gt_status}**",
+            "",
+            "🎯 **Общие микроакты**",
+            f"100% — `{_plan_rate(target_100, 'micro')}`",
+            f"111% — `{_plan_rate(target_111, 'micro')}`",
+            f"Статус — **{micro_status}**",
+            "",
+            f"📌 **Общий статус — {overall_status}**",
         ]
     )
     await update.message.reply_text(

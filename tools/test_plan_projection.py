@@ -90,11 +90,13 @@ def main() -> None:
 
     async def handler_tests() -> None:
         text = await handler_case("A LAMP")
-        assert "Дата:" in text and "Осталось рабочих дней" in text
-        assert "План GT на 100%" in text and "План GT на 111%" in text
-        assert "План общих микроактов" in text and "/час" in text
+        assert "Персональная карточка плана" in text
+        assert "На дату:" in text and "Осталось рабочих дней" in text
+        assert "GT" in text and "100%" in text and "111%" in text
+        assert "Общие микроакты" in text and "/час" in text
+        assert "Статус" in text and "Общий статус" in text
         overachieved = await handler_case("A LAMP", gt_fact=120, micro_las_fact=80, micro_lau_fact=80)
-        assert overachieved.count("План перевыполнен") == 4
+        assert overachieved.count("План перевыполнен") == 7
         denied = await handler_case("coor A")
         assert "доступен только сотрудникам A LAMP и R LAMP" in denied
 
