@@ -96,12 +96,28 @@ def is_admin_mode(user_id: int | str | None, context: Any) -> bool:
     return get_mode(user_id, context) == "admin"
 
 
+def _is_coordinator(user_id: int | str | None) -> bool:
+    """Check the persisted group without granting any admin-mode privileges."""
+    if user_id is None:
+        return False
+    try:
+        from roles import get_user_group_sync
+
+        return get_user_group_sync(user_id) in {"coor A", "coor R"}
+    except (OSError, StorageError, TypeError, ValueError):
+        logging.exception("Не удалось определить группу пользователя %s", user_id)
+        return False
+
+
 def has_permission(
     user_id: int | str | None,
     context: Any,
     permission: Permission,
 ) -> bool:
     """Проверяет разрешение через единый режим, а не через локальные флаги."""
+    if permission == Permission.ISSUANCE:
+        return is_admin_mode(user_id, context) or _is_coordinator(user_id)
+
     admin_permissions = {
         Permission.ADMIN_PANEL,
         Permission.USER_MANAGEMENT,
@@ -109,7 +125,6 @@ def has_permission(
         Permission.TEAM_APPROVAL,
         Permission.DATA_UPLOAD,
         Permission.BROADCAST,
-        Permission.ISSUANCE,
         Permission.KPI_MANAGEMENT,
     }
     if permission in admin_permissions:

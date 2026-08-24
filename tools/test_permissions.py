@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import permissions
+import roles
 from config import ADMIN_ID
 from permissions import (
     Permission,
@@ -51,6 +52,22 @@ def test_coor_mode_cannot_inherit_admin_permission() -> None:
     }
 
 
+def test_coordinators_receive_issuance_permission_only() -> None:
+    original_get_group = roles.get_user_group_sync
+    groups = {700001: "coor A", 700002: "coor R", 700003: "A LAMP", 700004: "SPV"}
+    roles.get_user_group_sync = lambda user_id: groups.get(int(user_id))
+    try:
+        context = SimpleNamespace(user_data={})
+        assert has_permission(700001, context, Permission.ISSUANCE)
+        assert has_permission(700002, context, Permission.ISSUANCE)
+        assert not has_permission(700003, context, Permission.ISSUANCE)
+        assert not has_permission(700004, context, Permission.ISSUANCE)
+        assert not has_permission(700001, context, Permission.DATA_UPLOAD)
+        assert not is_admin_mode(700001, context)
+    finally:
+        roles.get_user_group_sync = original_get_group
+
+
 def test_persisted_admin_mode_restores_on_fresh_context() -> None:
     with tempfile.NamedTemporaryFile(prefix="permissions_", suffix=".json", delete=False) as session_file:
         session_path = session_file.name
@@ -85,6 +102,7 @@ def test_disabling_admin_mode_keeps_context_but_removes_permissions() -> None:
 if __name__ == "__main__":
     test_admin_mode_is_identity_bound()
     test_coor_mode_cannot_inherit_admin_permission()
+    test_coordinators_receive_issuance_permission_only()
     test_persisted_admin_mode_restores_on_fresh_context()
     test_disabling_admin_mode_keeps_context_but_removes_permissions()
     print("PERMISSIONS PASS")

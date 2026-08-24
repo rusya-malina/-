@@ -23,6 +23,7 @@ from health import HealthHandler
 from keyboards import (
     get_data_keyboard,
     get_issuance_confirmation_markup,
+    get_issuance_keyboard,
     get_kpi_menu_keyboard,
     get_main_keyboard,
     get_registration_group_keyboard,
@@ -68,10 +69,12 @@ def main() -> None:
     assert main_keyboard.keyboard
     admin_buttons = {button.text for row in main_keyboard.keyboard for button in row}
     assert "📝 Оставить заявку" not in admin_buttons
-    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Загрузить данные", "📢 Рассылка", "⚙️ Дополнительно"}.issubset(admin_buttons)
-    assert "Выдача" not in admin_buttons
+    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "📦 Выдача", "Загрузить данные", "📢 Рассылка", "⚙️ Дополнительно"}.issubset(admin_buttons)
     data_buttons = {button.text for row in get_data_keyboard().keyboard for button in row}
-    assert {"📥 Загрузить KPI (Excel)", "MINTS", "Стики", "📥 Загрузить выдачи (Excel)", "📊 Выгрузка статистики"}.issubset(data_buttons)
+    assert {"📥 Загрузить KPI (Excel)", "📥 Загрузить выдачи (Excel)", "📊 Выгрузка статистики"}.issubset(data_buttons)
+    assert "MINTS" not in data_buttons and "Стики" not in data_buttons
+    issuance_buttons = {button.text for row in get_issuance_keyboard().keyboard for button in row}
+    assert {"MINTS", "Стики", "⬅️ Назад"}.issubset(issuance_buttons)
     assert "Определить команду" not in admin_buttons
     kpi_admin_buttons = {button.text for row in get_kpi_menu_keyboard().keyboard for button in row}
     assert "📥 Загрузить KPI (Excel)" in kpi_admin_buttons
@@ -83,7 +86,7 @@ def main() -> None:
     coor_buttons = {button.text for row in get_main_keyboard(101, "coor A").keyboard for button in row}
     spv_buttons = {button.text for row in get_main_keyboard(102, "SPV").keyboard for button in row}
     assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Мои обучения"}.issubset(r_lamp_buttons)
-    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Загрузить обучение"}.issubset(coor_buttons)
+    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Загрузить обучение", "📦 Выдача"}.issubset(coor_buttons)
     assert {"Новый расчет", "Мой KPI", "Справочник KPI"}.issubset(spv_buttons)
     assert "Остатки" not in spv_buttons
     assert "Мои обучения" not in coor_buttons

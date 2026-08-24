@@ -12,6 +12,8 @@ from organization import is_management_group
 from permissions import is_admin_mode
 from roles import get_user_group_sync
 
+COORDINATOR_GROUPS = frozenset({"coor A", "coor R"})
+
 
 def get_registration_group_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
@@ -27,6 +29,7 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
             ["Новый расчет"],
             ["Мой KPI", "Справочник KPI"],
             ["Остатки"],
+            ["📦 Выдача"],
             ["Загрузить данные"],
             ["📢 Рассылка", "⚙️ Дополнительно"],
         ]
@@ -35,6 +38,8 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
     group = group or get_user_group_sync(user_id)
     if is_management_group(group):
         keyboard = [["Моя команда"], ["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
+        if group in COORDINATOR_GROUPS:
+            keyboard.append(["📦 Выдача"])
         if group in GROUPS_WITH_TRAINING:
             keyboard.append(["Загрузить обучение"])
         if group in GROUPS_WITH_BALANCES:
@@ -60,13 +65,24 @@ def get_context_keyboard(user_id: int, context, group: str | None = None) -> Rep
 
 
 def get_data_keyboard() -> ReplyKeyboardMarkup:
-    """Единое меню загрузки KPI, выдач и статистики для администратора."""
+    """Единое меню загрузки KPI, Excel-выдач и статистики для администратора."""
     return ReplyKeyboardMarkup(
         [
             ["📥 Загрузить KPI (Excel)"],
-            ["MINTS", "Стики"],
             ["📥 Загрузить выдачи (Excel)"],
             ["📊 Выгрузка статистики"],
+            ["⬅️ Назад"],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def get_issuance_keyboard() -> ReplyKeyboardMarkup:
+    """Меню ручной выдачи MINTS и стиков для администратора и координаторов."""
+    return ReplyKeyboardMarkup(
+        [
+            ["MINTS"],
+            ["Стики"],
             ["⬅️ Назад"],
         ],
         resize_keyboard=True,
@@ -92,9 +108,6 @@ def get_extra_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def get_issuance_keyboard() -> ReplyKeyboardMarkup:
-    """Backward-compatible alias for the unified data menu."""
-    return get_data_keyboard()
 
 
 cancel_keyboard = ReplyKeyboardMarkup([["⬅️ Назад"]], resize_keyboard=True)

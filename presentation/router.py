@@ -16,6 +16,7 @@ from handlers.issuance import (
     issuance_callback,
     issuance_menu_message,
     process_issuance_amount,
+    start_issuance,
 )
 from handlers.kpi import (
     delete_employee_confirm,
@@ -121,6 +122,7 @@ def build_conversation_handler() -> ConversationHandler:
             MessageHandler(filters.Regex(r"^Мои обучения$"), open_my_training_menu),
             MessageHandler(filters.Regex(r"^Определить команду$"), start_team_selection),
             MessageHandler(filters.Regex(r"^📢 Рассылка$"), start_broadcast),
+            MessageHandler(filters.Regex(r"^📦 Выдача$"), start_issuance),
             MessageHandler(filters.Regex(r"^Загрузить данные$"), open_kpi_admin_menu),
             MessageHandler(filters.Regex(r"^⚙️ Дополнительно$"), open_extra_menu),
         ],

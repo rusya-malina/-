@@ -19,7 +19,6 @@ from bot_context import (
     tempfile,
 )
 from config import (
-    ADMIN_ID,
     ISSUANCE_FILE,
     KPI_FILE,
     USERS_FILE,
@@ -175,6 +174,7 @@ async def start_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    actor_id = query.from_user.id
     user_id = context.user_data.get("issuance_user_id")
     issuance_type = context.user_data.get("issuance_type")
     amount = context.user_data.get("issuance_amount")
@@ -193,7 +193,7 @@ async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_name_value,
         issuance_type,
         amount,
-        ADMIN_ID,
+        actor_id,
     )
     if not result.ok:
         await query.message.edit_text("❌ Не удалось сохранить выдачу. Начните операцию заново.")
@@ -209,7 +209,7 @@ async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text="🏠 Главное меню:",
-        reply_markup=main_menu_markup(ADMIN_ID, context),
+        reply_markup=main_menu_markup(actor_id, context),
     )
     context.user_data.pop("issuance_type", None)
     context.user_data.pop("issuance_user_id", None)
@@ -247,7 +247,7 @@ async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text="❌ Выдача отменена.",
-            reply_markup=main_menu_markup(ADMIN_ID, context),
+            reply_markup=main_menu_markup(query.from_user.id, context),
         )
         return ConversationHandler.END
 
@@ -311,7 +311,10 @@ async def process_issuance_amount(update: Update, context: ContextTypes.DEFAULT_
     users = await load_json(USERS_FILE)
     user_name_value = user_name(users.get(user_id))
     if not user_id or not issuance_type or not user_name_value:
-        await update.message.reply_text("❌ Сессия выдачи устарела. Начните выдачу заново.", reply_markup=main_menu_markup(ADMIN_ID, context))
+        await update.message.reply_text(
+            "❌ Сессия выдачи устарела. Начните выдачу заново.",
+            reply_markup=main_menu_markup(update.effective_user.id, context),
+        )
         return ConversationHandler.END
 
     type_label = "MINTS" if issuance_type == "mints" else "стиков"
