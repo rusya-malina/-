@@ -49,14 +49,27 @@ async def enter_admin_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def exit_admin_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔️ Команда доступна только администратору.")
+    """Return the admin or a registered coordinator to its own coordinator menu."""
+    user_id = update.effective_user.id
+    group = await get_user_group(user_id)
+
+    if user_id == ADMIN_ID:
+        set_admin_mode(context, False, user_id=user_id)
+        group = group or "coor R"
+        text = "👥 **Режим coor R включён.**\nДля возврата к административным функциям используйте /admin."
+    elif group in {"coor A", "coor R"}:
+        # Keep the command useful for ordinary coordinators without granting admin rights.
+        set_admin_mode(context, False, user_id=user_id)
+        text = f"👥 **Меню {group} открыто.**"
+    else:
+        await update.message.reply_text(
+            "⛔️ Команда /coor доступна только координаторам coor A и coor R.",
+        )
         return ConversationHandler.END
-    set_admin_mode(context, False, user_id=update.effective_user.id)
-    group = await get_user_group(ADMIN_ID) or "coor R"
+
     await update.message.reply_text(
-        "👥 **Режим coor R включён.**\nДля возврата к административным функциям используйте /admin.",
-        reply_markup=main_menu_markup(ADMIN_ID, context, group=group),
+        text,
+        reply_markup=main_menu_markup(user_id, context, group=group),
         parse_mode="Markdown",
     )
     return ConversationHandler.END

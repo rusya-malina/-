@@ -74,6 +74,37 @@ async def main() -> None:
     assert "📊 KPI команды" in team_menu_labels
     assert "📦 Остатки команды" in team_menu_labels
 
+    original_get_group = admin_handler.get_user_group
+    try:
+        for user_id, group in ((700001, "coor A"), (700002, "coor R")):
+            admin_handler.get_user_group = AsyncMock(return_value=group)
+            coordinator_context = SimpleNamespace(user_data={"admin_mode": True})
+            coordinator_message = SimpleNamespace(reply_text=AsyncMock())
+            coordinator_update = SimpleNamespace(
+                effective_user=SimpleNamespace(id=user_id),
+                message=coordinator_message,
+            )
+            result = await admin_handler.exit_admin_mode(coordinator_update, coordinator_context)
+            assert result == ConversationHandler.END
+            coordinator_text = coordinator_message.reply_text.await_args.args[0]
+            coordinator_labels = labels(coordinator_message.reply_text.await_args.kwargs["reply_markup"])
+            assert group in coordinator_text
+            assert "Моя команда" in coordinator_labels
+            assert "Загрузить данные" not in coordinator_labels
+            assert coordinator_context.user_data["admin_mode"] is False
+
+        admin_handler.get_user_group = AsyncMock(return_value="A LAMP")
+        employee_message = SimpleNamespace(reply_text=AsyncMock())
+        employee_update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=700003),
+            message=employee_message,
+        )
+        result = await admin_handler.exit_admin_mode(employee_update, SimpleNamespace(user_data={}))
+        assert result == ConversationHandler.END
+        assert "только координаторам" in employee_message.reply_text.await_args.args[0]
+    finally:
+        admin_handler.get_user_group = original_get_group
+
     Path(session_path).unlink(missing_ok=True)
     print('admin mode and SPV team menu tests passed')
 
