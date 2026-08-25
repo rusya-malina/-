@@ -129,7 +129,9 @@ def test_manager_kpi_menu_and_report() -> None:
     coor_report = build_team_kpi_report(snapshot, "coor A")
     assert "Время работы подчинённой команды" in coor_report
     assert "План: `128.0` ч. (64 ч. на человека)" in coor_report
-    assert "Факт: `64.0` ч. (офис `36.0` + поле `28.0`)" in coor_report
+    assert "Общий факт: `64.0` ч." in coor_report
+    assert "Факт офис: `36.0` ч." in coor_report
+    assert "Факт поле: `28.0` ч." in coor_report
     assert "Время работы подчинённой команды" not in report
 
 

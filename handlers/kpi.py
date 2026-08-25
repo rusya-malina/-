@@ -4,7 +4,7 @@ import contextlib
 from application.admin_service import EmployeeAdminService
 from application.kpi_service import KpiService, build_plan_projection
 from application.report_service import ReportService
-from application.team_kpi_service import TeamKpiService
+from application.team_kpi_service import CALCULATION_VERSION, TeamKpiService
 from application.training_service import TrainingService
 from bot_context import (
     BadRequest,
@@ -569,7 +569,9 @@ def _team_work_time_lines(report: dict) -> list[str]:
         "⏱️ **Время работы подчинённой команды**",
         f"👥 Сотрудников: **{employee_count}**",
         f"📌 План: `{plan:.1f}` ч. (64 ч. на человека)",
-        f"✅ Факт: `{fact:.1f}` ч. (офис `{office_hours:.1f}` + поле `{field_hours:.1f}`)",
+        f"✅ Общий факт: `{fact:.1f}` ч.",
+        f"🏢 Факт офис: `{office_hours:.1f}` ч.",
+        f"⛺️ Факт поле: `{field_hours:.1f}` ч.",
         f"📊 Выполнение: `{percent:.1f}%`",
     ]
 
@@ -656,7 +658,10 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         manager_group = "MNG" if admin_mode else group
         service = TeamKpiService.from_default_storage()
         snapshot = await service.load_current()
-        if snapshot is None:
+        manager_report = snapshot.get("manager_reports", {}).get(manager_group, {}) if snapshot else {}
+        snapshot_version = snapshot.get("calculation_version") if snapshot else None
+        has_work_time = isinstance(manager_report, dict) and "work_time" in manager_report.get("metrics", {})
+        if snapshot is None or snapshot_version != CALCULATION_VERSION or not has_work_time:
             snapshot = await service.rebuild()
         await query.message.edit_text(
             build_team_kpi_report(snapshot, manager_group),

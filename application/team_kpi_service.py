@@ -19,7 +19,7 @@ MANAGER_SCOPES = {
 }
 DEFAULT_WEIGHTS = {"gt": 0.4, "microacts": 0.4, "retrafic": 0.2}
 SCHEMA_VERSION = 1
-CALCULATION_VERSION = "weighted_v1"
+CALCULATION_VERSION = "weighted_v2_with_work_hours"
 
 
 def _number(value: Any) -> float:
