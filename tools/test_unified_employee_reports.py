@@ -130,6 +130,7 @@ async def main() -> None:
         team_kpi_text = team_update.message.reply_text.await_args.args[0]
         assert "Сотрудников в командах: **1**" in team_kpi_text
         assert team_kpi_text.count("Алиса Смирнова") == 1
+        assert "Офисные часы: `10.0`" in team_kpi_text
         assert "Полевые часы: `5.0`" in team_kpi_text
 
         team_update.message.reply_text.reset_mock()

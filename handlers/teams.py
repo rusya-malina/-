@@ -115,15 +115,21 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
             micro_fact = float(kpi.get("micro_las_fact", 0) or 0) + float(kpi.get("micro_lau_fact", 0) or 0)
             retrafic_plan = float(kpi.get("retrafic_plan", 0) or 0)
             retrafic_fact = float(kpi.get("retrafic_fact", 0) or 0)
+            office_hours = float(kpi.get("office_hours", 0) or 0)
             field_hours = float(kpi.get("field_hours", 0) or 0)
             gt_percent = (gt_fact / gt_plan * 100) if gt_plan else 0
             micro_percent = (micro_fact / micro_plan * 100) if micro_plan else 0
             retrafic_percent = (retrafic_fact / retrafic_plan * 100) if retrafic_plan else 0
-            field_line = f"\n   ⛺️ Полевые часы: `{field_hours:.1f}`" if group in {"coor A", "coor R"} else ""
+            hours_lines = (
+                f"\n   🏢 Офисные часы: `{office_hours:.1f}`"
+                f"\n   ⛺️ Полевые часы: `{field_hours:.1f}`"
+                if group in {"coor A", "coor R"}
+                else ""
+            )
             lines.append(
                 f"{index}. *{person['name']}* — {person['group']}\n"
                 f"   GT: {gt_percent:.0f}% | Микроакты: {micro_percent:.0f}% | Re-trafic: {retrafic_percent:.0f}%"
-                f"{field_line}"
+                f"{hours_lines}"
             )
         lines.append("")
     await update.message.reply_text(
