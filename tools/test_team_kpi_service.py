@@ -84,8 +84,12 @@ def test_hierarchical_weighted_aggregation() -> None:
     assert coor_a["team_keys"] == ["A LAMP"]
     assert coor_a["overall"]["percent"] == 56.0
     assert coor_a["metrics"]["work_time"]["plan"] == 128.0
-    assert coor_a["metrics"]["work_time"]["fact"] == 64.0
-    assert coor_a["metrics"]["work_time"]["percent"] == 50.0
+    assert coor_a["metrics"]["work_time"]["fact"] == 28.0
+    assert coor_a["metrics"]["work_time"]["percent"] == 21.875
+    assert coor_a["metrics"]["work_time"]["office_hours"] == 36.0
+    assert coor_a["metrics"]["work_time"]["field_hours"] == 28.0
+    assert coor_a["metrics"]["work_time"]["total_fact"] == 64.0
+    assert coor_a["metrics"]["work_time"]["execution_basis"] == "field_hours"
 
     coor_r = snapshot["manager_reports"]["coor R"]
     assert coor_r["employee_count"] == 1
@@ -129,8 +133,8 @@ def test_manager_kpi_menu_and_report() -> None:
     coor_report = build_team_kpi_report(snapshot, "coor A")
     assert "Время работы подчинённой команды" in coor_report
     assert "План: `128.0` ч. (64 ч. на человека)" in coor_report
-    assert "Общий факт: `64.0` ч." in coor_report
-    assert "Факт офис: `36.0` ч." in coor_report
+    assert "Факт для выполнения (поле): `28.0` ч." in coor_report
+    assert "Факт офис: `36.0` ч. (не входит в выполнение)" in coor_report
     assert "Факт поле: `28.0` ч." in coor_report
     assert "Время работы подчинённой команды" not in report
 

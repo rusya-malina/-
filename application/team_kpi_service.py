@@ -62,13 +62,16 @@ def _aggregate_metrics(records: list[dict[str, Any]]) -> tuple[dict[str, Any], l
 
     micro_fact = totals["micro_las_fact"] + totals["micro_lau_fact"]
     las_percent = _percent(totals["micro_las_fact"], micro_fact)
-    work_time_fact = totals["office_hours"] + totals["field_hours"]
+    work_time_fact = totals["field_hours"]
+    work_time_total_fact = totals["office_hours"] + totals["field_hours"]
     work_time_plan = len(records) * 64.0
     metrics = {
         "work_time": {
             **_metric(work_time_plan, work_time_fact),
             "office_hours": totals["office_hours"],
             "field_hours": totals["field_hours"],
+            "total_fact": work_time_total_fact,
+            "execution_basis": "field_hours",
             "hours_per_employee": 64.0,
             "employee_count": len(records),
         },
