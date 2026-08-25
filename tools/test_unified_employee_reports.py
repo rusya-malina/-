@@ -130,6 +130,7 @@ async def main() -> None:
         team_kpi_text = team_update.message.reply_text.await_args.args[0]
         assert "Сотрудников в командах: **1**" in team_kpi_text
         assert team_kpi_text.count("Алиса Смирнова") == 1
+        assert "Полевые часы: `5.0`" in team_kpi_text
 
         team_update.message.reply_text.reset_mock()
         assert await teams_handler.show_team_balances(team_update, context) == TEAM_MENU_STATE
