@@ -556,6 +556,24 @@ def _team_report_lines(report: dict, title: str) -> list[str]:
     return lines
 
 
+def _team_work_time_lines(report: dict) -> list[str]:
+    work_time = report.get("metrics", {}).get("work_time", {})
+    employee_count = int(work_time.get("employee_count", report.get("employee_count", 0)) or 0)
+    plan = float(work_time.get("plan", employee_count * 64) or 0)
+    fact = float(work_time.get("fact", 0) or 0)
+    office_hours = float(work_time.get("office_hours", 0) or 0)
+    field_hours = float(work_time.get("field_hours", 0) or 0)
+    percent = float(work_time.get("percent", 0) or 0)
+    return [
+        "",
+        "⏱️ **Время работы подчинённой команды**",
+        f"👥 Сотрудников: **{employee_count}**",
+        f"📌 План: `{plan:.1f}` ч. (64 ч. на человека)",
+        f"✅ Факт: `{fact:.1f}` ч. (офис `{office_hours:.1f}` + поле `{field_hours:.1f}`)",
+        f"📊 Выполнение: `{percent:.1f}%`",
+    ]
+
+
 def build_team_kpi_report(snapshot: dict, manager_group: str) -> str:
     report = snapshot.get("manager_reports", {}).get(manager_group)
     if not isinstance(report, dict):
@@ -568,6 +586,8 @@ def build_team_kpi_report(snapshot: dict, manager_group: str) -> str:
         "━━━━━━━━━━━━━━━━━━",
     ]
     lines.extend(_team_report_lines(report, "Командный KPI"))
+    if manager_group in {"coor A", "coor R"}:
+        lines.extend(_team_work_time_lines(report))
 
     if manager_group in {"SPV", "MNG"}:
         lines.extend(["", "━━━━━━━━━━━━━━━━━━", "📌 **Показатели по командам**"])

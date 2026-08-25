@@ -34,8 +34,10 @@ def _source_data() -> tuple[dict, dict, dict]:
             "micro_plan": 100,
             "micro_las_fact": 30,
             "micro_lau_fact": 20,
-            "retrafic_plan": 10,
-            "retrafic_fact": 8,
+                "retrafic_plan": 10,
+                "retrafic_fact": 8,
+                "office_hours": 20,
+                "field_hours": 12,
         },
         "a two": {
             "original_name": "A Two",
@@ -44,8 +46,10 @@ def _source_data() -> tuple[dict, dict, dict]:
             "micro_plan": 100,
             "micro_las_fact": 20,
             "micro_lau_fact": 50,
-            "retrafic_plan": 20,
-            "retrafic_fact": 10,
+                "retrafic_plan": 20,
+                "retrafic_fact": 10,
+                "office_hours": 16,
+                "field_hours": 16,
         },
         "r one": {
             "original_name": "R One",
@@ -56,6 +60,8 @@ def _source_data() -> tuple[dict, dict, dict]:
             "micro_lau_fact": 50,
             "retrafic_plan": 10,
             "retrafic_fact": 5,
+            "office_hours": 24,
+            "field_hours": 20,
         },
     }
     return users, groups, kpi_data
@@ -77,6 +83,9 @@ def test_hierarchical_weighted_aggregation() -> None:
     coor_a = snapshot["manager_reports"]["coor A"]
     assert coor_a["team_keys"] == ["A LAMP"]
     assert coor_a["overall"]["percent"] == 56.0
+    assert coor_a["metrics"]["work_time"]["plan"] == 128.0
+    assert coor_a["metrics"]["work_time"]["fact"] == 64.0
+    assert coor_a["metrics"]["work_time"]["percent"] == 50.0
 
     coor_r = snapshot["manager_reports"]["coor R"]
     assert coor_r["employee_count"] == 1
@@ -116,6 +125,12 @@ def test_manager_kpi_menu_and_report() -> None:
     assert "A LAMP" in report
     assert "R LAMP" in report
     assert "Общий KPI" not in report
+
+    coor_report = build_team_kpi_report(snapshot, "coor A")
+    assert "Время работы подчинённой команды" in coor_report
+    assert "План: `128.0` ч. (64 ч. на человека)" in coor_report
+    assert "Факт: `64.0` ч. (офис `36.0` + поле `28.0`)" in coor_report
+    assert "Время работы подчинённой команды" not in report
 
 
 def test_missing_employee_kpi_is_reported_without_becoming_zero_data() -> None:
