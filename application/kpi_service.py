@@ -22,6 +22,7 @@ KPI_FIELDS = (
 PLAN_FIELDS = ("gt_plan", "micro_plan", "retrafic_plan")
 WORKING_WEEKDAYS = frozenset({3, 4, 5, 6})  # Thursday through Sunday
 PLAN_TARGETS = (1.0, 1.11)
+LAS_THRESHOLD = 0.40
 DEFAULT_TIMEZONE = BOT_TIMEZONE
 
 
@@ -59,7 +60,13 @@ def build_plan_projection(
     as_of: date | None = None,
     hours_per_workday: int = 4,
 ) -> dict[str, Any]:
-    """Build hourly GT and total-microacts targets for 100% and 111%."""
+    """Build hourly GT and separate LAS/LAU targets for 100% and 111%.
+
+    The source workbook stores one combined microacts plan. For the plan card,
+    that target is split into the existing LAS threshold (40%) and the
+    complementary LAU share (60%). Facts remain independent, and the total in
+    each row is the sum of the remaining LAS and LAU quantities.
+    """
     if hours_per_workday <= 0:
         raise ValueError("hours_per_workday must be positive")
     current_date = as_of or datetime.now(ZoneInfo(DEFAULT_TIMEZONE)).date()
@@ -71,13 +78,18 @@ def build_plan_projection(
     workdays_left = remaining_workdays(current_date, period_end)
     hours_left = workdays_left * hours_per_workday
     gt_fact = float(record.get("gt_fact", 0) or 0)
-    micro_fact = float(record.get("micro_las_fact", 0) or 0) + float(record.get("micro_lau_fact", 0) or 0)
+    las_fact = float(record.get("micro_las_fact", 0) or 0)
+    lau_fact = float(record.get("micro_lau_fact", 0) or 0)
     rows: list[dict[str, Any]] = []
     for multiplier in PLAN_TARGETS:
         gt_target = float(record.get("gt_plan", 0) or 0) * multiplier
-        micro_target = float(record.get("micro_plan", 0) or 0) * multiplier
+        micro_total_target = float(record.get("micro_plan", 0) or 0) * multiplier
+        las_target = micro_total_target * LAS_THRESHOLD
+        lau_target = micro_total_target - las_target
         gt_remaining = max(0.0, gt_target - gt_fact)
-        micro_remaining = max(0.0, micro_target - micro_fact)
+        las_remaining = max(0.0, las_target - las_fact)
+        lau_remaining = max(0.0, lau_target - lau_fact)
+        micro_total_remaining = las_remaining + lau_remaining
         rows.append(
             {
                 "target_percent": int(multiplier * 100),
@@ -85,10 +97,16 @@ def build_plan_projection(
                 "gt_remaining": gt_remaining,
                 "gt_per_hour": gt_remaining / hours_left if hours_left else 0.0,
                 "gt_per_hour_rounded": _ceil_nonnegative(gt_remaining / hours_left) if hours_left else 0,
-                "micro_target": micro_target,
-                "micro_remaining": micro_remaining,
-                "micro_per_hour": micro_remaining / hours_left if hours_left else 0.0,
-                "micro_per_hour_rounded": _ceil_nonnegative(micro_remaining / hours_left) if hours_left else 0,
+                "las_target": las_target,
+                "las_remaining": las_remaining,
+                "las_per_hour": las_remaining / hours_left if hours_left else 0.0,
+                "las_per_hour_rounded": _ceil_nonnegative(las_remaining / hours_left) if hours_left else 0,
+                "lau_target": lau_target,
+                "lau_remaining": lau_remaining,
+                "lau_per_hour": lau_remaining / hours_left if hours_left else 0.0,
+                "lau_per_hour_rounded": _ceil_nonnegative(lau_remaining / hours_left) if hours_left else 0,
+                "micro_total_target": micro_total_target,
+                "micro_total_remaining": micro_total_remaining,
             }
         )
     return {
@@ -181,6 +199,7 @@ class KpiService:
 __all__ = [
     "DEFAULT_TIMEZONE",
     "KPI_FIELDS",
+    "LAS_THRESHOLD",
     "PLAN_FIELDS",
     "KpiService",
     "build_plan_projection",

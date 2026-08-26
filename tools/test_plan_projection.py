@@ -38,14 +38,20 @@ def main() -> None:
     target_100, target_111 = projection["rows"]
     assert target_100["target_percent"] == 100
     assert target_100["gt_remaining"] == 4
-    assert target_100["micro_remaining"] == 41
+    assert round(target_100["las_remaining"], 1) == 4.2
+    assert round(target_100["lau_remaining"], 1) == 36.8
+    assert target_100["micro_total_remaining"] == 41
     assert target_100["gt_per_hour_rounded"] == 1
-    assert target_100["micro_per_hour_rounded"] == 2
+    assert target_100["las_per_hour_rounded"] == 1
+    assert target_100["lau_per_hour_rounded"] == 2
     assert target_111["target_percent"] == 111
     assert round(target_111["gt_remaining"], 1) == 13.9
-    assert round(target_111["micro_remaining"], 2) == 55.08
+    assert round(target_111["las_remaining"], 3) == 9.832
+    assert round(target_111["lau_remaining"], 3) == 45.248
+    assert round(target_111["micro_total_remaining"], 2) == 55.08
     assert target_111["gt_per_hour_rounded"] == 1
-    assert target_111["micro_per_hour_rounded"] == 2
+    assert target_111["las_per_hour_rounded"] == 1
+    assert target_111["lau_per_hour_rounded"] == 2
 
     assert "📅 План" in button_texts(get_main_keyboard(101, group="A LAMP"))
     assert "📅 План" in button_texts(get_main_keyboard(102, group="R LAMP"))
@@ -93,7 +99,10 @@ def main() -> None:
         assert "Персональная карточка плана" in text
         assert "На дату:" in text and "Осталось рабочих дней" in text
         assert "GT" in text and "100%" in text and "111%" in text
-        assert "Общие микроакты" in text and "/час" in text
+        assert "Микроакты LAS / LAU" in text
+        assert "LAS:" in text and "LAU:" in text
+        assert text.count("40% threshold") == 2
+        assert "(итого:" in text and "Общие микроакты" not in text
         assert "Статус" in text and "Общий статус" in text
         overachieved = await handler_case("A LAMP", gt_fact=120, micro_las_fact=80, micro_lau_fact=80)
         assert overachieved.count("План перевыполнен") == 7

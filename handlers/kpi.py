@@ -786,14 +786,11 @@ def _plan_metric_status(target_100: dict, target_111: dict, metric: str) -> str:
 
 def _plan_overall_status(target_100: dict, target_111: dict) -> str:
     """Return the overall status without hiding an unfinished KPI metric."""
-    if target_111["gt_remaining"] <= 0 and target_111["micro_remaining"] <= 0:
+    metrics = ("gt", "las", "lau")
+    if all(target_111[f"{metric}_remaining"] <= 0 for metric in metrics):
         return "План перевыполнен"
-    if target_100["gt_remaining"] <= 0 and target_100["micro_remaining"] <= 0:
+    if all(target_100[f"{metric}_remaining"] <= 0 for metric in metrics):
         return "Цель 100% выполнена"
-    if target_100["gt_remaining"] <= 0:
-        return "Требуется выполнить общие микроакты"
-    if target_100["micro_remaining"] <= 0:
-        return "Требуется выполнить GT"
     return "В работе"
 
 
@@ -823,8 +820,19 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_100 = rows_by_target[100]
     target_111 = rows_by_target[111]
     gt_status = _plan_metric_status(target_100, target_111, "gt")
-    micro_status = _plan_metric_status(target_100, target_111, "micro")
+    las_status = _plan_metric_status(target_100, target_111, "las")
+    lau_status = _plan_metric_status(target_100, target_111, "lau")
     overall_status = _plan_overall_status(target_100, target_111)
+
+    def microacts_plan_line(row: dict) -> str:
+        total_remaining = row["micro_total_remaining"]
+        return (
+            f"{row['target_percent']}% план + 40% threshold — "
+            f"LAS: `{_plan_rate(row, 'las')}` | "
+            f"LAU: `{_plan_rate(row, 'lau')}` "
+            f"(итого: `{_plan_number(total_remaining)}`)"
+        )
+
     text = "\n".join(
         [
             "📊 **Персональная карточка плана**",
@@ -837,10 +845,11 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"111% — `{_plan_rate(target_111, 'gt')}`",
             f"Статус — **{gt_status}**",
             "",
-            "🎯 **Общие микроакты**",
-            f"100% — `{_plan_rate(target_100, 'micro')}`",
-            f"111% — `{_plan_rate(target_111, 'micro')}`",
-            f"Статус — **{micro_status}**",
+            "🎯 **Микроакты LAS / LAU**",
+            microacts_plan_line(target_100),
+            microacts_plan_line(target_111),
+            f"Статус LAS — **{las_status}**",
+            f"Статус LAU — **{lau_status}**",
             "",
             f"📌 **Общий статус — {overall_status}**",
         ]
