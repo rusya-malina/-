@@ -55,6 +55,28 @@ def main() -> None:
     assert target_111["lau_per_hour_rounded"] == 2
     assert target_111["las_per_hour_rounded"] / (target_111["las_per_hour_rounded"] + target_111["lau_per_hour_rounded"]) > 0.40
 
+    production_case = build_plan_projection(
+        {
+            "gt_plan": 90,
+            "gt_fact": 70,
+            "micro_plan": 128,
+            "micro_las_fact": 51,
+            "micro_lau_fact": 66,
+        },
+        as_of=date(2026, 8, 26),
+    )
+    assert production_case["workdays_left"] == 4
+    assert production_case["hours_left"] == 16
+    production_100, production_111 = production_case["rows"]
+    assert production_100["gt_remaining"] == 20
+    assert production_100["gt_per_hour"] == 1.25
+    assert production_100["gt_per_hour_rounded"] == 2
+    assert production_111["gt_remaining"] == 29.900000000000006
+    assert production_111["gt_per_hour_rounded"] == 2
+    for row in (production_100, production_111):
+        rounded_total = row["las_per_hour_rounded"] + row["lau_per_hour_rounded"]
+        assert row["las_per_hour_rounded"] / rounded_total > 0.40
+
     assert "📅 План" in button_texts(get_main_keyboard(101, group="A LAMP"))
     assert "📅 План" in button_texts(get_main_keyboard(102, group="R LAMP"))
     assert "📅 План" not in button_texts(get_main_keyboard(103, group="coor A"))
