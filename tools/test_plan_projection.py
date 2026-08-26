@@ -38,20 +38,22 @@ def main() -> None:
     target_100, target_111 = projection["rows"]
     assert target_100["target_percent"] == 100
     assert target_100["gt_remaining"] == 4
-    assert round(target_100["las_remaining"], 1) == 4.2
-    assert round(target_100["lau_remaining"], 1) == 36.8
-    assert target_100["micro_total_remaining"] == 41
+    assert target_100["las_remaining"] == 5
+    assert target_100["lau_remaining"] == 37
+    assert target_100["micro_total_remaining"] == 42
     assert target_100["gt_per_hour_rounded"] == 1
-    assert target_100["las_per_hour_rounded"] == 1
+    assert target_100["las_per_hour_rounded"] == 2
     assert target_100["lau_per_hour_rounded"] == 2
+    assert target_100["las_per_hour_rounded"] / (target_100["las_per_hour_rounded"] + target_100["lau_per_hour_rounded"]) > 0.40
     assert target_111["target_percent"] == 111
     assert round(target_111["gt_remaining"], 1) == 13.9
-    assert round(target_111["las_remaining"], 3) == 9.832
-    assert round(target_111["lau_remaining"], 3) == 45.248
-    assert round(target_111["micro_total_remaining"], 2) == 55.08
+    assert target_111["las_remaining"] == 11
+    assert target_111["lau_remaining"] == 46
+    assert target_111["micro_total_remaining"] == 57
     assert target_111["gt_per_hour_rounded"] == 1
-    assert target_111["las_per_hour_rounded"] == 1
+    assert target_111["las_per_hour_rounded"] == 2
     assert target_111["lau_per_hour_rounded"] == 2
+    assert target_111["las_per_hour_rounded"] / (target_111["las_per_hour_rounded"] + target_111["lau_per_hour_rounded"]) > 0.40
 
     assert "📅 План" in button_texts(get_main_keyboard(101, group="A LAMP"))
     assert "📅 План" in button_texts(get_main_keyboard(102, group="R LAMP"))
@@ -104,7 +106,7 @@ def main() -> None:
         assert "40% threshold" not in text
         assert "100% план —" in text and "111% план —" in text
         assert "(Итого LAS: `5`, LAU: `37`)" in text
-        assert "(Итого LAS: `10`, LAU: `46`)" in text
+        assert "(Итого LAS: `11`, LAU: `46`)" in text
         assert "Общие микроакты" not in text
         assert "Статус" in text and "Общий статус" in text
         overachieved = await handler_case("A LAMP", gt_fact=120, micro_las_fact=80, micro_lau_fact=80)

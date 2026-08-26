@@ -55,6 +55,26 @@ def _ceil_nonnegative(value: float) -> int:
     return max(0, int(value + 0.999999999))
 
 
+def _strict_threshold_targets(total_target: float) -> tuple[int, int]:
+    """Return rounded LAS/LAU totals with LAS strictly above 40%."""
+    if total_target <= 0:
+        return 0, 0
+    las_target = _ceil_nonnegative(total_target * LAS_THRESHOLD)
+    lau_target = _ceil_nonnegative(total_target * (1 - LAS_THRESHOLD))
+    while las_target / (las_target + lau_target) <= LAS_THRESHOLD:
+        las_target += 1
+    return las_target, lau_target
+
+
+def _threshold_safe_las_rate(las_rate: int, lau_rate: int) -> int:
+    """Raise displayed LAS until rounded LAS/LAU rates exceed 40%."""
+    if las_rate <= 0 or lau_rate <= 0:
+        return las_rate
+    while las_rate / (las_rate + lau_rate) <= LAS_THRESHOLD:
+        las_rate += 1
+    return las_rate
+
+
 def build_plan_projection(
     record: dict[str, Any],
     as_of: date | None = None,
@@ -84,11 +104,16 @@ def build_plan_projection(
     for multiplier in PLAN_TARGETS:
         gt_target = float(record.get("gt_plan", 0) or 0) * multiplier
         micro_total_target = float(record.get("micro_plan", 0) or 0) * multiplier
-        las_target = micro_total_target * LAS_THRESHOLD
-        lau_target = micro_total_target - las_target
+        las_target, lau_target = _strict_threshold_targets(micro_total_target)
         gt_remaining = max(0.0, gt_target - gt_fact)
         las_remaining = max(0.0, las_target - las_fact)
         lau_remaining = max(0.0, lau_target - lau_fact)
+        las_per_hour_rounded = _ceil_nonnegative(las_remaining / hours_left) if hours_left else 0
+        lau_per_hour_rounded = _ceil_nonnegative(lau_remaining / hours_left) if hours_left else 0
+        las_per_hour_rounded = _threshold_safe_las_rate(
+            las_per_hour_rounded,
+            lau_per_hour_rounded,
+        )
         micro_total_remaining = las_remaining + lau_remaining
         rows.append(
             {
@@ -100,11 +125,11 @@ def build_plan_projection(
                 "las_target": las_target,
                 "las_remaining": las_remaining,
                 "las_per_hour": las_remaining / hours_left if hours_left else 0.0,
-                "las_per_hour_rounded": _ceil_nonnegative(las_remaining / hours_left) if hours_left else 0,
+                "las_per_hour_rounded": las_per_hour_rounded,
                 "lau_target": lau_target,
                 "lau_remaining": lau_remaining,
                 "lau_per_hour": lau_remaining / hours_left if hours_left else 0.0,
-                "lau_per_hour_rounded": _ceil_nonnegative(lau_remaining / hours_left) if hours_left else 0,
+                "lau_per_hour_rounded": lau_per_hour_rounded,
                 "micro_total_target": micro_total_target,
                 "micro_total_remaining": micro_total_remaining,
             }
