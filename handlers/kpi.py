@@ -1,5 +1,6 @@
 """Загрузка, ручное редактирование и просмотр KPI."""
 import contextlib
+import math
 
 from application.admin_service import EmployeeAdminService
 from application.kpi_service import KpiService, build_plan_projection
@@ -763,10 +764,6 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
-def _plan_number(value: float) -> str:
-    return str(int(value)) if float(value).is_integer() else f"{value:.1f}"
-
-
 def _plan_rate(row: dict, metric: str) -> str:
     if row[f"{metric}_remaining"] <= 0:
         return "План перевыполнен"
@@ -825,12 +822,14 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     overall_status = _plan_overall_status(target_100, target_111)
 
     def microacts_plan_line(row: dict) -> str:
-        total_remaining = row["micro_total_remaining"]
+        las_total = row["las_remaining"]
+        lau_total = row["lau_remaining"]
         return (
-            f"{row['target_percent']}% план + 40% threshold — "
+            f"{row['target_percent']}% план — "
             f"LAS: `{_plan_rate(row, 'las')}` | "
             f"LAU: `{_plan_rate(row, 'lau')}` "
-            f"(итого: `{_plan_number(total_remaining)}`)"
+            f"(Итого LAS: `{math.ceil(las_total)}`, "
+            f"LAU: `{math.ceil(lau_total)}`)"
         )
 
     text = "\n".join(

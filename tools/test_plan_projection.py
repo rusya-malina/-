@@ -101,8 +101,11 @@ def main() -> None:
         assert "GT" in text and "100%" in text and "111%" in text
         assert "Микроакты LAS / LAU" in text
         assert "LAS:" in text and "LAU:" in text
-        assert text.count("40% threshold") == 2
-        assert "(итого:" in text and "Общие микроакты" not in text
+        assert "40% threshold" not in text
+        assert "100% план —" in text and "111% план —" in text
+        assert "(Итого LAS: `5`, LAU: `37`)" in text
+        assert "(Итого LAS: `10`, LAU: `46`)" in text
+        assert "Общие микроакты" not in text
         assert "Статус" in text and "Общий статус" in text
         overachieved = await handler_case("A LAMP", gt_fact=120, micro_las_fact=80, micro_lau_fact=80)
         assert overachieved.count("План перевыполнен") == 7
