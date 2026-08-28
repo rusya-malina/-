@@ -1,6 +1,5 @@
 """Загрузка, ручное редактирование и просмотр KPI."""
 import contextlib
-import math
 
 from application.admin_service import EmployeeAdminService
 from application.kpi_service import KpiService, build_plan_projection
@@ -817,26 +816,13 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_100 = rows_by_target[100]
     target_111 = rows_by_target[111]
     gt_status = _plan_metric_status(target_100, target_111, "gt")
-    las_status = _plan_metric_status(target_100, target_111, "las")
-    lau_status = (
-        "Не требуется при текущем плане"
-        if target_100.get("use_las_only") and target_111.get("use_las_only")
-        else _plan_metric_status(target_100, target_111, "lau")
-    )
     overall_status = _plan_overall_status(target_100, target_111)
-    current_threshold_percent = projection["current_threshold_percent"]
-    threshold_status = "соблюдён" if current_threshold_percent > 40 else "ниже нормы"
 
     def microacts_plan_line(row: dict) -> str:
-        las_total = row["las_remaining"]
-        lau_total = row["lau_remaining"]
-        lau_rate = "0/час" if row.get("use_las_only") else _plan_rate(row, "lau")
         return (
             f"{row['target_percent']}% план — "
-            f"LAS: `{_plan_rate(row, 'las')}` | "
-            f"LAU: `{lau_rate}` "
-            f"(Итого LAS: `{math.ceil(las_total)}`, "
-            f"LAU: `{math.ceil(lau_total)}`)"
+            f"Итого LAS: `{int(row['las_remaining'])}`, "
+            f"Итого LAU: `{int(row['lau_remaining'])}`"
         )
 
     text = "\n".join(
@@ -852,11 +838,8 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Статус — **{gt_status}**",
             "",
             "🎯 **Микроакты LAS / LAU**",
-            f"Текущий threshold LAS: `{current_threshold_percent:.2f}%` — **{threshold_status}** (норма > 40%)",
             microacts_plan_line(target_100),
             microacts_plan_line(target_111),
-            f"Статус LAS — **{las_status}**",
-            f"Статус LAU — **{lau_status}**",
             "",
             f"📌 **Общий статус — {overall_status}**",
         ]

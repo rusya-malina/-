@@ -149,20 +149,19 @@ def main() -> None:
         assert "Микроакты LAS / LAU" in text
         assert "LAS:" in text and "LAU:" in text
         assert "40% threshold" not in text
-        assert "Текущий threshold LAS: `54.02%` — **соблюдён** (норма > 40%)" in text
+        assert "Текущий threshold LAS" not in text
         assert "100% план —" in text and "111% план —" in text
-        assert "(Итого LAS: `42`, LAU: `0`)" in text
-        assert "(Итого LAS: `57`, LAU: `0`)" in text
-        assert "LAU: `0/час`" in text
-        assert "Не требуется при текущем плане" in text
+        assert "100% план — Итого LAS: `42`, Итого LAU: `0`" in text
+        assert "111% план — Итого LAS: `57`, Итого LAU: `0`" in text
+        assert "LAS: `1/час`" not in text and "LAU: `0/час`" not in text
         assert "Общие микроакты" not in text
-        assert "Статус" in text and "Общий статус" in text
+        assert "GT" in text and "Общий статус" in text
         overachieved = await handler_case("A LAMP", gt_fact=120, micro_las_fact=80, micro_lau_fact=80)
-        assert overachieved.count("План перевыполнен") == 7
+        assert overachieved.count("План перевыполнен") == 4
         las_only = await handler_case("A LAMP", gt_fact=70, micro_las_fact=60, micro_lau_fact=100)
-        assert "Текущий threshold LAS: `37.50%` — **ниже нормы** (норма > 40%)" in las_only
-        assert las_only.count("LAU: `0/час`") == 2
-        assert las_only.count("Итого LAS: `7`, LAU: `0`") == 2
+        assert "Текущий threshold LAS" not in las_only
+        assert "100% план — Итого LAS: `7`, Итого LAU: `0`" in las_only
+        assert "111% план — Итого LAS: `7`, Итого LAU: `0`" in las_only
         denied = await handler_case("coor A")
         assert "доступен только сотрудникам A LAMP и R LAMP" in denied
 
