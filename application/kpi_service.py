@@ -94,8 +94,9 @@ def build_plan_projection(
 
     The source workbook stores one combined microacts plan. For the plan card,
     that target is split into the existing LAS threshold (40%) and the
-    complementary LAU share (60%). Facts remain independent, and the total in
-    each row is the sum of the remaining LAS and LAU quantities.
+    complementary LAU share (60%). When LAU is already sufficient for the
+    target, or the combined plan is already complete, the remaining work may
+    be completed with LAS only while keeping LAS strictly above 40%.
     """
     if hours_per_workday <= 0:
         raise ValueError("hours_per_workday must be positive")
@@ -115,13 +116,18 @@ def build_plan_projection(
         gt_target = float(record.get("gt_plan", 0) or 0) * multiplier
         micro_total_target = float(record.get("micro_plan", 0) or 0) * multiplier
         las_target, lau_target = _strict_threshold_targets(micro_total_target)
+        use_las_only = False
         if micro_total_target > 0:
-            final_lau_total = max(lau_target, lau_fact)
+            use_las_only = (
+                lau_fact >= lau_target
+                or las_fact + lau_fact >= las_target + lau_target
+            )
+            final_lau_total = lau_fact if use_las_only else max(lau_target, lau_fact)
             threshold_las_target = _strict_las_minimum_for_lau(final_lau_total)
             las_target = max(las_target, threshold_las_target)
         gt_remaining = max(0.0, gt_target - gt_fact)
         las_remaining = max(0.0, las_target - las_fact)
-        lau_remaining = max(0.0, lau_target - lau_fact)
+        lau_remaining = 0.0 if use_las_only else max(0.0, lau_target - lau_fact)
         las_per_hour_rounded = _ceil_nonnegative(las_remaining / hours_left) if hours_left else 0
         lau_per_hour_rounded = _ceil_nonnegative(lau_remaining / hours_left) if hours_left else 0
         las_per_hour_rounded = _threshold_safe_las_rate(
@@ -146,6 +152,7 @@ def build_plan_projection(
                 "lau_per_hour_rounded": lau_per_hour_rounded,
                 "micro_total_target": micro_total_target,
                 "micro_total_remaining": micro_total_remaining,
+                "use_las_only": use_las_only,
             }
         )
     current_micro_total = las_fact + lau_fact

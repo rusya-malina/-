@@ -826,10 +826,11 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     def microacts_plan_line(row: dict) -> str:
         las_total = row["las_remaining"]
         lau_total = row["lau_remaining"]
+        lau_rate = "0/час" if row.get("use_las_only") else _plan_rate(row, "lau")
         return (
             f"{row['target_percent']}% план — "
             f"LAS: `{_plan_rate(row, 'las')}` | "
-            f"LAU: `{_plan_rate(row, 'lau')}` "
+            f"LAU: `{lau_rate}` "
             f"(Итого LAS: `{math.ceil(las_total)}`, "
             f"LAU: `{math.ceil(lau_total)}`)"
         )

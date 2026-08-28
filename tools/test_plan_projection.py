@@ -92,6 +92,7 @@ def main() -> None:
         assert row["las_target"] >= 101
         assert row["las_remaining"] == 50
         assert row["lau_remaining"] == 0
+        assert row["use_las_only"] is True
 
     assert "📅 План" in button_texts(get_main_keyboard(101, group="A LAMP"))
     assert "📅 План" in button_texts(get_main_keyboard(102, group="R LAMP"))
@@ -149,7 +150,11 @@ def main() -> None:
         assert "Общие микроакты" not in text
         assert "Статус" in text and "Общий статус" in text
         overachieved = await handler_case("A LAMP", gt_fact=120, micro_las_fact=80, micro_lau_fact=80)
-        assert overachieved.count("План перевыполнен") == 7
+        assert overachieved.count("План перевыполнен") == 8
+        las_only = await handler_case("A LAMP", gt_fact=70, micro_las_fact=60, micro_lau_fact=100)
+        assert "Текущий threshold LAS: `37.50%` — **ниже нормы** (норма > 40%)" in las_only
+        assert las_only.count("LAU: `0/час`") == 2
+        assert las_only.count("Итого LAS: `7`, LAU: `0`") == 2
         denied = await handler_case("coor A")
         assert "доступен только сотрудникам A LAMP и R LAMP" in denied
 
