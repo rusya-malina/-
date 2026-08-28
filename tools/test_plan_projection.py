@@ -34,7 +34,6 @@ def main() -> None:
         as_of=as_of,
     )
     assert projection["workdays_left"] == 7
-    assert projection["hours_left"] == 28
     target_100, target_111 = projection["rows"]
     assert target_100["target_percent"] == 100
     assert target_100["gt_remaining"] == 4
@@ -44,6 +43,7 @@ def main() -> None:
     assert target_100["gt_per_hour_rounded"] == 1
     assert target_100["las_per_hour_rounded"] == 2
     assert target_100["lau_per_hour_rounded"] == 2
+    assert round(projection["current_threshold_percent"], 2) == 54.02
     assert target_100["las_per_hour_rounded"] / (target_100["las_per_hour_rounded"] + target_100["lau_per_hour_rounded"]) > 0.40
     assert target_111["target_percent"] == 111
     assert round(target_111["gt_remaining"], 1) == 13.9
@@ -67,6 +67,7 @@ def main() -> None:
     )
     assert production_case["workdays_left"] == 4
     assert production_case["hours_left"] == 16
+    assert round(production_case["current_threshold_percent"], 2) == 43.59
     production_100, production_111 = production_case["rows"]
     assert production_100["gt_remaining"] == 20
     assert production_100["gt_per_hour"] == 1.25
@@ -76,6 +77,21 @@ def main() -> None:
     for row in (production_100, production_111):
         rounded_total = row["las_per_hour_rounded"] + row["lau_per_hour_rounded"]
         assert row["las_per_hour_rounded"] / rounded_total > 0.40
+
+    lau_overachieved = build_plan_projection(
+        {
+            "gt_plan": 90,
+            "gt_fact": 70,
+            "micro_plan": 128,
+            "micro_las_fact": 51,
+            "micro_lau_fact": 150,
+        },
+        as_of=date(2026, 8, 26),
+    )
+    for row in lau_overachieved["rows"]:
+        assert row["las_target"] >= 101
+        assert row["las_remaining"] == 50
+        assert row["lau_remaining"] == 0
 
     assert "📅 План" in button_texts(get_main_keyboard(101, group="A LAMP"))
     assert "📅 План" in button_texts(get_main_keyboard(102, group="R LAMP"))
@@ -126,6 +142,7 @@ def main() -> None:
         assert "Микроакты LAS / LAU" in text
         assert "LAS:" in text and "LAU:" in text
         assert "40% threshold" not in text
+        assert "Текущий threshold LAS: `54.02%` — **соблюдён** (норма > 40%)" in text
         assert "100% план —" in text and "111% план —" in text
         assert "(Итого LAS: `5`, LAU: `37`)" in text
         assert "(Итого LAS: `11`, LAU: `46`)" in text

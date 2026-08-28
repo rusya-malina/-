@@ -66,6 +66,16 @@ def _strict_threshold_targets(total_target: float) -> tuple[int, int]:
     return las_target, lau_target
 
 
+def _strict_las_minimum_for_lau(lau_total: float) -> int:
+    """Return the smallest integer LAS total whose share is strictly above 40%."""
+    if lau_total <= 0:
+        return 1
+    las_total = _ceil_nonnegative(lau_total * LAS_THRESHOLD / (1 - LAS_THRESHOLD))
+    while las_total / (las_total + lau_total) <= LAS_THRESHOLD:
+        las_total += 1
+    return las_total
+
+
 def _threshold_safe_las_rate(las_rate: int, lau_rate: int) -> int:
     """Raise displayed LAS until rounded LAS/LAU rates exceed 40%."""
     if las_rate <= 0 or lau_rate <= 0:
@@ -105,6 +115,10 @@ def build_plan_projection(
         gt_target = float(record.get("gt_plan", 0) or 0) * multiplier
         micro_total_target = float(record.get("micro_plan", 0) or 0) * multiplier
         las_target, lau_target = _strict_threshold_targets(micro_total_target)
+        if micro_total_target > 0:
+            final_lau_total = max(lau_target, lau_fact)
+            threshold_las_target = _strict_las_minimum_for_lau(final_lau_total)
+            las_target = max(las_target, threshold_las_target)
         gt_remaining = max(0.0, gt_target - gt_fact)
         las_remaining = max(0.0, las_target - las_fact)
         lau_remaining = max(0.0, lau_target - lau_fact)
@@ -134,9 +148,14 @@ def build_plan_projection(
                 "micro_total_remaining": micro_total_remaining,
             }
         )
+    current_micro_total = las_fact + lau_fact
+    current_threshold_percent = (
+        las_fact / current_micro_total * 100 if current_micro_total > 0 else 0.0
+    )
     return {
         "as_of": current_date.isoformat(),
         "period_end": period_end.isoformat(),
+        "current_threshold_percent": current_threshold_percent,
         "workdays_left": workdays_left,
         "hours_per_workday": hours_per_workday,
         "hours_left": hours_left,

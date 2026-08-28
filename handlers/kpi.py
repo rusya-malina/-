@@ -820,6 +820,8 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     las_status = _plan_metric_status(target_100, target_111, "las")
     lau_status = _plan_metric_status(target_100, target_111, "lau")
     overall_status = _plan_overall_status(target_100, target_111)
+    current_threshold_percent = projection["current_threshold_percent"]
+    threshold_status = "соблюдён" if current_threshold_percent > 40 else "ниже нормы"
 
     def microacts_plan_line(row: dict) -> str:
         las_total = row["las_remaining"]
@@ -845,6 +847,7 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Статус — **{gt_status}**",
             "",
             "🎯 **Микроакты LAS / LAU**",
+            f"Текущий threshold LAS: `{current_threshold_percent:.2f}%` — **{threshold_status}** (норма > 40%)",
             microacts_plan_line(target_100),
             microacts_plan_line(target_111),
             f"Статус LAS — **{las_status}**",
