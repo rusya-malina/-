@@ -67,9 +67,10 @@ class PlanProjectionEdgeCaseTests(unittest.TestCase):
         for row in projection["rows"]:
             self.assertGreater(row["gt_remaining"], 0)
             self.assertGreater(row["las_remaining"], 0)
-            self.assertGreater(row["lau_remaining"], 0)
+            self.assertEqual(row["lau_remaining"], 0)
             self.assertEqual(row["las_per_hour_rounded"], 1)
-            self.assertEqual(row["lau_per_hour_rounded"], 1)
+            self.assertEqual(row["lau_per_hour_rounded"], 0)
+            self.assertTrue(row["use_las_only"])
 
     def test_no_working_hours_does_not_divide_by_zero(self) -> None:
         projection = build_plan_projection(

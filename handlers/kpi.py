@@ -818,7 +818,11 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_111 = rows_by_target[111]
     gt_status = _plan_metric_status(target_100, target_111, "gt")
     las_status = _plan_metric_status(target_100, target_111, "las")
-    lau_status = _plan_metric_status(target_100, target_111, "lau")
+    lau_status = (
+        "Не требуется при текущем плане"
+        if target_100.get("use_las_only") and target_111.get("use_las_only")
+        else _plan_metric_status(target_100, target_111, "lau")
+    )
     overall_status = _plan_overall_status(target_100, target_111)
     current_threshold_percent = projection["current_threshold_percent"]
     threshold_status = "соблюдён" if current_threshold_percent > 40 else "ниже нормы"

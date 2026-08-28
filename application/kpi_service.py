@@ -116,15 +116,14 @@ def build_plan_projection(
         gt_target = float(record.get("gt_plan", 0) or 0) * multiplier
         micro_total_target = float(record.get("micro_plan", 0) or 0) * multiplier
         las_target, lau_target = _strict_threshold_targets(micro_total_target)
-        use_las_only = False
-        if micro_total_target > 0:
-            use_las_only = (
-                lau_fact >= lau_target
-                or las_fact + lau_fact >= las_target + lau_target
-            )
-            final_lau_total = lau_fact if use_las_only else max(lau_target, lau_fact)
-            threshold_las_target = _strict_las_minimum_for_lau(final_lau_total)
-            las_target = max(las_target, threshold_las_target)
+        use_las_only = micro_total_target > 0
+        if use_las_only:
+            rounded_total_target = las_target + lau_target
+            current_total = las_fact + lau_fact
+            remaining_total = max(0.0, rounded_total_target - current_total)
+            threshold_las_target = _strict_las_minimum_for_lau(lau_fact)
+            final_las_target = max(las_fact + remaining_total, threshold_las_target)
+            las_target = _ceil_nonnegative(final_las_target)
         gt_remaining = max(0.0, gt_target - gt_fact)
         las_remaining = max(0.0, las_target - las_fact)
         lau_remaining = 0.0 if use_las_only else max(0.0, lau_target - lau_fact)
