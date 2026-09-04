@@ -81,7 +81,7 @@ async def test_training_callback_inside_my_kpi() -> None:
     groups = {}
     kpi_data = {}
     issuance_data = {}
-    history = {"200": {"deliveries": [{"type": "one", "month": "2026-08"}]}}
+    history = {"200": {"deliveries": [{"type": "one", "month": TrainingService.current_month()}]}}
 
     async def fake_load(path):
         return {

@@ -1,6 +1,8 @@
 """Application service for staged, non-destructive Excel imports."""
 from __future__ import annotations
 
+import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -23,6 +25,16 @@ _GROUP_ALIASES = {
     "spv": "SPV",
     "mng": "MNG",
 }
+
+
+def _issuance_name_key(value: Any) -> str:
+    text = unicodedata.normalize("NFKC", str(value or "")).casefold().replace("ё", "е")
+    text = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
+    return " ".join(text.split())
+
+
+def _issuance_token_key(value: Any) -> str:
+    return " ".join(sorted(_issuance_name_key(value).split()))
 
 
 def _group_from_row(row: dict[str, Any]) -> str | None:
@@ -179,24 +191,39 @@ class ImportService:
         users_data = await self.users.load()
         issuance_data = await self.issuance.load()
         name_to_user_id = {
-            _normalize_person_name(user_name(value)): str(user_id)
+            _issuance_name_key(user_name(value)): str(user_id)
             for user_id, value in users_data.items()
-            if user_name(value) and _normalize_person_name(user_name(value)) != "nan"
+            if user_name(value) and _issuance_name_key(user_name(value)) != "nan"
         }
+        token_to_user_ids: dict[str, list[str]] = {}
+        for user_id, value in users_data.items():
+            name = user_name(value)
+            token_key = _issuance_token_key(name)
+            if name and token_key and token_key != "nan":
+                token_to_user_ids.setdefault(token_key, []).append(str(user_id))
+
+        def resolve_user_id(employee_name: str) -> str | None:
+            exact = name_to_user_id.get(_issuance_name_key(employee_name))
+            if exact:
+                return exact
+            candidates = token_to_user_ids.get(_issuance_token_key(employee_name), [])
+            return candidates[0] if len(candidates) == 1 else None
+
         added_without_telegram: list[str] = []
         timestamp = datetime.now(timezone.utc).isoformat()
 
         for employee_name, mints_amount, sticks_amount in rows:
-            normalized_name = _normalize_person_name(employee_name)
-            user_id = name_to_user_id.get(normalized_name)
+            normalized_name = _issuance_name_key(employee_name)
+            user_id = resolve_user_id(employee_name)
             if not user_id:
                 user_id = f"excel_{normalized_name.replace(' ', '_')}"
                 suffix = 2
-                while user_id in users_data and _normalize_person_name(user_name(users_data[user_id])) != normalized_name:
+                while user_id in users_data and _issuance_name_key(user_name(users_data[user_id])) != normalized_name:
                     user_id = f"excel_{normalized_name.replace(' ', '_')}_{suffix}"
                     suffix += 1
                 users_data.setdefault(user_id, make_user_record(employee_name))
                 name_to_user_id[normalized_name] = user_id
+                token_to_user_ids.setdefault(_issuance_token_key(employee_name), []).append(user_id)
                 added_without_telegram.append(employee_name)
 
             record = normalize_issuance_record(issuance_data.get(user_id), name=employee_name)

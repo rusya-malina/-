@@ -331,7 +331,19 @@ async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_T
     except (OSError, KeyError, StorageError, TypeError, ValueError, TelegramError) as error:
         logging.exception("Ошибка применения подтверждённого Excel import: %s", error)
         clear_pending_import(context)
-        await query.message.edit_text("❌ Не удалось применить импорт. Данные не изменены или восстановлены.")
+        if kind == "issuance":
+            if isinstance(error, StorageError):
+                reason = "ошибка сохранения runtime-хранилища"
+            elif isinstance(error, OSError):
+                reason = "ошибка сохранения последнего Excel-файла"
+            elif isinstance(error, (TypeError, ValueError, KeyError)):
+                reason = "ошибка данных или сопоставления сотрудника"
+            else:
+                reason = "ошибка Telegram или файла"
+            text = f"❌ Выдачи не применены: {reason}. Данные не изменены."
+        else:
+            text = "❌ Не удалось применить импорт. Данные не изменены или восстановлены."
+        await query.message.edit_text(text)
         return ConversationHandler.END
 
     context.user_data.pop("pending_excel_import", None)
@@ -376,9 +388,18 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
 
         def read_issuance_excel(path):
             frame = pd.read_excel(path, dtype=object)
-            name_column = _find_column(frame.columns, ["full_name", "name", "employee", "employee_name", "фио", "сотрудник", "имя"])
-            mints_column = _find_column(frame.columns, ["mints", "mints_issued", "mint", "минтс", "минты", "выданные_mints", "выдано_mints"])
-            sticks_column = _find_column(frame.columns, ["sticks", "sticks_issued", "stick", "стики", "выданные_стики", "выдано_стиков"])
+            name_column = _find_column(
+                frame.columns,
+                ["full_name", "name", "employee", "employee_name", "фио", "фио сотрудника", "сотрудник", "имя", "имя сотрудника"],
+            )
+            mints_column = _find_column(
+                frame.columns,
+                ["mints", "mints_issued", "mint", "минтс", "минты", "выданные_mints", "выдано_mints", "выданные минтс"],
+            )
+            sticks_column = _find_column(
+                frame.columns,
+                ["sticks", "sticks_issued", "stick", "стики", "выданные_стики", "выдано_стиков"],
+            )
             if not name_column or not mints_column or not sticks_column:
                 return None, None
             return frame, (name_column, mints_column, sticks_column)

@@ -87,6 +87,31 @@ def test_import_service() -> None:
         asyncio.run(scenario())
 
 
+def test_issuance_name_matching_avoids_duplicate_records() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        (root / "kpi.json").write_text("{}", encoding="utf-8")
+        (root / "issuance.json").write_text("{}", encoding="utf-8")
+        (root / "users.json").write_text(json.dumps({"123": {"name": "Елена Синько"}}, ensure_ascii=False), encoding="utf-8")
+        service = ImportService(
+            JsonRepository(str(root / "kpi.json")),
+            JsonRepository(str(root / "issuance.json")),
+            JsonRepository(str(root / "users.json")),
+        )
+
+        async def scenario() -> None:
+            staged = await service.prepare_issuance_import([("Синько Елена", 3.0, 4.0)], 99)
+            assert staged["added_without_telegram"] == []
+            await service.apply_issuance_import(staged)
+            issuance = json.loads((root / "issuance.json").read_text(encoding="utf-8"))
+            assert "123" in issuance
+            assert len(issuance) == 1
+            assert issuance["123"]["mints_issued"] == 3.0
+            assert issuance["123"]["sticks_issued"] == 4.0
+
+        asyncio.run(scenario())
+
+
 def test_user_audit_and_decrease_guard() -> None:
     before = {"1": {"name": "Алиса Смирнова"}, "2": {"name": "Борис Петров"}}
     after = {"1": {"name": "Алиса Иванова"}, "3": {"name": "Вера Ким"}}
@@ -175,6 +200,7 @@ def test_excel_only_employee_keeps_team_assignment_for_team_kpi() -> None:
 
 if __name__ == "__main__":
     test_import_service()
+    test_issuance_name_matching_avoids_duplicate_records()
     test_user_audit_and_decrease_guard()
     test_excel_only_employee_keeps_team_assignment_for_team_kpi()
     print("IMPORT_SERVICE PASS")
