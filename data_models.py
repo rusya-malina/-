@@ -91,12 +91,22 @@ def make_team_record(name: str, team: str, *, updated_at: str | None = None) -> 
     }
 
 
-def make_issuance_record(name: str, *, mints_issued: float = 0.0, sticks_issued: float = 0.0, history: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def make_issuance_record(
+    name: str,
+    *,
+    mints_issued: float = 0.0,
+    sticks_issued: float = 0.0,
+    mints_used_baseline: float = 0.0,
+    sticks_used_baseline: float = 0.0,
+    history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
         "name": _text(name),
         "mints_issued": float(mints_issued),
         "sticks_issued": float(sticks_issued),
+        "mints_used_baseline": float(mints_used_baseline),
+        "sticks_used_baseline": float(sticks_used_baseline),
         "history": list(history or []),
     }
 
@@ -107,5 +117,7 @@ def normalize_issuance_record(record: Any, *, name: str = "") -> dict[str, Any]:
         user_name(source, name),
         mints_issued=float(source.get("mints_issued", 0) or 0),
         sticks_issued=float(source.get("sticks_issued", 0) or 0),
+        mints_used_baseline=float(source.get("mints_used_baseline", 0) or 0),
+        sticks_used_baseline=float(source.get("sticks_used_baseline", 0) or 0),
         history=source.get("history") if isinstance(source.get("history"), list) else [],
     )

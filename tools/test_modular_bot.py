@@ -110,6 +110,32 @@ def main() -> None:
     )
     assert balances["mints_balance"] == 5
     assert balances["sticks_balance"] == 5
+
+    reset_balances = calculate_balances(
+        {"micro_las_fact": 2, "micro_lau_fact": 3, "gt_fact": 4},
+        {
+            "mints_issued": 0,
+            "sticks_issued": 0,
+            "mints_used_baseline": 5,
+            "sticks_used_baseline": 4,
+        },
+    )
+    assert reset_balances["mints_used"] == 0
+    assert reset_balances["sticks_used"] == 0
+    assert reset_balances["mints_balance"] == 0
+    assert reset_balances["sticks_balance"] == 0
+
+    after_reset = calculate_balances(
+        {"micro_las_fact": 4, "micro_lau_fact": 4, "gt_fact": 6},
+        {
+            "mints_issued": 10,
+            "sticks_issued": 9,
+            "mints_used_baseline": 5,
+            "sticks_used_baseline": 4,
+        },
+    )
+    assert after_reset["mints_used"] == 3
+    assert after_reset["sticks_used"] == 2
     for data_name in ("users.json", "kpi_data.json"):
         data_path = ROOT / data_name
         if data_path.exists():

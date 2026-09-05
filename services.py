@@ -183,20 +183,24 @@ def _format_quantity(value: float) -> str:
 
 
 def calculate_balances(user_kpi: dict, issuance_record: dict) -> dict:
-    """Возвращает выданное, использованное и остаток по двум типам продукции."""
+    """Возвращает выданное, использованное и остаток с учётом точки сброса расхода."""
     mints_issued = float(issuance_record.get("mints_issued", 0) or 0)
     sticks_issued = float(issuance_record.get("sticks_issued", 0) or 0)
     las_done = float(user_kpi.get("micro_las_fact", 0) or 0)
     lau_done = float(user_kpi.get("micro_lau_fact", 0) or 0)
     gt_done = float(user_kpi.get("gt_fact", 0) or 0)
     microacts_done = las_done + lau_done
+    mints_baseline = float(issuance_record.get("mints_used_baseline", 0) or 0)
+    sticks_baseline = float(issuance_record.get("sticks_used_baseline", 0) or 0)
+    mints_used = max(0.0, microacts_done - mints_baseline)
+    sticks_used = max(0.0, gt_done - sticks_baseline)
     return {
         "mints_issued": mints_issued,
-        "mints_used": microacts_done,
-        "mints_balance": mints_issued - microacts_done,
+        "mints_used": mints_used,
+        "mints_balance": mints_issued - mints_used,
         "sticks_issued": sticks_issued,
-        "sticks_used": gt_done,
-        "sticks_balance": sticks_issued - gt_done,
+        "sticks_used": sticks_used,
+        "sticks_balance": sticks_issued - sticks_used,
         "las_done": las_done,
         "lau_done": lau_done,
     }
