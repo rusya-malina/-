@@ -134,7 +134,13 @@ def get_employee_by_id(
 
 def merge_employee_issuance(employee: dict | None, issuance_data: dict) -> dict:
     """Объединяет выдачи по Telegram-ID и старым Excel-ID одного сотрудника."""
-    merged = {"mints_issued": 0.0, "sticks_issued": 0.0, "history": []}
+    merged = {
+        "mints_issued": 0.0,
+        "sticks_issued": 0.0,
+        "mints_used_baseline": 0.0,
+        "sticks_used_baseline": 0.0,
+        "history": [],
+    }
     if not employee:
         return merged
     for alias in employee.get("aliases", []):
@@ -144,6 +150,8 @@ def merge_employee_issuance(employee: dict | None, issuance_data: dict) -> dict:
         normalized = normalize_issuance_record(record)
         merged["mints_issued"] += normalized["mints_issued"]
         merged["sticks_issued"] += normalized["sticks_issued"]
+        merged["mints_used_baseline"] += normalized["mints_used_baseline"]
+        merged["sticks_used_baseline"] += normalized["sticks_used_baseline"]
         merged["history"].extend(normalized["history"])
     return merged
 
