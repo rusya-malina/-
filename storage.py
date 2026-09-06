@@ -1,6 +1,8 @@
 """Асинхронный адаптер JSON-хранилищ бота."""
 from collections.abc import Callable, Iterable
 from contextlib import AsyncExitStack
+import shutil
+import tempfile
 
 from bot_context import (
     ISSUANCE_FILE,
@@ -37,10 +39,31 @@ _JSON_LOCKS: dict[str, asyncio.Lock] = {}
 
 
 def replace_latest_file(source_path: str, latest_path: str) -> None:
-    """Атомарно делает source_path единственным актуальным файлом."""
-    parent = os.path.dirname(os.path.abspath(latest_path))
+    """Безопасно сохраняет latest-файл даже между разными filesystem mount."""
+    source = os.path.abspath(source_path)
+    latest = os.path.abspath(latest_path)
+    if source == latest:
+        return
+    parent = os.path.dirname(latest)
     os.makedirs(parent, exist_ok=True)
-    os.replace(source_path, latest_path)
+    temporary_latest = None
+    try:
+        with tempfile.NamedTemporaryFile(prefix=f".{os.path.basename(latest)}.", dir=parent, delete=False) as target_file:
+            temporary_latest = target_file.name
+            with open(source, "rb") as source_file:
+                shutil.copyfileobj(source_file, target_file)
+            target_file.flush()
+            os.fsync(target_file.fileno())
+        os.replace(temporary_latest, latest)
+        temporary_latest = None
+        os.remove(source)
+    except OSError:
+        try:
+            if temporary_latest and os.path.exists(temporary_latest):
+                os.remove(temporary_latest)
+        except OSError:
+            pass
+        raise
 
 
 def _get_json_lock(filepath: str) -> asyncio.Lock:
