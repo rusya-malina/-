@@ -851,6 +851,46 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+def _coordinator_team_balances(
+    user_id: str,
+    group: str,
+    users: dict,
+    groups: dict,
+    kpi_data: dict,
+    issuance_data: dict,
+) -> tuple[str, int, dict]:
+    """Aggregate balances for the coordinator's own LAMP branch only."""
+    target_group = {"coor A": "A LAMP", "coor R": "R LAMP"}[group]
+    people = get_visible_users(
+        user_id,
+        users,
+        groups,
+        exclude_user_id=user_id,
+        kpi_data=kpi_data,
+        issuance_data=issuance_data,
+    )
+    totals = {
+        "mints_issued": 0.0,
+        "mints_used": 0.0,
+        "mints_balance": 0.0,
+        "sticks_issued": 0.0,
+        "sticks_used": 0.0,
+        "sticks_balance": 0.0,
+        "las_done": 0.0,
+        "lau_done": 0.0,
+    }
+    count = 0
+    for person in people:
+        if person.get("group") != target_group:
+            continue
+        kpi = kpi_data.get(person.get("name_key") or _normalize_person_name(person["name"]), {})
+        balances = calculate_balances(kpi, merge_employee_issuance(person, issuance_data))
+        count += 1
+        for key in totals:
+            totals[key] += float(balances.get(key, 0) or 0)
+    return target_group, count, totals
+
+
 async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     users = await load_json(USERS_FILE)
@@ -868,7 +908,12 @@ async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     employee = get_employee_by_id(user_id, users, groups, kpi_data, issuance_data)
     user_name_value = employee["name"] if employee else user_name(users.get(user_id), "Администратор")
-    if employee:
+    if not admin_mode and group in {"coor A", "coor R"}:
+        target_group, member_count, balances = _coordinator_team_balances(
+            user_id, group, users, groups, kpi_data, issuance_data
+        )
+        user_name_value = f"Команда {target_group} ({member_count} сотрудников)"
+    elif employee:
         report = await ReportService.from_default_storage().personal_report(employee)
         balances = report["balances"]
     else:
