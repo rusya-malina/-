@@ -109,6 +109,14 @@ def test_issuance_name_matching_avoids_duplicate_records() -> None:
             assert issuance["123"]["mints_issued"] == 3.0
             assert issuance["123"]["sticks_issued"] == 4.0
 
+            repeated = await service.prepare_issuance_import([("Елена Синько", 8.0, 6.0)], 99)
+            await service.apply_issuance_import(repeated)
+            issuance = json.loads((root / "issuance.json").read_text(encoding="utf-8"))
+            assert issuance["123"]["mints_issued"] == 8.0
+            assert issuance["123"]["sticks_issued"] == 6.0
+            assert issuance["123"]["history"][-1]["type"] == "sticks_excel_replace"
+            assert issuance["123"]["history"][-1]["previous_amount"] == 4.0
+
         asyncio.run(scenario())
 
 

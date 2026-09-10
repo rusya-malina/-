@@ -227,15 +227,33 @@ class ImportService:
                 added_without_telegram.append(employee_name)
 
             record = normalize_issuance_record(issuance_data.get(user_id), name=employee_name)
-            if mints_amount:
-                record["mints_issued"] += float(mints_amount)
+            previous_mints = float(record.get("mints_issued", 0) or 0)
+            previous_sticks = float(record.get("sticks_issued", 0) or 0)
+            new_mints = float(mints_amount)
+            new_sticks = float(sticks_amount)
+            # Excel is the authoritative snapshot for the current period. This prevents
+            # repeated uploads and alias re-matches from doubling the issued values.
+            record["mints_issued"] = new_mints
+            record["sticks_issued"] = new_sticks
+            if previous_mints != new_mints:
                 record["history"].append(
-                    {"type": "mints_excel", "amount": mints_amount, "admin_id": str(admin_id), "created_at": timestamp}
+                    {
+                        "type": "mints_excel_replace",
+                        "amount": new_mints,
+                        "previous_amount": previous_mints,
+                        "admin_id": str(admin_id),
+                        "created_at": timestamp,
+                    }
                 )
-            if sticks_amount:
-                record["sticks_issued"] += float(sticks_amount)
+            if previous_sticks != new_sticks:
                 record["history"].append(
-                    {"type": "sticks_excel", "amount": sticks_amount, "admin_id": str(admin_id), "created_at": timestamp}
+                    {
+                        "type": "sticks_excel_replace",
+                        "amount": new_sticks,
+                        "previous_amount": previous_sticks,
+                        "admin_id": str(admin_id),
+                        "created_at": timestamp,
+                    }
                 )
             issuance_data[user_id] = record
 

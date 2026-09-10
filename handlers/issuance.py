@@ -103,7 +103,7 @@ async def issuance_menu_message(update: Update, context: ContextTypes.DEFAULT_TY
             "Отправьте файл `.xlsx` с колонками имени сотрудника, MINTS и стиков.\n"
             "Поддерживаются заголовки `full_name`/`ФИО`, `mints`/`mints_issued`/`MINTS` "
             "и `sticks`/`sticks_issued`/`Стики`.\n\n"
-            "Значения из файла будут добавлены к текущим выдачам.",
+            "Значения из файла заменят текущие показатели за период; повторная загрузка не удвоит стики.",
             reply_markup=cancel_keyboard,
             parse_mode="Markdown",
         )
