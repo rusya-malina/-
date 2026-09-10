@@ -199,7 +199,7 @@ def build_conversation_handler() -> ConversationHandler:
             ],
             ISSUANCE_MENU: [MessageHandler(filters.Regex(r"^(MINTS|Стики|📥 Загрузить выдачи \(Excel\)|📊 Выгрузка статистики)$"), issuance_menu_message), MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action)],
             ISSUANCE_EXCEL_UPLOAD: [CallbackQueryHandler(excel_preview_callback, pattern=r"^excel_(confirm|cancel)$"), MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action), MessageHandler(filters.Document.ALL, process_issuance_excel_file)],
-            ISSUANCE_USER: [CallbackQueryHandler(issuance_callback, pattern=r"^(issue_(type|user):|issue_cancel)$")],
+            ISSUANCE_USER: [CallbackQueryHandler(issuance_callback, pattern=r"^(issue_(type|user):.+|issue_cancel)$")],
             ISSUANCE_AMOUNT: [CallbackQueryHandler(issuance_callback, pattern=r"^(issue_confirm|issue_change_user|issue_cancel)$"), MessageHandler(filters.TEXT & ~filters.COMMAND, process_issuance_amount)],
         },
         fallbacks=[

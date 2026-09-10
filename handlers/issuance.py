@@ -300,9 +300,13 @@ async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ISSUANCE_USER
         context.user_data["issuance_type"] = issuance_type
         type_label = "MINTS" if issuance_type == "mints" else "стиков"
+        allowed_groups = await _allowed_issuance_groups(query.from_user.id, context)
+        if not allowed_groups:
+            await query.message.edit_text("⛔️ Для вашей группы нет доступных сотрудников для выдачи.")
+            return ConversationHandler.END
         await query.message.edit_text(
             f"👥 **Выдача {type_label}**\n\nВыберите пользователя:",
-            reply_markup=await _get_issuance_users_markup(context),
+            reply_markup=await _get_issuance_users_markup(context, allowed_groups),
             parse_mode="Markdown",
         )
         return ISSUANCE_USER

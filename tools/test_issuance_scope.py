@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,6 +24,11 @@ def callback_ids(markup):
 
 
 async def main() -> None:
+    issuance_user_pattern = re.compile(r"^(issue_(type|user):.+|issue_cancel)$")
+    assert issuance_user_pattern.fullmatch("issue_user:101")
+    assert issuance_user_pattern.fullmatch("issue_type:mints")
+    assert issuance_user_pattern.fullmatch("issue_cancel")
+    assert not issuance_user_pattern.fullmatch("issue_user:")
     users = {
         "101": "Алина A",
         "102": "Роман R",
