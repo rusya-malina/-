@@ -1003,9 +1003,10 @@ async def kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text = (
                 f"🎯 **KPI: {item['name']}**\n"
                 f"Плановое количество: `{item['quantity']:g}`\n"
-                f"Вес: `{item['weight_percent']:.2f}%`\n"
-                f"Threshold: `{item['threshold_percent']:.2f}%`"
+                f"Вес: `{item['weight_percent']:.2f}%`"
             )
+            if item.get("threshold_percent") is not None:
+                text += f"\nThreshold: `{item['threshold_percent']:.2f}%`"
     elif data == "kpi_gt":
         text = "📈 **KPI: GT** (План: 90, Вес: 40%)"
     elif data == "kpi_microacts":

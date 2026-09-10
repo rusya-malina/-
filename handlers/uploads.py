@@ -476,8 +476,9 @@ async def start_monthly_kpi_upload(update: Update, context: ContextTypes.DEFAULT
         return ConversationHandler.END
     await update.message.reply_text(
         "📅 **Загрузка месячного KPI**\n\n"
-        "Отправьте `.xlsx` с четырьмя столбцами:\n"
-        "1. Название KPI\n2. Процентный вес\n3. Количество\n4. Threshold\n\n"
+        "Отправьте `.xlsx` с тремя обязательными столбцами и необязательным threshold:\n"
+        "1. Название KPI\n2. Процентный вес\n3. Количество\n4. Threshold — необязательно\n\n"
+        "Если threshold не указан для KPI, он не будет создан в справочнике.\n"
         "Сумма процентных весов должна быть ровно 100%.",
         reply_markup=cancel_keyboard,
         parse_mode="Markdown",
@@ -510,20 +511,20 @@ async def process_monthly_kpi_file(update: Update, context: ContextTypes.DEFAULT
         await remote_file.download_to_drive(temp_path)
 
         frame = await asyncio.to_thread(pd.read_excel, temp_path, dtype=object)
-        if len(frame.columns) != 4:
-            raise KpiReferenceValidationError("нужны ровно 4 столбца: название KPI, вес, количество и threshold")
+        if len(frame.columns) not in {3, 4}:
+            raise KpiReferenceValidationError("нужны 3 обязательных столбца и необязательный 4-й столбец threshold")
         name_col = _reference_column(frame, ["name", "kpi", "kpi_name", "название", "показатель"], 0)
         weight_col = _reference_column(frame, ["weight", "weight_percent", "вес", "процентный вес"], 1)
         quantity_col = _reference_column(frame, ["quantity", "count", "plan", "количество", "план"], 2)
         threshold_col = _reference_column(frame, ["threshold", "threshold_percent", "порог", "трешхолд"], 3)
-        if None in (name_col, weight_col, quantity_col, threshold_col):
-            raise KpiReferenceValidationError("не удалось определить все 4 столбца")
+        if None in (name_col, weight_col, quantity_col):
+            raise KpiReferenceValidationError("не удалось определить обязательные столбцы: название, вес и количество")
         rows = [
             {
                 "name": row.get(name_col),
                 "weight_percent": row.get(weight_col),
                 "quantity": row.get(quantity_col),
-                "threshold_percent": row.get(threshold_col),
+                "threshold_percent": row.get(threshold_col) if threshold_col is not None else None,
             }
             for _, row in frame.iterrows()
         ]
@@ -545,7 +546,8 @@ async def process_monthly_kpi_file(update: Update, context: ContextTypes.DEFAULT
         for item in reference["items"]:
             lines.append(
                 f"• {item['name']}: вес {item['weight_percent']:.2f}%, "
-                f"количество {item['quantity']:g}, threshold {item['threshold_percent']:.2f}%"
+                f"количество {item['quantity']:g}"
+                + (f", threshold {item['threshold_percent']:.2f}%" if item.get("threshold_percent") is not None else ", threshold не задан")
             )
         lines.extend(["", "Данные ещё не записаны. Подтвердите импорт или отмените его."])
         await update.message.reply_text("\n".join(lines), reply_markup=_excel_preview_markup(), parse_mode="Markdown")

@@ -18,7 +18,7 @@ class KpiReferenceItem:
     name: str
     weight_percent: float
     quantity: float
-    threshold_percent: float
+    threshold_percent: float | None
 
 
 def _number(value: Any, *, field: str, row_number: int) -> float:
@@ -47,19 +47,22 @@ def build_kpi_reference(rows: list[dict[str, Any]]) -> dict[str, Any]:
         names.add(key)
         weight = _number(row.get("weight_percent"), field="процентный вес", row_number=row_number)
         quantity = _number(row.get("quantity"), field="количество", row_number=row_number)
-        threshold = _number(row.get("threshold_percent"), field="threshold", row_number=row_number)
+        threshold_raw = row.get("threshold_percent")
+        threshold = None
+        if threshold_raw is not None and str(threshold_raw).strip().casefold() not in {"", "nan", "none"}:
+            threshold = _number(threshold_raw, field="threshold", row_number=row_number)
         if weight < 0 or weight > 100:
             raise KpiReferenceValidationError(f"строка {row_number}: вес должен быть от 0 до 100%")
         if quantity < 0:
             raise KpiReferenceValidationError(f"строка {row_number}: количество не может быть отрицательным")
-        if threshold < 0 or threshold > 100:
+        if threshold is not None and (threshold < 0 or threshold > 100):
             raise KpiReferenceValidationError(f"строка {row_number}: threshold должен быть от 0 до 100%")
         total_weight += weight
         items.append({
             "name": name,
             "weight_percent": weight,
             "quantity": quantity,
-            "threshold_percent": threshold,
+            **({"threshold_percent": threshold} if threshold is not None else {}),
         })
     if not items:
         raise KpiReferenceValidationError("Excel не содержит заполненных KPI")
