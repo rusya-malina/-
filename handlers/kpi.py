@@ -2,6 +2,7 @@
 import contextlib
 
 from application.admin_service import EmployeeAdminService
+from application.kpi_reference_service import load_kpi_reference
 from application.kpi_service import KpiService, build_plan_projection
 from application.report_service import ReportService
 from application.team_kpi_service import CALCULATION_VERSION, TeamKpiService
@@ -955,12 +956,20 @@ async def kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Сначала завершите регистрацию через /start.")
         return
 
-    inline_keyboard = [
-        [InlineKeyboardButton("📈 GT", callback_data="kpi_gt")],
-        [InlineKeyboardButton("🎯 Микроакты", callback_data="kpi_microacts")],
-        [InlineKeyboardButton("🔄 Re-trafic", callback_data="kpi_retrafic")],
-        [InlineKeyboardButton("🔙 Закрыть меню", callback_data="kpi_close")],
-    ]
+    reference = await load_kpi_reference()
+    items = reference.get("items", []) if isinstance(reference, dict) else []
+    if items:
+        inline_keyboard = [
+            [InlineKeyboardButton(str(item["name"]), callback_data=f"kpi_ref:{index}")]
+            for index, item in enumerate(items)
+        ]
+    else:
+        inline_keyboard = [
+            [InlineKeyboardButton("📈 GT", callback_data="kpi_gt")],
+            [InlineKeyboardButton("🎯 Микроакты", callback_data="kpi_microacts")],
+            [InlineKeyboardButton("🔄 Re-trafic", callback_data="kpi_retrafic")],
+        ]
+    inline_keyboard.append([InlineKeyboardButton("🔙 Закрыть меню", callback_data="kpi_close")])
     await update.message.reply_text("Убираем клавиатуру...", reply_markup=ReplyKeyboardRemove())
     await update.message.reply_text("📌 **Выберите KPI:**", reply_markup=InlineKeyboardMarkup(inline_keyboard), parse_mode="Markdown")
 
@@ -971,7 +980,24 @@ async def kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
 
-    if data == "kpi_gt":
+    if data.startswith("kpi_ref:"):
+        try:
+            index = int(data.split(":", 1)[1])
+        except ValueError:
+            index = -1
+        reference = await load_kpi_reference()
+        items = reference.get("items", []) if isinstance(reference, dict) else []
+        if index < 0 or index >= len(items):
+            text = "ℹ️ Справочник KPI устарел. Откройте его заново."
+        else:
+            item = items[index]
+            text = (
+                f"🎯 **KPI: {item['name']}**\n"
+                f"Плановое количество: `{item['quantity']:g}`\n"
+                f"Вес: `{item['weight_percent']:.2f}%`\n"
+                f"Threshold: `{item['threshold_percent']:.2f}%`"
+            )
+    elif data == "kpi_gt":
         text = "📈 **KPI: GT** (План: 90, Вес: 40%)"
     elif data == "kpi_microacts":
         text = "🎯 **KPI: Микроакты** (План: 128, Вес: 40%, Трешхолд LAS ≥ 40%)"

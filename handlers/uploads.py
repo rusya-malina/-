@@ -4,6 +4,7 @@ import re
 from telegram.error import TelegramError
 
 from application.import_service import ImportSafetyError, ImportService
+from application.kpi_reference_service import KpiReferenceValidationError, build_kpi_reference, save_kpi_reference
 from application.team_kpi_service import TeamKpiService
 from bot_context import (
     ContextTypes,
@@ -17,7 +18,7 @@ from bot_context import (
     pd,
     tempfile,
 )
-from config import ADMIN_ID, GROUPS_FILE, TEAMS_FILE, UPLOADED_DATA_DIR, USERS_FILE
+from config import ADMIN_ID, GROUPS_FILE, LATEST_KPI_REFERENCE_FILE, TEAMS_FILE, UPLOADED_DATA_DIR, USERS_FILE
 from errors import StorageError
 from github_sync import sync_data_state, sync_kpi_state
 from keyboards import cancel_keyboard, get_data_keyboard, get_issuance_keyboard
@@ -34,6 +35,7 @@ from states import (
     ISSUANCE_EXCEL_UPLOAD,
     ISSUANCE_MENU,
     KPI_MENU_STATE,
+    KPI_REFERENCE_UPLOAD,
     UPLOAD_EXCEL,
 )
 from storage import load_json
@@ -299,9 +301,9 @@ async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_T
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text="📥 Раздел загрузки данных:",
-            reply_markup=get_data_keyboard() if staged.get("kind") == "kpi" else get_issuance_keyboard(),
+            reply_markup=get_data_keyboard() if staged.get("kind") in {"kpi", "kpi_reference"} else get_issuance_keyboard(),
         )
-        return KPI_MENU_STATE if staged.get("kind") == "kpi" else ISSUANCE_MENU
+        return KPI_MENU_STATE if staged.get("kind") in {"kpi", "kpi_reference"} else ISSUANCE_MENU
 
     if query.data != "excel_confirm":
         return UPLOAD_EXCEL
@@ -313,6 +315,11 @@ async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_T
             menu = get_data_keyboard()
             state = KPI_MENU_STATE
             text = "✅ Импорт KPI подтверждён и применён."
+        elif kind == "kpi_reference":
+            await _apply_kpi_reference_import(staged)
+            menu = get_data_keyboard()
+            state = KPI_MENU_STATE
+            text = "✅ Месячный KPI подтверждён и применён."
         elif kind == "issuance":
             await _apply_issuance_import(staged)
             menu = get_issuance_keyboard()
@@ -461,3 +468,119 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
     finally:
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
+
+
+async def start_monthly_kpi_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not has_permission(update.effective_user.id, context, Permission.DATA_UPLOAD):
+        await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
+        return ConversationHandler.END
+    await update.message.reply_text(
+        "📅 **Загрузка месячного KPI**\n\n"
+        "Отправьте `.xlsx` с четырьмя столбцами:\n"
+        "1. Название KPI\n2. Процентный вес\n3. Количество\n4. Threshold\n\n"
+        "Сумма процентных весов должна быть ровно 100%.",
+        reply_markup=cancel_keyboard,
+        parse_mode="Markdown",
+    )
+    return KPI_REFERENCE_UPLOAD
+
+
+def _reference_column(frame, aliases: list[str], fallback_index: int):
+    column = _find_column(frame.columns, aliases)
+    if column is not None:
+        return column
+    return frame.columns[fallback_index] if len(frame.columns) == 4 else None
+
+
+async def process_monthly_kpi_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not has_permission(update.effective_user.id, context, Permission.DATA_UPLOAD):
+        await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
+        return ConversationHandler.END
+    document = update.message.document
+    if not document or not document.file_name.lower().endswith(".xlsx"):
+        await update.message.reply_text("⚠️ Отправьте файл в формате `.xlsx` или нажмите «Назад».", parse_mode="Markdown")
+        return KPI_REFERENCE_UPLOAD
+
+    temp_path = None
+    try:
+        os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
+        with tempfile.NamedTemporaryFile(prefix="monthly_kpi_", suffix=".xlsx", dir=UPLOADED_DATA_DIR, delete=False) as temp_file:
+            temp_path = temp_file.name
+        remote_file = await context.bot.get_file(document.file_id)
+        await remote_file.download_to_drive(temp_path)
+
+        frame = await asyncio.to_thread(pd.read_excel, temp_path, dtype=object)
+        if len(frame.columns) != 4:
+            raise KpiReferenceValidationError("нужны ровно 4 столбца: название KPI, вес, количество и threshold")
+        name_col = _reference_column(frame, ["name", "kpi", "kpi_name", "название", "показатель"], 0)
+        weight_col = _reference_column(frame, ["weight", "weight_percent", "вес", "процентный вес"], 1)
+        quantity_col = _reference_column(frame, ["quantity", "count", "plan", "количество", "план"], 2)
+        threshold_col = _reference_column(frame, ["threshold", "threshold_percent", "порог", "трешхолд"], 3)
+        if None in (name_col, weight_col, quantity_col, threshold_col):
+            raise KpiReferenceValidationError("не удалось определить все 4 столбца")
+        rows = [
+            {
+                "name": row.get(name_col),
+                "weight_percent": row.get(weight_col),
+                "quantity": row.get(quantity_col),
+                "threshold_percent": row.get(threshold_col),
+            }
+            for _, row in frame.iterrows()
+        ]
+        reference = build_kpi_reference(rows)
+        context.user_data["pending_excel_import"] = {
+            "kind": "kpi_reference",
+            "reference": reference,
+            "temp_path": temp_path,
+            "row_count": len(reference["items"]),
+        }
+        temp_path = None
+        lines = [
+            "🔎 **Предпросмотр месячного KPI**",
+            "",
+            f"Показателей: **{len(reference['items'])}**",
+            f"Сумма весов: **{reference['total_weight_percent']:.2f}%**",
+            "",
+        ]
+        for item in reference["items"]:
+            lines.append(
+                f"• {item['name']}: вес {item['weight_percent']:.2f}%, "
+                f"количество {item['quantity']:g}, threshold {item['threshold_percent']:.2f}%"
+            )
+        lines.extend(["", "Данные ещё не записаны. Подтвердите импорт или отмените его."])
+        await update.message.reply_text("\n".join(lines), reply_markup=_excel_preview_markup(), parse_mode="Markdown")
+        return KPI_REFERENCE_UPLOAD
+    except KpiReferenceValidationError as error:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+        await update.message.reply_text(f"❌ **Месячный KPI не загружен:** {error}", reply_markup=get_data_keyboard(), parse_mode="Markdown")
+        return KPI_MENU_STATE
+    except (OSError, TypeError, ValueError, TelegramError) as error:
+        logging.exception("Ошибка чтения месячного KPI Excel: %s", error)
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+        await update.message.reply_text("❌ Не удалось прочитать файл месячного KPI.", reply_markup=get_data_keyboard())
+        return KPI_MENU_STATE
+
+
+async def _apply_kpi_reference_import(staged: dict) -> None:
+    reference = staged["reference"]
+    await save_kpi_reference(reference)
+    source_path = staged.get("temp_path")
+    if source_path and os.path.exists(source_path):
+        import shutil
+        os.makedirs(os.path.dirname(LATEST_KPI_REFERENCE_FILE), exist_ok=True)
+        shutil.copy2(source_path, LATEST_KPI_REFERENCE_FILE)
+        os.remove(source_path)
+    staged["temp_path"] = None
+    await sync_data_state()
+    await sync_kpi_state()
+
+
+__all__ = [
+    "excel_preview_callback",
+    "process_excel_file",
+    "process_monthly_kpi_file",
+    "start_excel_upload",
+    "start_monthly_kpi_upload",
+]
