@@ -1,6 +1,7 @@
 """Validation and persistence helpers for the monthly KPI reference workbook."""
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -49,7 +50,16 @@ def build_kpi_reference(rows: list[dict[str, Any]]) -> dict[str, Any]:
         quantity = _number(row.get("quantity"), field="количество", row_number=row_number)
         threshold_raw = row.get("threshold_percent")
         threshold = None
-        if threshold_raw is not None and str(threshold_raw).strip().casefold() not in {"", "nan", "none"}:
+        is_nan = False
+        try:
+            is_nan = math.isnan(float(threshold_raw)) if threshold_raw is not None else False
+        except (TypeError, ValueError):
+            is_nan = False
+        if (
+            threshold_raw is not None
+            and not is_nan
+            and str(threshold_raw).strip().casefold() not in {"", "nan", "none"}
+        ):
             threshold = _number(threshold_raw, field="threshold", row_number=row_number)
         if weight < 0 or weight > 100:
             raise KpiReferenceValidationError(f"строка {row_number}: вес должен быть от 0 до 100%")
@@ -66,9 +76,16 @@ def build_kpi_reference(rows: list[dict[str, Any]]) -> dict[str, Any]:
         })
     if not items:
         raise KpiReferenceValidationError("Excel не содержит заполненных KPI")
-    if abs(total_weight - 100.0) > 0.01:
+    difference = total_weight - 100.0
+    if abs(difference) > 0.01:
+        if difference < 0:
+            correction = f"не хватает {abs(difference):.2f} процентных пунктов"
+        else:
+            correction = f"лишние {difference:.2f} процентных пунктов"
         raise KpiReferenceValidationError(
-            f"сумма весов должна быть равна 100%, сейчас {total_weight:.2f}%"
+            "Сумма весов KPI должна быть ровно 100%. "
+            f"Сейчас: {total_weight:.2f}%. {correction}. "
+            "Исправьте веса в Excel и загрузите файл повторно."
         )
     return {
         "schema_version": 1,

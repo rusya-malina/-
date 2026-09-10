@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -35,7 +36,11 @@ def test_build_kpi_reference_rejects_weight_sum_other_than_100() -> None:
             ]
         )
     except KpiReferenceValidationError as error:
-        assert "100%" in str(error)
+        message = str(error)
+        assert "ровно 100%" in message
+        assert "Сейчас: 90.00%" in message
+        assert "не хватает 10.00 процентных пунктов" in message
+        assert "загрузите файл повторно" in message
     else:
         raise AssertionError("weight sum must be rejected")
 
@@ -75,10 +80,20 @@ def test_build_kpi_reference_allows_blank_threshold_per_row() -> None:
     assert all("threshold_percent" not in item for item in result["items"])
 
 
+def test_build_kpi_reference_allows_pandas_nan_threshold() -> None:
+    result = build_kpi_reference(
+        [
+            {"name": "GT", "weight_percent": 100, "quantity": 90, "threshold_percent": math.nan},
+        ]
+    )
+    assert "threshold_percent" not in result["items"][0]
+
+
 if __name__ == "__main__":
     test_build_kpi_reference_accepts_four_columns_and_normalizes_schema()
     test_build_kpi_reference_rejects_weight_sum_other_than_100()
     test_build_kpi_reference_rejects_duplicate_names()
     test_build_kpi_reference_allows_missing_threshold()
     test_build_kpi_reference_allows_blank_threshold_per_row()
+    test_build_kpi_reference_allows_pandas_nan_threshold()
     print("KPI_REFERENCE PASS")
