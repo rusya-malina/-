@@ -37,24 +37,24 @@ def main() -> None:
     target_100, target_111 = projection["rows"]
     assert target_100["target_percent"] == 100
     assert target_100["gt_remaining"] == 4
-    assert target_100["las_remaining"] == 42
-    assert target_100["lau_remaining"] == 0
+    assert target_100["las_remaining"] == 17
+    assert target_100["lau_remaining"] == 25
     assert target_100["micro_total_remaining"] == 42
     assert target_100["gt_per_hour_rounded"] == 1
-    assert target_100["las_per_hour_rounded"] == 2
-    assert target_100["lau_per_hour_rounded"] == 0
-    assert target_100["use_las_only"] is True
+    assert target_100["las_per_hour_rounded"] == 1
+    assert target_100["lau_per_hour_rounded"] == 1
+    assert target_100["use_las_only"] is False
     assert round(projection["current_threshold_percent"], 2) == 54.02
     assert target_100["las_per_hour_rounded"] / (target_100["las_per_hour_rounded"] + target_100["lau_per_hour_rounded"]) > 0.40
     assert target_111["target_percent"] == 111
     assert round(target_111["gt_remaining"], 1) == 13.9
-    assert target_111["las_remaining"] == 57
-    assert target_111["lau_remaining"] == 0
+    assert target_111["las_remaining"] == 23
+    assert target_111["lau_remaining"] == 34
     assert target_111["micro_total_remaining"] == 57
     assert target_111["gt_per_hour_rounded"] == 1
-    assert target_111["las_per_hour_rounded"] == 3
-    assert target_111["lau_per_hour_rounded"] == 0
-    assert target_111["use_las_only"] is True
+    assert target_111["las_per_hour_rounded"] == 2
+    assert target_111["lau_per_hour_rounded"] == 2
+    assert target_111["use_las_only"] is False
     assert target_111["las_per_hour_rounded"] / (target_111["las_per_hour_rounded"] + target_111["lau_per_hour_rounded"]) > 0.40
 
     production_case = build_plan_projection(
@@ -74,15 +74,16 @@ def main() -> None:
     assert production_100["gt_remaining"] == 20
     assert production_100["gt_per_hour"] == 1.25
     assert production_100["gt_per_hour_rounded"] == 2
-    assert production_100["las_remaining"] == 12
-    assert production_100["lau_remaining"] == 0
+    assert production_100["las_remaining"] == 5
+    assert production_100["lau_remaining"] == 7
     assert production_111["gt_remaining"] == 29.900000000000006
     assert production_111["gt_per_hour_rounded"] == 2
-    assert production_111["las_remaining"] == 27
-    assert production_111["lau_remaining"] == 0
+    assert production_111["las_remaining"] == 11
+    assert production_111["lau_remaining"] == 16
     for row in (production_100, production_111):
         rounded_total = row["las_per_hour_rounded"] + row["lau_per_hour_rounded"]
         assert row["las_per_hour_rounded"] / rounded_total > 0.40
+        assert row["las_remaining"] + row["lau_remaining"] == row["micro_total_remaining"]
 
     lau_overachieved = build_plan_projection(
         {
@@ -99,6 +100,7 @@ def main() -> None:
         assert row["las_remaining"] == 50
         assert row["lau_remaining"] == 0
         assert row["use_las_only"] is True
+        assert row["lau_remaining"] == 0
 
     assert "📅 План" in button_texts(get_main_keyboard(101, group="A LAMP"))
     assert "📅 План" in button_texts(get_main_keyboard(102, group="R LAMP"))
@@ -151,8 +153,8 @@ def main() -> None:
         assert "40% threshold" not in text
         assert "Текущий threshold LAS" not in text
         assert "100% план —" in text and "111% план —" in text
-        assert "100% план — Итого LAS: `42`, Итого LAU: `0`" in text
-        assert "111% план — Итого LAS: `57`, Итого LAU: `0`" in text
+        assert "100% план — Итого LAS: `17`, Итого LAU: `25`" in text
+        assert "111% план — Итого LAS: `23`, Итого LAU: `34`" in text
         assert "LAS: `1/час`" not in text and "LAU: `0/час`" not in text
         assert "Общие микроакты" not in text
         assert "GT" in text and "Общий статус" in text

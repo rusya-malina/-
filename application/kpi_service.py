@@ -92,12 +92,12 @@ def build_plan_projection(
 ) -> dict[str, Any]:
     """Build hourly GT and separate LAS/LAU targets for 100% and 111%.
 
-    The source workbook stores one combined microacts plan. For the plan card,
-    that target is split into the existing LAS threshold (40%) and the
-    complementary LAU share (60%). When LAU is already sufficient for the
-    target, or the combined plan is already complete, the remaining work may
-    be completed with LAS only while keeping LAS strictly above 40%.
+    The source workbook stores one combined microacts plan. Remaining work is
+    split between LAS and LAU according to the 40/60 threshold distribution.
+    Extra LAS is added only when the current facts or integer rounding would
+    otherwise leave LAS at or below 40% of the final total.
     """
+
     if hours_per_workday <= 0:
         raise ValueError("hours_per_workday must be positive")
     current_date = as_of or datetime.now(ZoneInfo(DEFAULT_TIMEZONE)).date()
@@ -115,18 +115,26 @@ def build_plan_projection(
     for multiplier in PLAN_TARGETS:
         gt_target = float(record.get("gt_plan", 0) or 0) * multiplier
         micro_total_target = float(record.get("micro_plan", 0) or 0) * multiplier
-        las_target, lau_target = _strict_threshold_targets(micro_total_target)
-        use_las_only = micro_total_target > 0
-        if use_las_only:
-            rounded_total_target = las_target + lau_target
-            current_total = las_fact + lau_fact
-            remaining_total = max(0.0, rounded_total_target - current_total)
-            threshold_las_target = _strict_las_minimum_for_lau(lau_fact)
-            final_las_target = max(las_fact + remaining_total, threshold_las_target)
-            las_target = _ceil_nonnegative(final_las_target)
+        planned_las_target, planned_lau_target = _strict_threshold_targets(micro_total_target)
+        current_total = las_fact + lau_fact
+        remaining_total = max(0.0, (planned_las_target + planned_lau_target) - current_total)
+        # Distribute the remaining combined volume by the 40/60 target split.
+        las_remaining = _ceil_nonnegative(remaining_total * LAS_THRESHOLD)
+        lau_remaining = max(0, int(remaining_total) - las_remaining)
+        # If current facts are below the strict threshold, add only the minimum
+        # extra LAS needed to make the final LAS share strictly greater than 40%.
+        threshold_las_additional = 0
+        if micro_total_target > 0:
+            threshold_las_additional = max(
+                0,
+                _strict_las_minimum_for_lau(lau_fact + lau_remaining) - las_fact,
+            )
+        if threshold_las_additional > las_remaining:
+            las_remaining = threshold_las_additional
+        las_target = las_fact + las_remaining
+        lau_target = lau_fact + lau_remaining
+        use_las_only = lau_remaining == 0 and las_remaining > 0
         gt_remaining = max(0.0, gt_target - gt_fact)
-        las_remaining = max(0.0, las_target - las_fact)
-        lau_remaining = 0.0 if use_las_only else max(0.0, lau_target - lau_fact)
         las_per_hour_rounded = _ceil_nonnegative(las_remaining / hours_left) if hours_left else 0
         lau_per_hour_rounded = _ceil_nonnegative(lau_remaining / hours_left) if hours_left else 0
         las_per_hour_rounded = _threshold_safe_las_rate(

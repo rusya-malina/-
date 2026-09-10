@@ -64,13 +64,19 @@ class PlanProjectionEdgeCaseTests(unittest.TestCase):
             },
             as_of=date(2026, 8, 21),
         )
-        for row in projection["rows"]:
-            self.assertGreater(row["gt_remaining"], 0)
-            self.assertGreater(row["las_remaining"], 0)
-            self.assertEqual(row["lau_remaining"], 0)
-            self.assertEqual(row["las_per_hour_rounded"], 1)
-            self.assertEqual(row["lau_per_hour_rounded"], 0)
-            self.assertTrue(row["use_las_only"])
+        first, second = projection["rows"]
+        self.assertGreater(first["gt_remaining"], 0)
+        self.assertGreater(first["las_remaining"], 0)
+        self.assertEqual(first["lau_remaining"], 0)
+        self.assertEqual(first["las_per_hour_rounded"], 1)
+        self.assertEqual(first["lau_per_hour_rounded"], 0)
+        self.assertTrue(first["use_las_only"])
+        self.assertGreater(second["gt_remaining"], 0)
+        self.assertGreater(second["las_remaining"], 0)
+        self.assertEqual(second["lau_remaining"], 9)
+        self.assertGreaterEqual(second["las_per_hour_rounded"], 1)
+        self.assertGreaterEqual(second["lau_per_hour_rounded"], 1)
+        self.assertFalse(second["use_las_only"])
 
     def test_no_working_hours_does_not_divide_by_zero(self) -> None:
         projection = build_plan_projection(
