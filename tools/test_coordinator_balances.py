@@ -39,12 +39,14 @@ def main() -> None:
         "_schema_version": 2,
         "11": {"name": "A User", "mints_issued": 0, "sticks_issued": 0},
     }
-    zeroed_kpi = {"a user": {"micro_las_fact": 0, "micro_lau_fact": 0, "gt_fact": 999}}
+    zeroed_kpi = {"a user": {"micro_las_fact": 999, "micro_lau_fact": 999, "gt_fact": 999}}
     group, count, zeroed = _coordinator_team_balances("10", "coor A", users, groups, zeroed_kpi, zeroed_issuance)
     assert group == "A LAMP" and count == 1
     assert zeroed["sticks_issued"] == 0
     assert zeroed["sticks_used"] == 0
     assert zeroed["sticks_balance"] == 0
+    assert zeroed["mints_used"] == 0
+    assert zeroed["mints_balance"] == 0
     print("coordinator balance hierarchy tests passed")
 
 

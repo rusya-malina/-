@@ -892,6 +892,9 @@ def _coordinator_team_balances(
     # A zeroed current-period team must not inherit stale GT consumption from
     # historical KPI facts. Once a new issuance appears, normal baseline-based
     # consumption resumes for the team.
+    if totals["mints_issued"] <= 0:
+        totals["mints_used"] = 0.0
+        totals["mints_balance"] = 0.0
     if totals["sticks_issued"] <= 0:
         totals["sticks_used"] = 0.0
         totals["sticks_balance"] = 0.0
