@@ -249,13 +249,13 @@ async def confirm_issuance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await context.bot.send_message(
         chat_id=query.message.chat_id,
-        text="🏠 Главное меню:",
-        reply_markup=main_menu_markup(actor_id, context),
+        text="📦 Раздел «Выдача». Можно сразу выполнить следующую выдачу.",
+        reply_markup=get_issuance_keyboard(),
     )
     context.user_data.pop("issuance_type", None)
     context.user_data.pop("issuance_user_id", None)
     context.user_data.pop("issuance_amount", None)
-    return ConversationHandler.END
+    return ISSUANCE_MENU
 
 
 async def issuance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
