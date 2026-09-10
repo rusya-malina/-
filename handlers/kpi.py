@@ -889,6 +889,12 @@ def _coordinator_team_balances(
         count += 1
         for key in totals:
             totals[key] += float(balances.get(key, 0) or 0)
+    # A zeroed current-period team must not inherit stale GT consumption from
+    # historical KPI facts. Once a new issuance appears, normal baseline-based
+    # consumption resumes for the team.
+    if totals["sticks_issued"] <= 0:
+        totals["sticks_used"] = 0.0
+        totals["sticks_balance"] = 0.0
     return target_group, count, totals
 
 
