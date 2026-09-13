@@ -302,8 +302,8 @@ async def offhours_visit_callback(update: Update, context: ContextTypes.DEFAULT_
 
 async def show_coordinator_bookings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group = await get_user_group(update.effective_user.id)
-    if group not in {"coor A", "coor R"}:
-        await update.message.reply_text("⛔️ Полный список броней доступен только coor A и coor R.")
+    if group not in {"coor A", "coor R", "SPV", "MNG"}:
+        await update.message.reply_text("⛔️ Полный список броней доступен только координаторам, супервайзеру и менеджеру.")
         return ConversationHandler.END
 
     current = local_today()

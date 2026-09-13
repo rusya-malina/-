@@ -74,7 +74,9 @@ async def main() -> None:
     assert "🏪 Внерабочие посещения" not in reply_labels(get_main_keyboard(103, "coor A"))
     assert "Брони" in reply_labels(get_main_keyboard(103, "coor A"))
     assert "Брони" in reply_labels(get_main_keyboard(104, "coor R"))
-    assert "Брони" not in reply_labels(get_main_keyboard(105, "SPV"))
+    assert "Брони" in reply_labels(get_main_keyboard(105, "SPV"))
+    assert "Брони" in reply_labels(get_main_keyboard(106, "MNG"))
+    assert "Брони" not in reply_labels(get_main_keyboard(101, "A LAMP"))
 
     month_markup = handler.venue_dates_markup("bla_bla_bar", [], today=date(2026, 9, 7))
     callbacks = inline_callbacks(month_markup)
@@ -155,7 +157,7 @@ async def main() -> None:
         assert "Bla Bla Bar" in schedule_text and "Куранты" in schedule_text
         assert "Расписание за 09.2026" in schedule_text
 
-        handler.get_user_group = AsyncMock(return_value="coor A")
+        handler.get_user_group = AsyncMock(return_value="SPV")
         coordinator_message = SimpleNamespace(reply_text=AsyncMock())
         coordinator_update = SimpleNamespace(
             effective_user=SimpleNamespace(id=303),
@@ -166,6 +168,13 @@ async def main() -> None:
         assert "Брони за 09.2026" in report
         assert "Ч 10.09 — Алина A + Рита R" in report
         assert "Куранты" in report and "—" in report
+
+        handler.get_user_group = AsyncMock(return_value="MNG")
+        manager_message = SimpleNamespace(reply_text=AsyncMock())
+        manager_update = SimpleNamespace(effective_user=SimpleNamespace(id=404), message=manager_message)
+        await handler.show_coordinator_bookings(manager_update, context)
+        manager_report = manager_message.reply_text.await_args.args[0]
+        assert "Брони за 09.2026" in manager_report and "Алина A + Рита R" in manager_report
     finally:
         handler._employee_identity = original_identity
         handler.OffhoursVisitService.from_default_storage = original_service

@@ -18,6 +18,7 @@ from permissions import is_admin_mode
 from roles import get_user_group_sync
 
 COORDINATOR_GROUPS = frozenset({"coor A", "coor R"})
+BOOKING_REPORT_GROUPS = frozenset({"coor A", "coor R", "SPV", "MNG"})
 
 
 def get_registration_group_keyboard() -> ReplyKeyboardMarkup:
@@ -44,7 +45,9 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
     if is_management_group(group):
         keyboard = [["Моя команда"], ["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
         if group in COORDINATOR_GROUPS:
-            keyboard.append(["📦 Выдача", "Брони"])
+            keyboard.append(["📦 Выдача"])
+        if group in BOOKING_REPORT_GROUPS:
+            keyboard.append(["Брони"])
         if group in GROUPS_WITH_TRAINING:
             keyboard.append(["Загрузить обучение"])
         if group in GROUPS_WITH_BALANCES:
