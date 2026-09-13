@@ -7,7 +7,12 @@ from bot_context import (
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
 )
-from config import GROUPS_WITH_MY_TRAINING, GROUPS_WITH_PLAN, GROUPS_WITH_TRAINING
+from config import (
+    GROUPS_WITH_MY_TRAINING,
+    GROUPS_WITH_OFFHOURS_VISITS,
+    GROUPS_WITH_PLAN,
+    GROUPS_WITH_TRAINING,
+)
 from organization import is_management_group
 from permissions import is_admin_mode
 from roles import get_user_group_sync
@@ -48,10 +53,14 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["Остатки"]]
         if group in GROUPS_WITH_MY_TRAINING:
             keyboard.append(["Мои обучения"])
+        if group in GROUPS_WITH_OFFHOURS_VISITS:
+            keyboard.append(["🏪 Внерабочие посещения"])
         if group in GROUPS_WITH_PLAN:
             keyboard.insert(0, ["📅 План"])
     elif group in TEAM_OPTIONS:
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
+        if group in GROUPS_WITH_OFFHOURS_VISITS:
+            keyboard.append(["🏪 Внерабочие посещения"])
         if group in GROUPS_WITH_PLAN:
             keyboard.insert(0, ["📅 План"])
     else:

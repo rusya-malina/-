@@ -12,6 +12,7 @@ from handlers.admin import (
     show_registered_users,
 )
 from handlers.broadcast import send_broadcast, start_broadcast
+from handlers.offhours_visits import offhours_visit_callback, open_offhours_visits
 from handlers.issuance import (
     issuance_callback,
     issuance_menu_message,
@@ -96,6 +97,7 @@ from states import (
     MANUAL_KPI_OFFICE_HOURS,
     MANUAL_KPI_RETRAFIC_FACT,
     MY_TRAINING_MENU,
+    OFFHOURS_VISITS_MENU,
     PENDING_REQUESTS_STATE,
     REG_FIRST_NAME,
     REG_GROUP,
@@ -124,6 +126,7 @@ def build_conversation_handler() -> ConversationHandler:
             MessageHandler(filters.Regex(r"^Моя команда$"), open_my_team_menu),
             MessageHandler(filters.Regex(r"^Загрузить обучение$"), open_training_menu),
             MessageHandler(filters.Regex(r"^Мои обучения$"), open_my_training_menu),
+            MessageHandler(filters.Regex(r"^🏪 Внерабочие посещения$"), open_offhours_visits),
             MessageHandler(filters.Regex(r"^Определить команду$"), start_team_selection),
             MessageHandler(filters.Regex(r"^📢 Рассылка$"), start_broadcast),
             MessageHandler(filters.Regex(r"^📦 Выдача$"), start_issuance),
@@ -190,6 +193,10 @@ def build_conversation_handler() -> ConversationHandler:
             ],
             MY_TRAINING_MENU: [
                 CallbackQueryHandler(my_training_callback, pattern=r"^my_training:(one|two)$"),
+                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
+            ],
+            OFFHOURS_VISITS_MENU: [
+                CallbackQueryHandler(offhours_visit_callback, pattern=r"^offh_"),
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             ],
             TEAM_MENU_STATE: [
