@@ -14,7 +14,7 @@ from application.offhours_visit_service import (
     OffhoursVisitService,
     VENUES,
     local_today,
-    week_visit_dates,
+    month_visit_dates,
 )
 from config import GROUPS_WITH_OFFHOURS_VISITS, USERS_FILE
 from data_models import user_name
@@ -28,6 +28,7 @@ WEEKDAY_LABELS = {
     5: "Суббота",
     6: "Воскресенье",
 }
+WEEKDAY_SHORT = {3: "Ч", 4: "П", 5: "С", 6: "В"}
 
 
 def offhours_home_markup() -> InlineKeyboardMarkup:
@@ -56,21 +57,15 @@ def _venue_day_records(bookings: list[dict[str, Any]], venue: str, day: date) ->
 
 def venue_dates_markup(venue: str, bookings: list[dict[str, Any]], today: date | None = None) -> InlineKeyboardMarkup:
     current = today or local_today()
-    keyboard: list[list[InlineKeyboardButton]] = []
-    for day in week_visit_dates(current):
+    date_buttons: list[InlineKeyboardButton] = []
+    for day in month_visit_dates(current):
         occupied = len(_venue_day_records(bookings, venue, day))
-        free = max(0, MAX_EMPLOYEES_PER_VENUE_DAY - occupied)
-        prefix = WEEKDAY_LABELS[day.weekday()][:2]
-        if day < current:
-            label = f"{prefix}, {day.strftime('%d.%m')} — прошёл"
-            callback = "offh_noop"
-        elif free == 0:
-            label = f"{prefix}, {day.strftime('%d.%m')} — мест нет"
-            callback = f"offh_full:{venue}:{day.isoformat()}"
-        else:
-            label = f"{prefix}, {day.strftime('%d.%m')} — свободно {free} из 2"
-            callback = f"offh_book:{venue}:{day.isoformat()}"
-        keyboard.append([InlineKeyboardButton(label, callback_data=callback)])
+        marker = "·" if day < current else "✖" if occupied >= MAX_EMPLOYEES_PER_VENUE_DAY else ""
+        label = f"{WEEKDAY_SHORT[day.weekday()]} {day.day:02d}{marker}"
+        date_buttons.append(
+            InlineKeyboardButton(label, callback_data=f"offh_day:{venue}:{day.isoformat()}")
+        )
+    keyboard = [date_buttons[index:index + 4] for index in range(0, len(date_buttons), 4)]
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="offh_home")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -80,7 +75,7 @@ def my_bookings_markup(has_bookings: bool) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("❌ Отменить запись", callback_data=cancel_callback)],
-            [InlineKeyboardButton("📋 Расписание недели", callback_data="offh_schedule")],
+            [InlineKeyboardButton("📋 Расписание месяца", callback_data="offh_schedule")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="offh_home")],
         ]
     )
@@ -129,8 +124,45 @@ async def _render_venue(query, venue: str) -> None:
     service = OffhoursVisitService.from_default_storage()
     bookings = await service.active_bookings()
     await query.message.edit_text(
-        f"🏪 <b>{escape(VENUES[venue])}</b>\n\nВыберите день. На одно заведение в один день могут записаться не более двух сотрудников:",
+        f"🏪 <b>{escape(VENUES[venue])}</b>\n\nВыберите дату текущего месяца. Кнопки расположены по четыре в строке; «·» означает прошедшую дату, «✖» — два занятых места:",
         reply_markup=venue_dates_markup(venue, bookings),
+        parse_mode="HTML",
+    )
+
+
+async def _render_day(query, venue: str, visit_date: str) -> None:
+    try:
+        selected_day = date.fromisoformat(visit_date)
+    except ValueError:
+        await query.message.edit_text("❌ Некорректная дата.", reply_markup=_back_markup(f"offh_venue:{venue}"))
+        return
+    bookings = await OffhoursVisitService.from_default_storage().active_bookings()
+    records = _venue_day_records(bookings, venue, selected_day)
+    if records:
+        booked_names = "\n".join(f"• {escape(str(item.get('name', '—')))}" for item in records)
+        occupancy = f"Уже забронировали:\n{booked_names}"
+    else:
+        occupancy = "Броней нет."
+
+    buttons: list[list[InlineKeyboardButton]] = []
+    current = local_today()
+    if selected_day < current:
+        status = "\n\nЭта дата уже прошла. Бронирование недоступно."
+    elif selected_day.year != current.year or selected_day.month != current.month:
+        status = "\n\nМожно бронировать только даты текущего месяца."
+    elif len(records) >= MAX_EMPLOYEES_PER_VENUE_DAY:
+        status = "\n\nВсе два места заняты."
+    else:
+        status = f"\n\nСвободно мест: {MAX_EMPLOYEES_PER_VENUE_DAY - len(records)} из 2."
+        buttons.append(
+            [InlineKeyboardButton("✅ Забронировать", callback_data=f"offh_confirm:{venue}:{visit_date}")]
+        )
+    buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data=f"offh_venue:{venue}")])
+    await query.message.edit_text(
+        f"🏪 <b>{escape(VENUES[venue])}</b>\n"
+        f"📅 <b>{_date_label(visit_date)}</b>\n\n"
+        f"{occupancy}{status}",
+        reply_markup=InlineKeyboardMarkup(buttons),
         parse_mode="HTML",
     )
 
@@ -151,8 +183,9 @@ async def _render_my_bookings(query, user_id: str) -> None:
 
 async def _render_schedule(query) -> None:
     bookings = await OffhoursVisitService.from_default_storage().active_bookings()
-    lines = ["📋 <b>Расписание недели</b>"]
-    for day in week_visit_dates():
+    current = local_today()
+    lines = [f"📋 <b>Расписание за {current.strftime('%m.%Y')}</b>"]
+    for day in month_visit_dates(current):
         lines.append(f"\n<b>{_date_label(day.isoformat())}</b>")
         for venue, venue_name in VENUES.items():
             records = _venue_day_records(bookings, venue, day)
@@ -203,29 +236,13 @@ async def offhours_visit_callback(update: Update, context: ContextTypes.DEFAULT_
         await _render_venue(query, venue)
         return OFFHOURS_VISITS_MENU
 
-    if data.startswith("offh_full:"):
-        await query.answer("На этот день уже записаны два сотрудника.", show_alert=True)
-        return OFFHOURS_VISITS_MENU
-
-    if data.startswith("offh_book:"):
+    if data.startswith("offh_day:"):
         _, venue, visit_date = data.split(":", 2)
         if venue not in VENUES:
             await query.answer("Неизвестное заведение.", show_alert=True)
             return OFFHOURS_VISITS_MENU
         await query.answer()
-        await query.message.edit_text(
-            "🔎 <b>Подтвердите бронь</b>\n\n"
-            f"Заведение: <b>{escape(VENUES[venue])}</b>\n"
-            f"Дата: <b>{_date_label(visit_date)}</b>\n\n"
-            "В этот день сотрудник может забронировать только одно заведение.",
-            reply_markup=InlineKeyboardMarkup(
-                [
-                    [InlineKeyboardButton("✅ Забронировать", callback_data=f"offh_confirm:{venue}:{visit_date}")],
-                    [InlineKeyboardButton("⬅️ Назад", callback_data=f"offh_venue:{venue}")],
-                ]
-            ),
-            parse_mode="HTML",
-        )
+        await _render_day(query, venue, visit_date)
         return OFFHOURS_VISITS_MENU
 
     if data.startswith("offh_confirm:"):
@@ -283,10 +300,37 @@ async def offhours_visit_callback(update: Update, context: ContextTypes.DEFAULT_
     return OFFHOURS_VISITS_MENU
 
 
+async def show_coordinator_bookings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    group = await get_user_group(update.effective_user.id)
+    if group not in {"coor A", "coor R"}:
+        await update.message.reply_text("⛔️ Полный список броней доступен только coor A и coor R.")
+        return ConversationHandler.END
+
+    current = local_today()
+    bookings = await OffhoursVisitService.from_default_storage().active_bookings()
+    lines = [f"📋 <b>Брони за {current.strftime('%m.%Y')}</b>"]
+    for venue, venue_name in VENUES.items():
+        lines.append(f"\n<b>{escape(venue_name)}</b>")
+        for day in month_visit_dates(current):
+            records = _venue_day_records(bookings, venue, day)
+            names = [escape(str(record.get("name", "—"))) for record in records]
+            if len(names) == 2:
+                pair = f"{names[0]} + {names[1]}"
+            elif len(names) == 1:
+                pair = f"{names[0]} + —"
+            else:
+                pair = "—"
+            lines.append(f"{WEEKDAY_SHORT[day.weekday()]} {day.strftime('%d.%m')} — {pair}")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+    return ConversationHandler.END
+
+
 __all__ = [
     "my_bookings_markup",
     "offhours_home_markup",
     "offhours_visit_callback",
     "open_offhours_visits",
+    "show_coordinator_bookings",
     "venue_dates_markup",
 ]

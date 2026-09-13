@@ -44,7 +44,7 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
     if is_management_group(group):
         keyboard = [["Моя команда"], ["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
         if group in COORDINATOR_GROUPS:
-            keyboard.append(["📦 Выдача"])
+            keyboard.append(["📦 Выдача", "Брони"])
         if group in GROUPS_WITH_TRAINING:
             keyboard.append(["Загрузить обучение"])
         if group in GROUPS_WITH_BALANCES:

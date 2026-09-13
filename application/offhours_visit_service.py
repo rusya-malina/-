@@ -1,6 +1,7 @@
 """Booking rules for off-hours venue visits."""
 from __future__ import annotations
 
+from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -28,6 +29,17 @@ def week_visit_dates(as_of: date | None = None) -> tuple[date, ...]:
     current = as_of or local_today()
     monday = current - timedelta(days=current.weekday())
     return tuple(monday + timedelta(days=offset) for offset in range(3, 7))
+
+
+def month_visit_dates(as_of: date | None = None) -> tuple[date, ...]:
+    """Return every Thursday-Sunday date in the calendar month containing *as_of*."""
+    current = as_of or local_today()
+    last_day = monthrange(current.year, current.month)[1]
+    return tuple(
+        day
+        for number in range(1, last_day + 1)
+        if (day := date(current.year, current.month, number)).weekday() in ALLOWED_WEEKDAYS
+    )
 
 
 def _empty_store() -> dict[str, Any]:
@@ -75,13 +87,16 @@ class OffhoursVisitService:
             parsed_date = date.fromisoformat(str(visit_date))
         except ValueError:
             return OperationResult(False, "invalid_date", "invalid_visit_date")
+        today = local_today()
         if (
             not user_key
             or not person_name
             or group_name not in {"A LAMP", "R LAMP"}
             or venue not in VENUES
             or parsed_date.weekday() not in ALLOWED_WEEKDAYS
-            or parsed_date < local_today()
+            or parsed_date < today
+            or parsed_date.year != today.year
+            or parsed_date.month != today.month
         ):
             return OperationResult(False, "invalid_input", "invalid_visit_booking")
 
@@ -209,6 +224,7 @@ __all__ = [
     "MAX_EMPLOYEES_PER_VENUE_DAY",
     "OffhoursVisitService",
     "local_today",
+    "month_visit_dates",
     "VENUES",
     "week_visit_dates",
 ]

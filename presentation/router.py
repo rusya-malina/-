@@ -12,7 +12,11 @@ from handlers.admin import (
     show_registered_users,
 )
 from handlers.broadcast import send_broadcast, start_broadcast
-from handlers.offhours_visits import offhours_visit_callback, open_offhours_visits
+from handlers.offhours_visits import (
+    offhours_visit_callback,
+    open_offhours_visits,
+    show_coordinator_bookings,
+)
 from handlers.issuance import (
     issuance_callback,
     issuance_menu_message,
@@ -127,6 +131,7 @@ def build_conversation_handler() -> ConversationHandler:
             MessageHandler(filters.Regex(r"^Загрузить обучение$"), open_training_menu),
             MessageHandler(filters.Regex(r"^Мои обучения$"), open_my_training_menu),
             MessageHandler(filters.Regex(r"^🏪 Внерабочие посещения$"), open_offhours_visits),
+            MessageHandler(filters.Regex(r"^Брони$"), show_coordinator_bookings),
             MessageHandler(filters.Regex(r"^Определить команду$"), start_team_selection),
             MessageHandler(filters.Regex(r"^📢 Рассылка$"), start_broadcast),
             MessageHandler(filters.Regex(r"^📦 Выдача$"), start_issuance),
