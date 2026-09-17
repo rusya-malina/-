@@ -124,7 +124,7 @@ def test_training_two_guard_message() -> None:
 
 def test_training_upload_returns_to_employee_list() -> None:
     candidates = [{"user_id": "100", "name": "Сотрудник A", "group": "A LAMP"}]
-    document = SimpleNamespace(file_name="training.xlsx", file_id="telegram-file-one")
+    document = SimpleNamespace(file_name="training.pdf", file_id="telegram-file-one")
     message = SimpleNamespace(
         chat_id=900,
         message_id=901,

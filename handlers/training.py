@@ -41,6 +41,7 @@ from storage import load_json
 TRAINING_LABELS = {TRAINING_ONE: "Обучение один", TRAINING_TWO: "Обучение два"}
 TRAINING_FILE_PATHS = {TRAINING_ONE: TRAINING_ONE_FILE, TRAINING_TWO: TRAINING_TWO_FILE}
 TRAINING_OTHER_TYPES = {TRAINING_ONE: TRAINING_TWO, TRAINING_TWO: TRAINING_ONE}
+TRAINING_ALLOWED_EXTENSIONS = (".xlsx", ".xls", ".pdf")
 
 
 def is_training_group(group: str | None) -> bool:
@@ -191,8 +192,8 @@ async def training_type_callback(update: Update, context: ContextTypes.DEFAULT_T
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text=(
-            f"📚 Отправьте Excel-файл для сотрудника **{recipient_name}**.\n"
-            "Поддерживаются файлы `.xlsx` и `.xls`."
+            f"📚 Отправьте файл для сотрудника **{recipient_name}**.\n"
+            "Поддерживаются файлы `.xlsx`, `.xls` и `.pdf`."
         ),
         reply_markup=cancel_keyboard,
         parse_mode="Markdown",
@@ -201,15 +202,21 @@ async def training_type_callback(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def _save_latest_training_file(document, context: ContextTypes.DEFAULT_TYPE, training_type: str) -> None:
-    destination = Path(TRAINING_FILE_PATHS[training_type])
-    await asyncio.to_thread(destination.parent.mkdir, parents=True, exist_ok=True)
-    suffix = ".xlsx" if str(document.file_name or "").lower().endswith(".xlsx") else ".xls"
-    fd, temporary_path = tempfile.mkstemp(prefix=".training_", suffix=suffix, dir=str(destination.parent))
+    base_destination = Path(TRAINING_FILE_PATHS[training_type])
+    await asyncio.to_thread(base_destination.parent.mkdir, parents=True, exist_ok=True)
+    file_name = str(document.file_name or "").lower()
+    suffix = Path(file_name).suffix if Path(file_name).suffix in TRAINING_ALLOWED_EXTENSIONS else ".xlsx"
+    destination = base_destination.with_suffix(suffix)
+    fd, temporary_path = tempfile.mkstemp(prefix=".training_", suffix=suffix, dir=str(base_destination.parent))
     os.close(fd)
     temporary = Path(temporary_path)
     try:
         telegram_file = await context.bot.get_file(document.file_id)
         await telegram_file.download_to_drive(temporary_path)
+        for extension in TRAINING_ALLOWED_EXTENSIONS:
+            old_file = base_destination.with_suffix(extension)
+            if old_file != destination and await asyncio.to_thread(old_file.exists):
+                await asyncio.to_thread(old_file.unlink)
         await asyncio.to_thread(temporary.replace, destination)
     finally:
         if await asyncio.to_thread(temporary.exists):
@@ -233,8 +240,8 @@ async def process_training_file(update: Update, context: ContextTypes.DEFAULT_TY
 
     document = update.message.document
     file_name = str(document.file_name or "").lower()
-    if not file_name.endswith((".xlsx", ".xls")):
-        await update.message.reply_text("⚠️ Отправьте Excel-файл с расширением `.xlsx` или `.xls`.")
+    if not file_name.endswith(TRAINING_ALLOWED_EXTENSIONS):
+        await update.message.reply_text("⚠️ Отправьте файл с расширением `.xlsx`, `.xls` или `.pdf`.")
         return TRAINING_UPLOAD
 
     try:
@@ -328,15 +335,21 @@ async def my_training_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         except TelegramError as error:
             logging.warning("Не удалось выдать Telegram file_id для %s пользователю %s: %s", training_type, query.from_user.id, error)
 
-    path = Path(TRAINING_FILE_PATHS[training_type])
+    base_path = Path(TRAINING_FILE_PATHS[training_type])
+    path = next(
+        (base_path.with_suffix(extension) for extension in TRAINING_ALLOWED_EXTENSIONS if base_path.with_suffix(extension).exists()),
+        base_path,
+    )
     if not await asyncio.to_thread(path.exists):
         await query.message.reply_text(f"{TRAINING_LABELS[training_type]} пока не загружено.")
         return MY_TRAINING_MENU
     try:
         content = await asyncio.to_thread(path.read_bytes)
+        document = BytesIO(content)
+        document.name = path.name
         await context.bot.send_document(
             chat_id=query.from_user.id,
-            document=BytesIO(content),
+            document=document,
             caption=f"📚 {TRAINING_LABELS[training_type]}",
         )
         await query.message.reply_text("Выберите обучение ещё раз:", reply_markup=my_training_markup())
