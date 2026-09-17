@@ -18,6 +18,7 @@ VENUES = {
 }
 ALLOWED_WEEKDAYS = frozenset({3, 4, 5, 6})  # Thursday through Sunday
 MAX_EMPLOYEES_PER_VENUE_DAY = 2
+MAX_USER_VENUE_MONTHLY_BOOKINGS = 2
 
 
 def local_today() -> date:
@@ -124,6 +125,28 @@ class OffhoursVisitService:
                     },
                 )
 
+            monthly_venue_bookings = [
+                record
+                for record in active
+                if (
+                    str(record.get("user_id")) == user_key
+                    and record.get("venue") == venue
+                    and str(record.get("visit_date", ""))[:7] == parsed_date.isoformat()[:7]
+                )
+            ]
+            if len(monthly_venue_bookings) >= MAX_USER_VENUE_MONTHLY_BOOKINGS:
+                return OperationResult(
+                    False,
+                    "user_venue_month_full",
+                    "offhours_user_venue_month_full",
+                    details={
+                        "venue": venue,
+                        "venue_name": VENUES[venue],
+                        "month": parsed_date.strftime("%m.%Y"),
+                        "bookings": len(monthly_venue_bookings),
+                    },
+                )
+
             venue_day = [
                 record
                 for record in active
@@ -222,6 +245,7 @@ class OffhoursVisitService:
 __all__ = [
     "ALLOWED_WEEKDAYS",
     "MAX_EMPLOYEES_PER_VENUE_DAY",
+    "MAX_USER_VENUE_MONTHLY_BOOKINGS",
     "OffhoursVisitService",
     "local_today",
     "month_visit_dates",

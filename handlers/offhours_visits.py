@@ -267,6 +267,13 @@ async def offhours_visit_callback(update: Update, context: ContextTypes.DEFAULT_
         elif result.code == "venue_full":
             await query.answer("Пока вы подтверждали, два места уже заняли. Выберите другой день.", show_alert=True)
             await _render_venue(query, venue)
+        elif result.code == "user_venue_month_full":
+            venue_name = escape(str(result.details.get("venue_name", VENUES.get(venue, "заведение"))))
+            month = escape(str(result.details.get("month", "текущем месяце")))
+            await query.answer(
+                f"Лимит достигнут: {venue_name} можно бронировать не более 2 раз за {month}.",
+                show_alert=True,
+            )
         else:
             await query.answer("Не удалось создать бронь. Проверьте дату и попробуйте снова.", show_alert=True)
         return OFFHOURS_VISITS_MENU

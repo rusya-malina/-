@@ -66,6 +66,29 @@ async def main() -> None:
             assert len(user_bookings) == 1
             assert user_bookings[0]["venue"] == "kuranty"
 
+            monthly_bla_bla_day = first_day + timedelta(days=7)
+            monthly_bla_bla = await service.book(
+                "101", "Алина A", "A LAMP", "bla_bla_bar", monthly_bla_bla_day.isoformat()
+            )
+            assert monthly_bla_bla.ok
+            monthly_bla_bla_second = await service.book(
+                "101", "Алина A", "A LAMP", "bla_bla_bar", (first_day + timedelta(days=14)).isoformat()
+            )
+            assert monthly_bla_bla_second.ok
+            monthly_bla_bla_limit = await service.book(
+                "101", "Алина A", "A LAMP", "bla_bla_bar", (first_day + timedelta(days=21)).isoformat()
+            )
+            assert not monthly_bla_bla_limit.ok and monthly_bla_bla_limit.code == "user_venue_month_full"
+
+            monthly_kuranty_second = await service.book(
+                "101", "Алина A", "A LAMP", "kuranty", (second_day + timedelta(days=7)).isoformat()
+            )
+            assert monthly_kuranty_second.ok
+            monthly_kuranty_limit = await service.book(
+                "101", "Алина A", "A LAMP", "kuranty", (second_day + timedelta(days=14)).isoformat()
+            )
+            assert not monthly_kuranty_limit.ok and monthly_kuranty_limit.code == "user_venue_month_full"
+
             capacity_day = first_day + timedelta(days=7)
             capacity_results = await asyncio.gather(
                 *(
@@ -97,7 +120,7 @@ async def main() -> None:
 
             stored = json.loads(path.read_text(encoding="utf-8"))
             assert stored["schema_version"] == 1
-            assert len(stored["history"]) == 8
+            assert len(stored["history"]) == 11
             assert stored["bookings"][first.changed_ids[0]]["status"] == "cancelled"
     finally:
         visit_module.local_today = original_today
