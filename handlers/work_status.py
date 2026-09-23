@@ -114,6 +114,17 @@ async def show_work_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, reply_markup=_status_markup(user_id, status), parse_mode="Markdown")
 
 
+async def show_working_lists(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show the combined A/R LAMP work-status lists for coordinators."""
+    user_id = str(update.effective_user.id)
+    group = await get_user_group(user_id)
+    if group not in COORDINATOR_GROUPS:
+        await update.message.reply_text("⚠️ Списки работающих доступны только координаторам A/R.")
+        return
+    overview = await get_coordinator_overview()
+    await update.message.reply_text(_format_overview(overview), parse_mode="Markdown")
+
+
 async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
