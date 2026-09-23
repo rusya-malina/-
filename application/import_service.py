@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from config import GROUPS_FILE, ISSUANCE_FILE, KPI_FILE, LATEST_ISSUANCE_FILE, LATEST_KPI_FILE, USERS_FILE
+from config import GROUPS_FILE, ISSUANCE_FILE, KPI_FILE, KPI_REFERENCE_FILE, LATEST_ISSUANCE_FILE, LATEST_KPI_FILE, USERS_FILE
 from data_models import make_group_record, make_user_record, normalize_issuance_record, user_name
 from repositories.json_repository import JsonRepository, transaction
+from application.kpi_reference_service import resolve_kpi_reference_plans
 from services import _normalize_person_name
 from storage import replace_latest_file
 
@@ -80,6 +81,7 @@ class ImportService:
     issuance: JsonRepository
     users: JsonRepository
     groups: JsonRepository | None = None
+    kpi_reference: JsonRepository | None = None
 
     @classmethod
     def from_default_storage(cls) -> "ImportService":
@@ -88,12 +90,17 @@ class ImportService:
             issuance=JsonRepository(ISSUANCE_FILE),
             users=JsonRepository(USERS_FILE),
             groups=JsonRepository(GROUPS_FILE),
+            kpi_reference=JsonRepository(KPI_REFERENCE_FILE),
         )
 
     async def prepare_kpi_import(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
         users_data = await self.users.load()
         existing_kpi = await self.kpi.load()
         groups_data = await self.groups.load() if self.groups is not None else {}
+        reference = await self.kpi_reference.load() if self.kpi_reference is not None else {}
+        reference_plans = resolve_kpi_reference_plans(reference)
+        if not reference_plans:
+            raise ImportSafetyError("KPI reference is missing or cannot be mapped to GT/Microacts/Re-trafic")
         users_before = dict(users_data)
         valid_rows: list[dict[str, Any]] = []
         for row in rows:
@@ -135,12 +142,12 @@ class ImportService:
             clean_name = _normalize_person_name(employee_name)
             kpi_data[clean_name] = {
                 "original_name": employee_name,
-                "gt_plan": float(row["gt_plan"]),
+                "gt_plan": reference_plans["gt_plan"],
                 "gt_fact": float(row["gt_fact"]),
-                "micro_plan": float(row["micro_plan"]),
+                "micro_plan": reference_plans["micro_plan"],
                 "micro_las_fact": float(row["micro_las_fact"]),
                 "micro_lau_fact": float(row["micro_lau_fact"]),
-                "retrafic_plan": float(row["retrafic_plan"]),
+                "retrafic_plan": reference_plans["retrafic_plan"],
                 "retrafic_fact": float(row["retrafic_fact"]),
                 "office_hours": float(row["office_hours"]),
                 "field_hours": float(row["field_hours"]),
