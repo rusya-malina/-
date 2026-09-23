@@ -188,7 +188,7 @@ async def accept_pair_invite(invite_id: str, receiver_id: str) -> dict[str, Any]
     sender_name = invite["sender_name"]
     receiver_name = invite["receiver_name"]
 
-    async def mutate(data: dict[str, Any]) -> None:
+    def mutate(data: dict[str, Any]) -> None:
         current = data[_today()]
         current["invites"][invite_id]["status"] = "accepted"
         current["invites"][invite_id]["accepted_at"] = datetime.now(ZoneInfo(BOT_TIMEZONE)).isoformat()
@@ -218,7 +218,7 @@ async def reject_pair_invite(invite_id: str, reason: str = "rejected") -> dict[s
     sender_id = str(invite["sender_id"])
     receiver_id = str(invite["receiver_id"])
 
-    async def mutate(data: dict[str, Any]) -> None:
+    def mutate(data: dict[str, Any]) -> None:
         current = data[_today()]
         current["invites"][invite_id]["status"] = "rejected" if reason == "user_rejected" else "cancelled"
         current["invites"][invite_id]["rejected_at"] = datetime.now(ZoneInfo(BOT_TIMEZONE)).isoformat()
