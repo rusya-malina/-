@@ -42,6 +42,7 @@ from config import (
     TRAINING_TWO_FILE,
     USER_REQUESTS_FILE,
     USERS_FILE,
+    WORK_STATUS_FILE,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ JSON_SYNC_PATHS = (
     ISSUANCE_FILE,
     TRAINING_HISTORY_FILE,
     OFFHOURS_VISITS_FILE,
+    WORK_STATUS_FILE,
     ADMIN_SESSION_FILE,
 )
 DATA_SYNC_PATHS = tuple(
