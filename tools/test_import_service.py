@@ -20,6 +20,7 @@ def test_import_service() -> None:
         kpi_path = root / "kpi.json"
         issuance_path = root / "issuance.json"
         users_path = root / "users.json"
+        reference_path = root / "kpi_reference.json"
         kpi_path.write_text(
             json.dumps(
                 {
@@ -33,6 +34,7 @@ def test_import_service() -> None:
             encoding="utf-8",
         )
         issuance_path.write_text("{}", encoding="utf-8")
+        reference_path.write_text(json.dumps({"items": [{"name": "Микроакты", "weight_percent": 40, "quantity": 160}, {"name": "ГТ", "weight_percent": 35, "quantity": 112}, {"name": "Ретрафик", "weight_percent": 25, "quantity": 15}]}, ensure_ascii=False), encoding="utf-8")
         users_path.write_text(
             json.dumps(
                 {
@@ -47,6 +49,7 @@ def test_import_service() -> None:
             JsonRepository(str(kpi_path)),
             JsonRepository(str(issuance_path)),
             JsonRepository(str(users_path)),
+            JsonRepository(str(reference_path)),
         )
 
         async def scenario() -> None:
@@ -54,12 +57,9 @@ def test_import_service() -> None:
                 [
                     {
                         "full_name": "Test Employee",
-                        "gt_plan": 90,
                         "gt_fact": 10,
-                        "micro_plan": 128,
                         "micro_las_fact": 20,
                         "micro_lau_fact": 30,
-                        "retrafic_plan": 15,
                         "retrafic_fact": 4,
                         "office_hours": 8,
                         "field_hours": 16,
@@ -72,6 +72,9 @@ def test_import_service() -> None:
             await service.apply_kpi_import(kpi)
             applied_kpi = json.loads(kpi_path.read_text(encoding="utf-8"))
             assert "test employee" in applied_kpi
+            assert applied_kpi["test employee"]["gt_plan"] == 112.0
+            assert applied_kpi["test employee"]["micro_plan"] == 160.0
+            assert applied_kpi["test employee"]["retrafic_plan"] == 15.0
             assert "old employee" in applied_kpi
             users = json.loads(users_path.read_text(encoding="utf-8"))
             assert "excel_old employee" in users
