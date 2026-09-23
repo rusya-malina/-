@@ -59,7 +59,7 @@ async def set_work_status(user_id: str, status: str) -> dict[str, Any]:
         return {"ok": False, "message": "⚠️ Сотрудник не найден в команде A/R."}
 
     day_key = _today()
-    async def mutate(data: dict[str, Any]) -> None:
+    def mutate(data: dict[str, Any]) -> None:
         day = data.setdefault(day_key, {"employees": {}, "invites": {}})
         employees = day.setdefault("employees", {})
         record = employees.setdefault(user_id, {})
@@ -148,7 +148,7 @@ async def create_pair_invite(sender_id: str, receiver_id: str) -> dict[str, Any]
             return {"ok": False, "message": "ℹ️ У коллеги уже есть приглашение вам."}
 
     invite_id = f"{sender_id}:{receiver_id}:{_today()}"
-    async def mutate(data: dict[str, Any]) -> None:
+    def mutate(data: dict[str, Any]) -> None:
         current = data.setdefault(_today(), {"employees": {}, "invites": {}})
         current.setdefault("invites", {})[invite_id] = {
             "invite_id": invite_id,
