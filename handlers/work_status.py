@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -15,7 +16,7 @@ from application.work_status_service import (
     set_work_status,
 )
 from bot_context import ContextTypes, InlineKeyboardButton, InlineKeyboardMarkup, Update
-from config import BOT_TIMEZONE, GROUPS_FILE, USERS_FILE
+from config import BOT_TIMEZONE
 from roles import get_user_group
 
 STATUS_BUTTON = "📍 Статус работы"
