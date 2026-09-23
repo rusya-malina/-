@@ -16,6 +16,14 @@ from repositories.json_repository import JsonRepository
 VENUES = {
     "bla_bla_bar": "Bla Bla Bar",
     "kuranty": "Куранты",
+    "spletni": "Сплетни",
+    "zebra_hype": "Зебра (Hype)",
+    "q_bar": "Q bar",
+    "john_dilinger": "John Dilinger",
+    "midnight": "Midnight",
+    "zevon": "Зевон",
+    "shanghai": "Шанхай",
+    "gao_gao": "Гао Гао",
 }
 ALLOWED_WEEKDAYS = frozenset({3, 4, 5, 6})  # Thursday through Sunday
 MAX_EMPLOYEES_PER_VENUE_DAY = 2

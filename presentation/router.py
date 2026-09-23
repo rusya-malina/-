@@ -37,6 +37,7 @@ from handlers.kpi import (
     set_plan_retrafic,
 )
 from handlers.offhours_visits import (
+    coordinator_bookings_callback,
     offhours_visit_callback,
     open_offhours_visits,
     show_coordinator_bookings,
@@ -279,6 +280,7 @@ def build_conversation_handler() -> ConversationHandler:
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             ],
             OFFHOURS_VISITS_MENU: [
+                CallbackQueryHandler(coordinator_bookings_callback, pattern=r"^offh_report_"),
                 CallbackQueryHandler(offhours_visit_callback, pattern=r"^offh_"),
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             ],

@@ -68,8 +68,20 @@ async def main() -> None:
     assert inline_callbacks(handler.offhours_home_markup()) == [
         "offh_venue:bla_bla_bar",
         "offh_venue:kuranty",
+        "offh_venue:spletni",
+        "offh_venue:zebra_hype",
+        "offh_venue:q_bar",
+        "offh_venue:john_dilinger",
+        "offh_venue:midnight",
+        "offh_venue:zevon",
+        "offh_venue:shanghai",
+        "offh_venue:gao_gao",
         "offh_my",
     ]
+    assert handler.VENUES["gao_gao"] == "Гао Гао"
+    report_labels = inline_labels(handler.coordinator_venues_markup())
+    assert report_labels[:4] == ["Bla Bla Bar", "Куранты", "Сплетни", "Зебра (Hype)"]
+    assert "Гао Гао" in report_labels
     assert "🏪 Внерабочие посещения" in reply_labels(get_main_keyboard(101, "A LAMP"))
     assert "🏪 Внерабочие посещения" in reply_labels(get_main_keyboard(102, "R LAMP"))
     assert "🏪 Внерабочие посещения" not in reply_labels(get_main_keyboard(103, "coor A"))
@@ -165,17 +177,26 @@ async def main() -> None:
             message=coordinator_message,
         )
         await handler.show_coordinator_bookings(coordinator_update, context)
-        report = coordinator_message.reply_text.await_args.args[0]
-        assert "Брони за 09.2026" in report
+        selector = coordinator_message.reply_text.await_args.args[0]
+        assert "Выберите заведение" in selector
+        selector_markup = coordinator_message.reply_text.await_args.kwargs["reply_markup"]
+        assert "offh_report_venue:bla_bla_bar" in inline_callbacks(selector_markup)
+
+        report_query = FakeQuery("offh_report_venue:bla_bla_bar")
+        await handler.coordinator_bookings_callback(
+            SimpleNamespace(callback_query=report_query, effective_user=report_query.from_user), context
+        )
+        report = report_query.message.edit_text.await_args.args[0]
+        assert "Bla Bla Bar" in report
         assert "Ч 10.09 — Алина A + Рита R" in report
-        assert "Куранты" in report and "—" in report
+        assert "Куранты" not in report
 
         handler.get_user_group = AsyncMock(return_value="MNG")
         manager_message = SimpleNamespace(reply_text=AsyncMock())
         manager_update = SimpleNamespace(effective_user=SimpleNamespace(id=404), message=manager_message)
         await handler.show_coordinator_bookings(manager_update, context)
-        manager_report = manager_message.reply_text.await_args.args[0]
-        assert "Брони за 09.2026" in manager_report and "Алина A + Рита R" in manager_report
+        manager_selector = manager_message.reply_text.await_args.args[0]
+        assert "Выберите заведение" in manager_selector
     finally:
         handler._employee_identity = original_identity
         handler.OffhoursVisitService.from_default_storage = original_service
