@@ -152,6 +152,23 @@ class ImportService:
         for row in valid_rows:
             employee_name = str(row["full_name"]).strip()
             clean_name = _normalize_person_name(employee_name)
+            row_columns = {_normalized_reference_name(key): key for key in row}
+            missing = [display for key, display in required_fact_names.items() if key not in row_columns]
+            if missing:
+                raise ImportSafetyError(
+                    "В Excel отсутствуют столбцы фактических значений для KPI: "
+                    + ", ".join(missing)
+                    + ". Добавьте их в файл и загрузите повторно."
+                )
+            custom_facts: dict[str, float] = {}
+            for key, display in required_fact_names.items():
+                value = row[row_columns[key]]
+                if value != value:
+                    value = 0
+                try:
+                    custom_facts[display] = float(value or 0)
+                except (TypeError, ValueError):
+                    raise ImportSafetyError(f"Факт KPI «{display}» должен быть числом") from None
             kpi_data[clean_name] = {
                 "original_name": employee_name,
                 "gt_plan": reference_plans["gt_plan"],
