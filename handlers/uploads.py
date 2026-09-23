@@ -5,7 +5,7 @@ import re
 from telegram.error import TelegramError
 
 from application.import_service import ImportSafetyError, ImportService
-from application.kpi_reference_service import KpiReferenceValidationError, build_kpi_reference, save_kpi_reference, load_kpi_reference, resolve_reference_fact_columns, _normalized_reference_name
+from application.kpi_reference_service import KpiReferenceValidationError, build_kpi_reference, save_kpi_reference
 from application.team_kpi_service import TeamKpiService
 from bot_context import (
     ContextTypes,
