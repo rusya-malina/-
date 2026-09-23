@@ -126,7 +126,12 @@ async def save_json(data: dict, filepath: str) -> None:
     await asyncio.to_thread(_sync_save_json, data, filepath)
 
 
-async def _sync_saved_paths(filepaths: Iterable[str]) -> None:
+async def _read_bytes_sync(filepath: str) -> bytes:
+    with open(filepath, "rb") as original_file:
+        return original_file.read()
+
+
+def _sync_saved_paths(filepaths: Iterable[str]) -> None:
     try:
         from github_sync import DATA_SYNC_PATHS, sync_data_state
 
@@ -164,8 +169,7 @@ async def update_many_json(filepaths: Iterable[str], mutator: Callable[[dict[str
                 if not os.path.exists(filepath):
                     originals[filepath] = None
                 else:
-                    with open(filepath, "rb") as original_file:
-                        originals[filepath] = original_file.read()
+                    originals[filepath] = await asyncio.to_thread(_read_bytes_sync, filepath)
                 parent = os.path.dirname(os.path.abspath(filepath))
                 os.makedirs(parent, exist_ok=True)
                 fd, temp_path = tempfile.mkstemp(prefix=f".{os.path.basename(filepath)}.", suffix=".txn", dir=parent)
