@@ -172,7 +172,7 @@ def _aggregate_metrics(records: list[dict[str, Any]], reference: dict[str, Any] 
             name = str(item.get("name", "")).strip()
             if not name or _metric_key(name) in core_names:
                 continue
-            plan = _number(item.get("quantity"))
+            plan = _number(item.get("quantity")) * len(records)
             fact = sum(
                 _number(record.get("kpi", {}).get("additional_kpi_facts", {}).get(name))
                 for record in records
