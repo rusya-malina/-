@@ -55,8 +55,12 @@ def main() -> None:
         users = json.loads((temp / "users.json").read_text(encoding="utf-8"))
         groups = json.loads((temp / "groups.json").read_text(encoding="utf-8"))
         issuance = json.loads((temp / "issuance_data.json").read_text(encoding="utf-8"))
-        assert users and all(isinstance(record, dict) and record.get("schema_version") == 1 for record in users.values())
-        assert groups and all(isinstance(record, dict) and record.get("schema_version") == 1 for record in groups.values())
+        assert users and all(
+            isinstance(record, dict) and record.get("schema_version") == 1 for record in users.values()
+        )
+        assert groups and all(
+            isinstance(record, dict) and record.get("schema_version") == 1 for record in groups.values()
+        )
         assert issuance.get("_schema_version") == 2
         assert all(key == "_schema_version" or record.get("schema_version") == 1 for key, record in issuance.items())
         print("SCHEMA_MIGRATION PASS")

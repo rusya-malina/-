@@ -1,4 +1,5 @@
 """Regression tests for the Telegram webhook transport."""
+
 from __future__ import annotations
 
 import asyncio
@@ -76,13 +77,22 @@ def test_webhook_server_routes_and_deduplicates() -> None:
         assert request(port, "HEAD", "/")[0] == 200
         assert request(port, "POST", "/telegram/webhook", b"{}", "wrong")[0] == 403
 
-        payload = json.dumps({"update_id": 1001, "message": {"message_id": 1, "date": 1, "chat": {"id": 1, "type": "private"}, "text": "/start", "from": {"id": 1, "is_bot": False, "first_name": "Test"}}}).encode()
+        payload = json.dumps(
+            {
+                "update_id": 1001,
+                "message": {
+                    "message_id": 1,
+                    "date": 1,
+                    "chat": {"id": 1, "type": "private"},
+                    "text": "/start",
+                    "from": {"id": 1, "is_bot": False, "first_name": "Test"},
+                },
+            }
+        ).encode()
         status, result = request(port, "POST", "/telegram/webhook", payload, "test-secret")
         assert status == 200
         assert result["duplicate"] is False
-        duplicate_status, duplicate_result = request(
-            port, "POST", "/telegram/webhook", payload, "test-secret"
-        )
+        duplicate_status, duplicate_result = request(port, "POST", "/telegram/webhook", payload, "test-secret")
         assert duplicate_status == 200
         assert duplicate_result["duplicate"] is True
 

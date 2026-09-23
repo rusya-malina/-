@@ -1,4 +1,5 @@
 """Application use cases for team selection and moderation."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -32,7 +33,9 @@ class TeamService:
             return OperationResult(False, "invalid_input", "invalid_team_request")
         record = team_request({"user_id": key, "name": clean_name, "team": clean_team}, user_id=key)
         await self.requests.update(lambda data: data.__setitem__(key, record))
-        return OperationResult(True, "created", "team_request_created", (key,), {"name": clean_name, "team": clean_team})
+        return OperationResult(
+            True, "created", "team_request_created", (key,), {"name": clean_name, "team": clean_team}
+        )
 
     async def get_request(self, user_id: int | str) -> dict[str, Any] | None:
         return (await self.requests.load()).get(str(user_id))

@@ -1,4 +1,5 @@
 """Contract tests for KPI application use cases."""
+
 from __future__ import annotations
 
 import asyncio
@@ -24,9 +25,7 @@ def test_kpi_service() -> None:
         service = KpiService(JsonRepository(str(kpi_path)), JsonRepository(str(plans_path)))
 
         async def scenario() -> None:
-            result = await service.set_default_plans(
-                {"gt_plan": "100", "micro_plan": 140, "retrafic_plan": "20"}
-            )
+            result = await service.set_default_plans({"gt_plan": "100", "micro_plan": 140, "retrafic_plan": "20"})
             assert result.ok
             result = await service.save_manual_entry(
                 "Test Employee",

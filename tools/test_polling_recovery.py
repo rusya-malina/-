@@ -1,4 +1,5 @@
 """Regression tests for automatic Telegram polling recovery."""
+
 from __future__ import annotations
 
 import asyncio

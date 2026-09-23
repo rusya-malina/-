@@ -1,4 +1,5 @@
 """Тяжёлые операции с Excel, изолированные от меню и основного роутера."""
+
 import re
 
 from telegram.error import TelegramError
@@ -87,7 +88,9 @@ def _management_names(users: dict, groups: dict, teams: dict) -> dict[str, str]:
         for user_id, record in source.items():
             if not isinstance(record, dict):
                 continue
-            group = _management_group(record.get("group") or record.get("team") or record.get("role") or record.get("position"))
+            group = _management_group(
+                record.get("group") or record.get("team") or record.get("role") or record.get("position")
+            )
             if not group:
                 continue
             user_record = users.get(str(user_id), record)
@@ -154,7 +157,9 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
     file_path = None
     try:
         os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
-        with tempfile.NamedTemporaryFile(prefix=".kpi_", suffix=".xlsx", dir=UPLOADED_DATA_DIR, delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(
+            prefix=".kpi_", suffix=".xlsx", dir=UPLOADED_DATA_DIR, delete=False
+        ) as temp_file:
             file_path = temp_file.name
         file = await context.bot.get_file(document.file_id)
         await file.download_to_drive(file_path)
@@ -170,18 +175,31 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         def read_and_clean_excel(path):
             df = pd.read_excel(path)
             required_cols = [
-                "full_name", "gt_plan", "gt_fact", "micro_plan",
-                "micro_las_fact", "micro_lau_fact", "retrafic_plan",
-                "retrafic_fact", "office_hours", "field_hours",
+                "full_name",
+                "gt_plan",
+                "gt_fact",
+                "micro_plan",
+                "micro_las_fact",
+                "micro_lau_fact",
+                "retrafic_plan",
+                "retrafic_fact",
+                "office_hours",
+                "field_hours",
             ]
             if not all(col in df.columns for col in required_cols):
                 return None
 
             # Заменяем NaN на 0 для числовых столбцов
             numeric_cols = [
-                "gt_plan", "gt_fact", "micro_plan", "micro_las_fact",
-                "micro_lau_fact", "retrafic_plan", "retrafic_fact",
-                "office_hours", "field_hours",
+                "gt_plan",
+                "gt_fact",
+                "micro_plan",
+                "micro_las_fact",
+                "micro_lau_fact",
+                "retrafic_plan",
+                "retrafic_fact",
+                "office_hours",
+                "field_hours",
             ]
             df[numeric_cols] = df[numeric_cols].fillna(0)
             return df
@@ -301,7 +319,9 @@ async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_T
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text="📥 Раздел загрузки данных:",
-            reply_markup=get_data_keyboard() if staged.get("kind") in {"kpi", "kpi_reference"} else get_issuance_keyboard(),
+            reply_markup=get_data_keyboard()
+            if staged.get("kind") in {"kpi", "kpi_reference"}
+            else get_issuance_keyboard(),
         )
         return KPI_MENU_STATE if staged.get("kind") in {"kpi", "kpi_reference"} else ISSUANCE_MENU
 
@@ -383,7 +403,9 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
 
     document = update.message.document
     if not document or not document.file_name.lower().endswith(".xlsx"):
-        await update.message.reply_text("⚠️ Отправьте файл в формате `.xlsx` или нажмите «Назад».", parse_mode="Markdown")
+        await update.message.reply_text(
+            "⚠️ Отправьте файл в формате `.xlsx` или нажмите «Назад».", parse_mode="Markdown"
+        )
         return ISSUANCE_EXCEL_UPLOAD
 
     temp_path = None
@@ -397,7 +419,17 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
             frame = pd.read_excel(path, dtype=object)
             name_column = _find_column(
                 frame.columns,
-                ["full_name", "name", "employee", "employee_name", "фио", "фио сотрудника", "сотрудник", "имя", "имя сотрудника"],
+                [
+                    "full_name",
+                    "name",
+                    "employee",
+                    "employee_name",
+                    "фио",
+                    "фио сотрудника",
+                    "сотрудник",
+                    "имя",
+                    "имя сотрудника",
+                ],
             )
             mints_column = _find_column(
                 frame.columns,
@@ -442,7 +474,9 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
             )
             return ISSUANCE_MENU
         if not rows:
-            await update.message.reply_text("❌ В Excel нет заполненных строк с сотрудниками.", reply_markup=get_issuance_keyboard())
+            await update.message.reply_text(
+                "❌ В Excel нет заполненных строк с сотрудниками.", reply_markup=get_issuance_keyboard()
+            )
             return ISSUANCE_MENU
 
         service = ImportService.from_default_storage()
@@ -463,7 +497,10 @@ async def process_issuance_excel_file(update: Update, context: ContextTypes.DEFA
         return ISSUANCE_EXCEL_UPLOAD
     except (OSError, KeyError, StorageError, TypeError, ValueError, TelegramError) as error:
         logging.exception("Ошибка загрузки Excel выдач: %s", error)
-        await update.message.reply_text("❌ Не удалось обработать Excel-файл. Проверьте формат и попробуйте снова.", reply_markup=get_issuance_keyboard())
+        await update.message.reply_text(
+            "❌ Не удалось обработать Excel-файл. Проверьте формат и попробуйте снова.",
+            reply_markup=get_issuance_keyboard(),
+        )
         return ISSUANCE_MENU
     finally:
         if temp_path and os.path.exists(temp_path):
@@ -499,13 +536,17 @@ async def process_monthly_kpi_file(update: Update, context: ContextTypes.DEFAULT
         return ConversationHandler.END
     document = update.message.document
     if not document or not document.file_name.lower().endswith(".xlsx"):
-        await update.message.reply_text("⚠️ Отправьте файл в формате `.xlsx` или нажмите «Назад».", parse_mode="Markdown")
+        await update.message.reply_text(
+            "⚠️ Отправьте файл в формате `.xlsx` или нажмите «Назад».", parse_mode="Markdown"
+        )
         return KPI_REFERENCE_UPLOAD
 
     temp_path = None
     try:
         os.makedirs(UPLOADED_DATA_DIR, exist_ok=True)
-        with tempfile.NamedTemporaryFile(prefix="monthly_kpi_", suffix=".xlsx", dir=UPLOADED_DATA_DIR, delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(
+            prefix="monthly_kpi_", suffix=".xlsx", dir=UPLOADED_DATA_DIR, delete=False
+        ) as temp_file:
             temp_path = temp_file.name
         remote_file = await context.bot.get_file(document.file_id)
         await remote_file.download_to_drive(temp_path)
@@ -547,7 +588,11 @@ async def process_monthly_kpi_file(update: Update, context: ContextTypes.DEFAULT
             lines.append(
                 f"• {item['name']}: вес {item['weight_percent']:.2f}%, "
                 f"количество {item['quantity']:g}"
-                + (f", threshold {item['threshold_percent']:.2f}%" if item.get("threshold_percent") is not None else ", threshold не задан")
+                + (
+                    f", threshold {item['threshold_percent']:.2f}%"
+                    if item.get("threshold_percent") is not None
+                    else ", threshold не задан"
+                )
             )
         lines.extend(["", "Данные ещё не записаны. Подтвердите импорт или отмените его."])
         await update.message.reply_text("\n".join(lines), reply_markup=_excel_preview_markup(), parse_mode="Markdown")
@@ -555,7 +600,9 @@ async def process_monthly_kpi_file(update: Update, context: ContextTypes.DEFAULT
     except KpiReferenceValidationError as error:
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
-        await update.message.reply_text(f"❌ **Месячный KPI не загружен:** {error}", reply_markup=get_data_keyboard(), parse_mode="Markdown")
+        await update.message.reply_text(
+            f"❌ **Месячный KPI не загружен:** {error}", reply_markup=get_data_keyboard(), parse_mode="Markdown"
+        )
         return KPI_MENU_STATE
     except (OSError, TypeError, ValueError, TelegramError) as error:
         logging.exception("Ошибка чтения месячного KPI Excel: %s", error)
@@ -571,6 +618,7 @@ async def _apply_kpi_reference_import(staged: dict) -> None:
     source_path = staged.get("temp_path")
     if source_path and os.path.exists(source_path):
         import shutil
+
         os.makedirs(os.path.dirname(LATEST_KPI_REFERENCE_FILE), exist_ok=True)
         shutil.copy2(source_path, LATEST_KPI_REFERENCE_FILE)
         os.remove(source_path)

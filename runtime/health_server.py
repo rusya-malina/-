@@ -1,4 +1,5 @@
 """Render health server lifecycle."""
+
 from __future__ import annotations
 
 import threading

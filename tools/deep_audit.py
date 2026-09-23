@@ -55,9 +55,21 @@ def load_json_files() -> list[str]:
 
 def source_audit() -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
-    for path in [ROOT / "bot.py", ROOT / "app_factory.py", ROOT / "bot_context.py", ROOT / "storage.py", ROOT / "organization.py", ROOT / "keyboards.py", ROOT / "services.py", ROOT / "health.py", *sorted((ROOT / "handlers").glob("*.py"))]:
+    for path in [
+        ROOT / "bot.py",
+        ROOT / "app_factory.py",
+        ROOT / "bot_context.py",
+        ROOT / "storage.py",
+        ROOT / "organization.py",
+        ROOT / "keyboards.py",
+        ROOT / "services.py",
+        ROOT / "health.py",
+        *sorted((ROOT / "handlers").glob("*.py")),
+    ]:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        defs = [node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
+        defs = [
+            node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        ]
         result[str(path.relative_to(ROOT))] = defs
     return result
 
@@ -70,6 +82,7 @@ def main() -> None:
 
     print("AUDIT: building Application")
     from app_factory import build_application
+
     app = build_application("123456:TEST_TOKEN")
     print(f"  OK handler_groups={len(app.handlers)}")
     for group_index, handlers in app.handlers.items():
@@ -88,10 +101,20 @@ def main() -> None:
     for filename, defs in source_audit().items():
         print(f"  {filename}: {len(defs)} definitions")
 
-    text = "\n".join(path.read_text(encoding="utf-8") for path in [ROOT / "bot_context.py", ROOT / "organization.py", ROOT / "keyboards.py", ROOT / "app_factory.py", *(ROOT / "handlers").glob("*.py")])
+    text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in [
+            ROOT / "bot_context.py",
+            ROOT / "organization.py",
+            ROOT / "keyboards.py",
+            ROOT / "app_factory.py",
+            *(ROOT / "handlers").glob("*.py"),
+        ]
+    )
     checks = {
         "R LAMP present": "R LAMP" in text,
-        "old team label absent outside migration/test": "К LAMP" not in text.replace('record.get("team") == "К LAMP"', "").replace('assert "К LAMP" not in TEAM_OPTIONS', ""),
+        "old team label absent outside migration/test": "К LAMP"
+        not in text.replace('record.get("team") == "К LAMP"', "").replace('assert "К LAMP" not in TEAM_OPTIONS', ""),
         "user request button absent": "📝 Оставить заявку" not in text,
         "new admin requests button present": "📥 Заявки" in text,
         "requests callback present": "requests_callback" in text,

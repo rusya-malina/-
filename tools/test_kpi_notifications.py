@@ -1,4 +1,5 @@
 """Tests for KPI Excel notification delivery."""
+
 from __future__ import annotations
 
 import asyncio

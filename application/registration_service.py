@@ -1,4 +1,5 @@
 """Registration use cases independent from Telegram presentation."""
+
 from __future__ import annotations
 
 import re

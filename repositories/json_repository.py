@@ -1,4 +1,5 @@
 """Repository boundary over the existing atomic JSON storage."""
+
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable

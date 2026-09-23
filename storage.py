@@ -1,8 +1,9 @@
 """Асинхронный адаптер JSON-хранилищ бота."""
-from collections.abc import Callable, Iterable
-from contextlib import AsyncExitStack
+
 import shutil
 import tempfile
+from collections.abc import Callable, Iterable
+from contextlib import AsyncExitStack
 
 from bot_context import (
     ISSUANCE_FILE,
@@ -48,7 +49,9 @@ def replace_latest_file(source_path: str, latest_path: str) -> None:
     os.makedirs(parent, exist_ok=True)
     temporary_latest = None
     try:
-        with tempfile.NamedTemporaryFile(prefix=f".{os.path.basename(latest)}.", dir=parent, delete=False) as target_file:
+        with tempfile.NamedTemporaryFile(
+            prefix=f".{os.path.basename(latest)}.", dir=parent, delete=False
+        ) as target_file:
             temporary_latest = target_file.name
             with open(source, "rb") as source_file:
                 shutil.copyfileobj(source_file, target_file)

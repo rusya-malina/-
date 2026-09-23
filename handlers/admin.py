@@ -1,4 +1,5 @@
 """Административные разделы: пользователи, заявки и удаление сотрудников."""
+
 from telegram.error import TelegramError
 
 from application.admin_service import EmployeeAdminService
@@ -207,8 +208,7 @@ async def request_user_number_to_delete(update: Update, context: ContextTypes.DE
         return EXTRA_MENU_STATE
 
     await update.message.reply_text(
-        "🔢 **Удаление пользователя по номеру**\n\n"
-        "Введите порядковый номер пользователя из списка для удаления:",
+        "🔢 **Удаление пользователя по номеру**\n\nВведите порядковый номер пользователя из списка для удаления:",
         reply_markup=cancel_keyboard,
         parse_mode="Markdown",
     )

@@ -1,4 +1,5 @@
 """Выбор команды сотрудником и административное подтверждение."""
+
 from telegram.error import TelegramError
 
 from application.team_service import TeamService
@@ -82,11 +83,9 @@ def _report_sections(group: str, visible_users: list[dict]) -> list[tuple[str | 
     """MNG/SPV получают две ветки; coor получает свою единую ветку."""
     if group in {"MNG", "SPV"}:
         return [
-            (team, [person for person in visible_users if person["group"] == team])
-            for team in ("A LAMP", "R LAMP")
+            (team, [person for person in visible_users if person["group"] == team]) for team in ("A LAMP", "R LAMP")
         ]
     return [(None, visible_users)]
-
 
 
 async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -121,8 +120,7 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
             micro_percent = (micro_fact / micro_plan * 100) if micro_plan else 0
             retrafic_percent = (retrafic_fact / retrafic_plan * 100) if retrafic_plan else 0
             hours_lines = (
-                f"\n   🏢 Офисные часы: `{office_hours:.1f}`"
-                f"\n   ⛺️ Полевые часы: `{field_hours:.1f}`"
+                f"\n   🏢 Офисные часы: `{office_hours:.1f}`\n   ⛺️ Полевые часы: `{field_hours:.1f}`"
                 if group in {"coor A", "coor R"}
                 else ""
             )
@@ -178,7 +176,9 @@ async def show_team_balances(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def start_team_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     users = await load_json(USERS_FILE)
-    if (update.effective_user.id == ADMIN_ID and not is_admin_mode(update.effective_user.id, context)) or (user_id not in users and update.effective_user.id != ADMIN_ID):
+    if (update.effective_user.id == ADMIN_ID and not is_admin_mode(update.effective_user.id, context)) or (
+        user_id not in users and update.effective_user.id != ADMIN_ID
+    ):
         await update.message.reply_text(
             "⚠️ Сначала завершите регистрацию через /start.",
             reply_markup=get_main_keyboard(update.effective_user.id),
@@ -206,7 +206,9 @@ async def process_team_selection(update: Update, context: ContextTypes.DEFAULT_T
     users = await load_json(USERS_FILE)
     user_name_value = user_name(users.get(user_id), "Руслан Малинин" if update.effective_user.id == ADMIN_ID else "")
     if not user_name_value:
-        await update.message.reply_text("⚠️ Пользователь ещё не зарегистрирован.", reply_markup=get_main_keyboard(update.effective_user.id))
+        await update.message.reply_text(
+            "⚠️ Пользователь ещё не зарегистрирован.", reply_markup=get_main_keyboard(update.effective_user.id)
+        )
         return ConversationHandler.END
 
     result = await TeamService.from_default_storage().create_request(user_id, user_name_value, selected_team)
@@ -221,10 +223,12 @@ async def process_team_selection(update: Update, context: ContextTypes.DEFAULT_T
         parse_mode="Markdown",
     )
 
-    inline_keyboard = [[
-        InlineKeyboardButton("✅ Подтвердить", callback_data=f"team_accept:{user_id}"),
-        InlineKeyboardButton("❌ Отклонить", callback_data=f"team_reject:{user_id}"),
-    ]]
+    inline_keyboard = [
+        [
+            InlineKeyboardButton("✅ Подтвердить", callback_data=f"team_accept:{user_id}"),
+            InlineKeyboardButton("❌ Отклонить", callback_data=f"team_reject:{user_id}"),
+        ]
+    ]
     try:
         await context.bot.send_message(
             chat_id=ADMIN_ID,

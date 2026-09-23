@@ -1,4 +1,5 @@
 """HTTP webhook server for Telegram updates and Render health checks."""
+
 from __future__ import annotations
 
 import asyncio

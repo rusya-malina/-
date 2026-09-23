@@ -1,4 +1,5 @@
 """Regression tests for the centralized permission layer."""
+
 from __future__ import annotations
 
 import sys

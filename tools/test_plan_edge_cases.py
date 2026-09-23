@@ -1,4 +1,5 @@
 """Unit tests for hourly KPI plan boundary conditions."""
+
 from __future__ import annotations
 
 import sys

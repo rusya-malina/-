@@ -1,4 +1,5 @@
 """Минимальный HTTP health endpoint для Render."""
+
 from bot_context import BaseHTTPRequestHandler
 
 

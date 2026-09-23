@@ -4,6 +4,7 @@ The code repository contains application code only. Runtime JSON and uploaded fi
 stored locally under ``BOT_DATA_DIR`` and mirrored to a separate private repository when
 ``GITHUB_SYNC_TOKEN`` is configured.
 """
+
 from __future__ import annotations
 
 import asyncio

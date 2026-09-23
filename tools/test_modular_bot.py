@@ -59,17 +59,30 @@ def main() -> None:
     assert len(app.handlers) >= 1
     conversation = app.handlers[0][0]
     extra_state_handlers = conversation.states[EXTRA_MENU_STATE]
-    extra_callback_patterns = {handler.pattern.pattern for handler in extra_state_handlers if hasattr(handler, "pattern")}
+    extra_callback_patterns = {
+        handler.pattern.pattern for handler in extra_state_handlers if hasattr(handler, "pattern")
+    }
     assert any(pattern == r"^req_" for pattern in extra_callback_patterns)
     assert any(pattern == r"^team_(accept|reject):" for pattern in extra_callback_patterns)
     pending_state_handlers = conversation.states[PENDING_REQUESTS_STATE]
-    pending_callback_patterns = {handler.pattern.pattern for handler in pending_state_handlers if hasattr(handler, "pattern")}
+    pending_callback_patterns = {
+        handler.pattern.pattern for handler in pending_state_handlers if hasattr(handler, "pattern")
+    }
     assert any(pattern == r"^req_" for pattern in pending_callback_patterns)
     main_keyboard = get_main_keyboard(14599689, admin_mode=True)
     assert main_keyboard.keyboard
     admin_buttons = {button.text for row in main_keyboard.keyboard for button in row}
     assert "📝 Оставить заявку" not in admin_buttons
-    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "📦 Выдача", "Загрузить данные", "📢 Рассылка", "⚙️ Дополнительно"}.issubset(admin_buttons)
+    assert {
+        "Новый расчет",
+        "Мой KPI",
+        "Справочник KPI",
+        "Остатки",
+        "📦 Выдача",
+        "Загрузить данные",
+        "📢 Рассылка",
+        "⚙️ Дополнительно",
+    }.issubset(admin_buttons)
     data_buttons = {button.text for row in get_data_keyboard().keyboard for button in row}
     assert {"📥 Загрузить KPI (Excel)", "📥 Загрузить выдачи (Excel)", "📊 Выгрузка статистики"}.issubset(data_buttons)
     assert "MINTS" not in data_buttons and "Стики" not in data_buttons
@@ -86,7 +99,9 @@ def main() -> None:
     coor_buttons = {button.text for row in get_main_keyboard(101, "coor A").keyboard for button in row}
     spv_buttons = {button.text for row in get_main_keyboard(102, "SPV").keyboard for button in row}
     assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Мои обучения"}.issubset(r_lamp_buttons)
-    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Загрузить обучение", "📦 Выдача"}.issubset(coor_buttons)
+    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Загрузить обучение", "📦 Выдача"}.issubset(
+        coor_buttons
+    )
     assert {"Новый расчет", "Мой KPI", "Справочник KPI"}.issubset(spv_buttons)
     assert "Остатки" not in spv_buttons
     assert "Мои обучения" not in coor_buttons
@@ -94,7 +109,18 @@ def main() -> None:
     assert "R LAMP" in TEAM_OPTIONS
     assert "К LAMP" not in TEAM_OPTIONS
     assert get_issuance_confirmation_markup().inline_keyboard
-    request_markup = build_requests_markup([{"id": "registration:1", "kind": "registration", "user_id": "1", "name": "Тест", "group": "R LAMP", "text": "Проверка"}])
+    request_markup = build_requests_markup(
+        [
+            {
+                "id": "registration:1",
+                "kind": "registration",
+                "user_id": "1",
+                "name": "Тест",
+                "group": "R LAMP",
+                "text": "Проверка",
+            }
+        ]
+    )
     callback_values = [button.callback_data for row in request_markup.inline_keyboard for button in row]
     assert "req_accept:registration:1" in callback_values
     assert "req_reject:registration:1" in callback_values

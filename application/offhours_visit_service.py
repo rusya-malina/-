@@ -1,12 +1,13 @@
 """Booking rules for off-hours venue visits."""
+
 from __future__ import annotations
 
 from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
-from zoneinfo import ZoneInfo
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from config import BOT_TIMEZONE, OFFHOURS_VISITS_FILE
 from domain.models import OperationResult
@@ -229,7 +230,9 @@ class OffhoursVisitService:
     async def active_bookings(self) -> list[dict[str, Any]]:
         data = await self.visits.load()
         records = [dict(record) for record in _active_records(data)]
-        return sorted(records, key=lambda item: (str(item.get("visit_date")), str(item.get("venue")), str(item.get("name"))))
+        return sorted(
+            records, key=lambda item: (str(item.get("visit_date")), str(item.get("venue")), str(item.get("name")))
+        )
 
     async def user_bookings(self, user_id: int | str, *, include_past: bool = False) -> list[dict[str, Any]]:
         user_key = str(user_id)

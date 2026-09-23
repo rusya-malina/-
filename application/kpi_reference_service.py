@@ -1,4 +1,5 @@
 """Validation and persistence helpers for the monthly KPI reference workbook."""
+
 from __future__ import annotations
 
 import math
@@ -68,12 +69,14 @@ def build_kpi_reference(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if threshold is not None and (threshold < 0 or threshold > 100):
             raise KpiReferenceValidationError(f"строка {row_number}: threshold должен быть от 0 до 100%")
         total_weight += weight
-        items.append({
-            "name": name,
-            "weight_percent": weight,
-            "quantity": quantity,
-            **({"threshold_percent": threshold} if threshold is not None else {}),
-        })
+        items.append(
+            {
+                "name": name,
+                "weight_percent": weight,
+                "quantity": quantity,
+                **({"threshold_percent": threshold} if threshold is not None else {}),
+            }
+        )
     if not items:
         raise KpiReferenceValidationError("Excel не содержит заполненных KPI")
     difference = total_weight - 100.0

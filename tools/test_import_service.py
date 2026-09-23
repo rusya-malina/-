@@ -92,7 +92,9 @@ def test_issuance_name_matching_avoids_duplicate_records() -> None:
         root = Path(directory)
         (root / "kpi.json").write_text("{}", encoding="utf-8")
         (root / "issuance.json").write_text("{}", encoding="utf-8")
-        (root / "users.json").write_text(json.dumps({"123": {"name": "Елена Синько"}}, ensure_ascii=False), encoding="utf-8")
+        (root / "users.json").write_text(
+            json.dumps({"123": {"name": "Елена Синько"}}, ensure_ascii=False), encoding="utf-8"
+        )
         service = ImportService(
             JsonRepository(str(root / "kpi.json")),
             JsonRepository(str(root / "issuance.json")),

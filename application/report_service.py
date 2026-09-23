@@ -1,4 +1,5 @@
 """Read-only employee report use cases."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

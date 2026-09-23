@@ -1,4 +1,5 @@
 """Regression tests for staged Excel preview and confirmation callbacks."""
+
 from __future__ import annotations
 
 import asyncio
@@ -97,11 +98,7 @@ def test_management_rows_are_blocked() -> None:
 
 
 def test_preview_markup() -> None:
-    callbacks = [
-        button.callback_data
-        for row in uploads._excel_preview_markup().inline_keyboard
-        for button in row
-    ]
+    callbacks = [button.callback_data for row in uploads._excel_preview_markup().inline_keyboard for button in row]
     assert callbacks == ["excel_confirm", "excel_cancel"]
 
 

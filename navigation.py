@@ -1,4 +1,5 @@
 """Централизованная навигация между admin/coor и подменю."""
+
 from __future__ import annotations
 
 import os

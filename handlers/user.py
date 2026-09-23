@@ -1,4 +1,5 @@
 """Пользовательские сценарии: регистрация, расчёты и возврат в меню."""
+
 from telegram.error import TelegramError
 
 from application.identity_service import IdentityService
@@ -203,7 +204,7 @@ async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("❌ Отклонить", callback_data=f"req_reject:registration:{user_id_num}"),
         ]
     ]
-    
+
     try:
         await context.bot.send_message(
             chat_id=ADMIN_ID,
@@ -305,7 +306,9 @@ async def new_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return REG_GROUP
 
     context.user_data["name"] = user_name(users[user_id])
-    await update.message.reply_text("📊 **Новый расчет**\n\nВведите количество **LAS**:", reply_markup=cancel_keyboard, parse_mode="Markdown")
+    await update.message.reply_text(
+        "📊 **Новый расчет**\n\nВведите количество **LAS**:", reply_markup=cancel_keyboard, parse_mode="Markdown"
+    )
     return LAS
 
 
@@ -315,7 +318,9 @@ async def get_las(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if val < 0:
             raise ValueError
         context.user_data["las"] = val
-        await update.message.reply_text("Введите количество **LAU**:", reply_markup=cancel_keyboard, parse_mode="Markdown")
+        await update.message.reply_text(
+            "Введите количество **LAU**:", reply_markup=cancel_keyboard, parse_mode="Markdown"
+        )
         return LAU
     except ValueError:
         await update.message.reply_text("❌ Ошибка. Введите положительное число для LAS:")

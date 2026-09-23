@@ -1,4 +1,5 @@
 """Application use cases for MINTS and sticks issuance."""
+
 from __future__ import annotations
 
 import math

@@ -1,4 +1,5 @@
 """Shadow validation for application services against legacy-compatible calculations."""
+
 from __future__ import annotations
 
 import asyncio

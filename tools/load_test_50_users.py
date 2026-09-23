@@ -94,7 +94,9 @@ def message_update(user_id: int):
 
 async def main() -> None:
     users, groups, kpi, issuance, role_by_id = build_fixture()
-    before = json.dumps({"users": users, "groups": groups, "kpi": kpi, "issuance": issuance}, ensure_ascii=False, sort_keys=True)
+    before = json.dumps(
+        {"users": users, "groups": groups, "kpi": kpi, "issuance": issuance}, ensure_ascii=False, sort_keys=True
+    )
     original_team_group = teams_handler.get_user_group
     original_team_load = teams_handler.load_json
     original_kpi_group = kpi_handler.get_user_group
@@ -189,13 +191,17 @@ async def main() -> None:
     await asyncio.gather(*tasks)
     total_ms = (time.perf_counter() - started_all) * 1000
 
-    after = json.dumps({"users": users, "groups": groups, "kpi": kpi, "issuance": issuance}, ensure_ascii=False, sort_keys=True)
+    after = json.dumps(
+        {"users": users, "groups": groups, "kpi": kpi, "issuance": issuance}, ensure_ascii=False, sort_keys=True
+    )
     assert before == after, "fixture data changed during load test"
 
     print("LOAD TEST: 50 concurrent users")
     print("ROLE DISTRIBUTION:", dict(ROLE_COUNTS), "ADMIN_ID=1")
-    print(f"TOTAL_USERS={len(users)} TOTAL_ELAPSED_MS={total_ms:.2f} THROUGHPUT_USERS_PER_SEC={len(users)/(total_ms/1000):.2f}")
-    print(f"SUCCESS_USERS={len(users)-len(errors)} ERROR_USERS={len(errors)}")
+    print(
+        f"TOTAL_USERS={len(users)} TOTAL_ELAPSED_MS={total_ms:.2f} THROUGHPUT_USERS_PER_SEC={len(users) / (total_ms / 1000):.2f}"
+    )
+    print(f"SUCCESS_USERS={len(users) - len(errors)} ERROR_USERS={len(errors)}")
     for scenario, values in sorted(scenarios.items()):
         ordered = sorted(values)
         p50 = statistics.median(ordered)

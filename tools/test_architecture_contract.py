@@ -7,7 +7,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-PRODUCTION_FILES = [ROOT / "app_factory.py", ROOT / "bot.py", ROOT / "health.py", ROOT / "keyboards.py", ROOT / "organization.py", ROOT / "roles.py", ROOT / "services.py", ROOT / "storage.py", *sorted((ROOT / "handlers").glob("*.py"))]
+PRODUCTION_FILES = [
+    ROOT / "app_factory.py",
+    ROOT / "bot.py",
+    ROOT / "health.py",
+    ROOT / "keyboards.py",
+    ROOT / "organization.py",
+    ROOT / "roles.py",
+    ROOT / "services.py",
+    ROOT / "storage.py",
+    *sorted((ROOT / "handlers").glob("*.py")),
+]
 
 
 def main() -> None:

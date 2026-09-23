@@ -1,4 +1,5 @@
 """Regression tests for safe admin delete-by-number flow."""
+
 from __future__ import annotations
 
 import asyncio

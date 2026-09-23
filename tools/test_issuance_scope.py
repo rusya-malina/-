@@ -1,4 +1,5 @@
 """Regression tests for issuance group scoping."""
+
 from __future__ import annotations
 
 import asyncio
@@ -15,12 +16,7 @@ from config import GROUPS_FILE, USERS_FILE
 
 
 def callback_ids(markup):
-    return {
-        button.callback_data
-        for row in markup.inline_keyboard
-        for button in row
-        if button.callback_data
-    }
+    return {button.callback_data for row in markup.inline_keyboard for button in row if button.callback_data}
 
 
 async def main() -> None:
@@ -73,4 +69,3 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
     print("ISSUANCE_SCOPE PASS")
-

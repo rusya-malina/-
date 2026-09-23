@@ -1,7 +1,7 @@
 """Telegram flow for employee off-hours venue bookings."""
+
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import date
 from html import escape
 from typing import Any
@@ -11,8 +11,8 @@ from telegram.ext import ContextTypes, ConversationHandler
 
 from application.offhours_visit_service import (
     MAX_EMPLOYEES_PER_VENUE_DAY,
-    OffhoursVisitService,
     VENUES,
+    OffhoursVisitService,
     local_today,
     month_visit_dates,
 )
@@ -62,10 +62,8 @@ def venue_dates_markup(venue: str, bookings: list[dict[str, Any]], today: date |
         occupied = len(_venue_day_records(bookings, venue, day))
         marker = "·" if day < current else "✖" if occupied >= MAX_EMPLOYEES_PER_VENUE_DAY else ""
         label = f"{WEEKDAY_SHORT[day.weekday()]} {day.day:02d}{marker}"
-        date_buttons.append(
-            InlineKeyboardButton(label, callback_data=f"offh_day:{venue}:{day.isoformat()}")
-        )
-    keyboard = [date_buttons[index:index + 4] for index in range(0, len(date_buttons), 4)]
+        date_buttons.append(InlineKeyboardButton(label, callback_data=f"offh_day:{venue}:{day.isoformat()}"))
+    keyboard = [date_buttons[index : index + 4] for index in range(0, len(date_buttons), 4)]
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="offh_home")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -154,14 +152,10 @@ async def _render_day(query, venue: str, visit_date: str) -> None:
         status = "\n\nВсе два места заняты."
     else:
         status = f"\n\nСвободно мест: {MAX_EMPLOYEES_PER_VENUE_DAY - len(records)} из 2."
-        buttons.append(
-            [InlineKeyboardButton("✅ Забронировать", callback_data=f"offh_confirm:{venue}:{visit_date}")]
-        )
+        buttons.append([InlineKeyboardButton("✅ Забронировать", callback_data=f"offh_confirm:{venue}:{visit_date}")])
     buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data=f"offh_venue:{venue}")])
     await query.message.edit_text(
-        f"🏪 <b>{escape(VENUES[venue])}</b>\n"
-        f"📅 <b>{_date_label(visit_date)}</b>\n\n"
-        f"{occupancy}{status}",
+        f"🏪 <b>{escape(VENUES[venue])}</b>\n📅 <b>{_date_label(visit_date)}</b>\n\n{occupancy}{status}",
         reply_markup=InlineKeyboardMarkup(buttons),
         parse_mode="HTML",
     )
@@ -282,7 +276,12 @@ async def offhours_visit_callback(update: Update, context: ContextTypes.DEFAULT_
         await query.answer()
         bookings = await OffhoursVisitService.from_default_storage().user_bookings(user_id)
         buttons = [
-            [InlineKeyboardButton(f"❌ {VENUES.get(str(item.get('venue')), 'Заведение')} · {str(item.get('visit_date'))[5:]}", callback_data=f"offh_cancel:{item['booking_id']}")]
+            [
+                InlineKeyboardButton(
+                    f"❌ {VENUES.get(str(item.get('venue')), 'Заведение')} · {str(item.get('visit_date'))[5:]}",
+                    callback_data=f"offh_cancel:{item['booking_id']}",
+                )
+            ]
             for item in bookings
         ]
         buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="offh_my")])
@@ -310,7 +309,9 @@ async def offhours_visit_callback(update: Update, context: ContextTypes.DEFAULT_
 async def show_coordinator_bookings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group = await get_user_group(update.effective_user.id)
     if group not in {"coor A", "coor R", "SPV", "MNG"}:
-        await update.message.reply_text("⛔️ Полный список броней доступен только координаторам, супервайзеру и менеджеру.")
+        await update.message.reply_text(
+            "⛔️ Полный список броней доступен только координаторам, супервайзеру и менеджеру."
+        )
         return ConversationHandler.END
 
     current = local_today()

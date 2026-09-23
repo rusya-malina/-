@@ -1,4 +1,5 @@
 """Выдачи MINTS и стиков, Excel-загрузка и статистика."""
+
 from io import BytesIO
 from pathlib import Path
 

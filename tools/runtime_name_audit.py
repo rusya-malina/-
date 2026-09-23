@@ -44,9 +44,7 @@ def main() -> None:
                 if instruction.opname in {"LOAD_GLOBAL", "LOAD_NAME"}
             }
             missing = sorted(
-                symbol
-                for symbol in global_loads
-                if symbol not in module_globals and not hasattr(builtins, symbol)
+                symbol for symbol in global_loads if symbol not in module_globals and not hasattr(builtins, symbol)
             )
             if missing:
                 failures.append(f"{module_name}.{name}: {', '.join(missing)}")

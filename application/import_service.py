@@ -1,4 +1,5 @@
 """Application service for staged, non-destructive Excel imports."""
+
 from __future__ import annotations
 
 import re
@@ -158,9 +159,7 @@ class ImportService:
             row_group = _group_from_row(row)
             assigned_group = row_group or group_by_name.get(clean_name)
             if assigned_group in MANAGEMENT_GROUPS:
-                raise ImportSafetyError(
-                    f"KPI import contains management employee: {employee_name} ({assigned_group})"
-                )
+                raise ImportSafetyError(f"KPI import contains management employee: {employee_name} ({assigned_group})")
             if assigned_group:
                 groups_data[employee_id] = make_group_record(employee_name, assigned_group)
                 group_by_name[clean_name] = assigned_group

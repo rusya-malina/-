@@ -1,4 +1,5 @@
 """Deterministic startup stages for the bot process."""
+
 from __future__ import annotations
 
 from github_sync import restore_data_state_sync

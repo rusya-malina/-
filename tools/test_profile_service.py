@@ -1,4 +1,5 @@
 """Contract tests for atomic profile rename across linked records."""
+
 from __future__ import annotations
 
 import asyncio

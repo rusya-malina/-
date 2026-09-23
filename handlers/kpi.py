@@ -1,4 +1,5 @@
 """Загрузка, ручное редактирование и просмотр KPI."""
+
 import contextlib
 
 from application.admin_service import EmployeeAdminService
@@ -36,6 +37,7 @@ from organization import (
     get_visible_users,
     is_management_group,
     merge_employee_issuance,
+    normalize_employee_name,
 )
 from permissions import Permission, has_permission, is_admin_mode
 from roles import get_user_group
@@ -82,10 +84,7 @@ async def set_plan_gt_start(query, context):
     await query.message.delete()
     await context.bot.send_message(
         chat_id=query.message.chat_id,
-        text=(
-            f"🎯 **Настройка общих планов**\n\n"
-            f"1️⃣ Введите общий план по **GT** (текущий: `{plans['gt_plan']:.0f}`):"
-        ),
+        text=(f"🎯 **Настройка общих планов**\n\n1️⃣ Введите общий план по **GT** (текущий: `{plans['gt_plan']:.0f}`):"),
         reply_markup=cancel_keyboard,
         parse_mode="Markdown",
     )
@@ -365,8 +364,10 @@ async def delete_employee_confirm(update: Update, context: ContextTypes.DEFAULT_
                 )
             if operation.ok and target is not None and str(target.get("user_id", "")).isdigit():
                 await notify_user_bot_stopped(context, target["user_id"])
-            status_text = f"🔥 **Сотрудник {target_name} полностью удалён!**" if operation.ok else (
-                f"⚠️ **Не удалось удалить сотрудника {target_name}.**"
+            status_text = (
+                f"🔥 **Сотрудник {target_name} полностью удалён!**"
+                if operation.ok
+                else (f"⚠️ **Не удалось удалить сотрудника {target_name}.**")
             )
         else:
             operation = await KpiService.from_default_storage().delete_entry(target_name)
@@ -701,7 +702,9 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     employee = get_employee_by_id(user_id, users, groups, kpi_data, issuance_data)
-    user_name_value = employee["name"] if employee else user_name(users.get(user_id), "Администратор" if admin_mode else "")
+    user_name_value = (
+        employee["name"] if employee else user_name(users.get(user_id), "Администратор" if admin_mode else "")
+    )
     lookup_name = employee.get("name_key") if employee else user_name_value.strip().lower()
 
     if lookup_name not in kpi_data:
@@ -711,6 +714,7 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_kpi = kpi_data[lookup_name]
 
     if data == "my_kpi_show_kpi":
+
         def calc_pct(fact, plan):
             return (fact / plan * 100) if plan > 0 else 0
 
@@ -761,7 +765,6 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         inline_keyboard = [[InlineKeyboardButton("⬅️ Назад к меню", callback_data="my_kpi_back")]]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard), parse_mode="Markdown")
-
 
 
 def _plan_rate(row: dict, metric: str) -> str:
@@ -884,7 +887,7 @@ def _coordinator_team_balances(
     for person in people:
         if person.get("group") != target_group:
             continue
-        kpi = kpi_data.get(person.get("name_key") or _normalize_person_name(person["name"]), {})
+        kpi = kpi_data.get(person.get("name_key") or normalize_employee_name(person["name"]), {})
         balances = calculate_balances(kpi, merge_employee_issuance(person, issuance_data))
         count += 1
         for key in totals:
@@ -954,7 +957,11 @@ async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"ℹ️ Микроакты = LAS (`{_format_quantity(balances['las_done'])}`) + "
         f"LAU (`{_format_quantity(balances['lau_done'])}`)."
     )
-    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=get_main_keyboard(update.effective_user.id, group=group, admin_mode=admin_mode))
+    await update.message.reply_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=get_main_keyboard(update.effective_user.id, group=group, admin_mode=admin_mode),
+    )
 
 
 async def kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -980,7 +987,9 @@ async def kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     inline_keyboard.append([InlineKeyboardButton("🔙 Закрыть меню", callback_data="kpi_close")])
     await update.message.reply_text("Убираем клавиатуру...", reply_markup=ReplyKeyboardRemove())
-    await update.message.reply_text("📌 **Выберите KPI:**", reply_markup=InlineKeyboardMarkup(inline_keyboard), parse_mode="Markdown")
+    await update.message.reply_text(
+        "📌 **Выберите KPI:**", reply_markup=InlineKeyboardMarkup(inline_keyboard), parse_mode="Markdown"
+    )
 
 
 async def kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1015,7 +1024,13 @@ async def kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "🔄 **KPI: Re-trafic** (План: 15, Вес: 20%)"
     elif data == "kpi_close":
         await query.message.delete()
-        await context.bot.send_message(chat_id=query.message.chat_id, text="🏠 Главное меню:", reply_markup=get_main_keyboard(user_id_num, group=await get_user_group(user_id_num), admin_mode=is_admin_mode(user_id_num, context)))
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="🏠 Главное меню:",
+            reply_markup=get_main_keyboard(
+                user_id_num, group=await get_user_group(user_id_num), admin_mode=is_admin_mode(user_id_num, context)
+            ),
+        )
         return
 
     with contextlib.suppress(BadRequest):

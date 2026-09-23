@@ -55,7 +55,9 @@ class ProfileService:
 
             for other_id, record in users.items():
                 if str(other_id) != employee_id and normalize_profile_name(user_name(record)) == new_key:
-                    return OperationResult(False, "conflict", "employee_name_already_exists", details={"name": new_name})
+                    return OperationResult(
+                        False, "conflict", "employee_name_already_exists", details={"name": new_name}
+                    )
 
             if new_key in kpi and new_key != old_key:
                 return OperationResult(False, "conflict", "kpi_name_already_exists", details={"name": new_name})

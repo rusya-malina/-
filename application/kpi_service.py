@@ -1,4 +1,5 @@
 """Application use cases for manual KPI editing and default plans."""
+
 from __future__ import annotations
 
 import calendar
@@ -163,9 +164,7 @@ def build_plan_projection(
             }
         )
     current_micro_total = las_fact + lau_fact
-    current_threshold_percent = (
-        las_fact / current_micro_total * 100 if current_micro_total > 0 else 0.0
-    )
+    current_threshold_percent = las_fact / current_micro_total * 100 if current_micro_total > 0 else 0.0
     return {
         "as_of": current_date.isoformat(),
         "period_end": period_end.isoformat(),
@@ -191,11 +190,7 @@ class KpiService:
 
     async def list_employee_names(self) -> list[str]:
         data = await self.kpi.load()
-        return sorted(
-            str(record.get("original_name", key))
-            for key, record in data.items()
-            if isinstance(record, dict)
-        )
+        return sorted(str(record.get("original_name", key)) for key, record in data.items() if isinstance(record, dict))
 
     async def get_entry(self, name: str) -> dict[str, Any] | None:
         data = await self.kpi.load()

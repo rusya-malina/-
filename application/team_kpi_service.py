@@ -1,4 +1,5 @@
 """Derived KPI calculations for the A/R LAMP management hierarchy."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -176,10 +177,7 @@ def build_team_kpi_snapshot(
         manager_employees = [employee for employee in source_records if employee.get("group") in scope]
         report = _report(manager_employees, scope_groups=scope, manager_group=manager_group)
         report["team_keys"] = list(scope)
-        report["by_team"] = {
-            team: teams[team]
-            for team in scope
-        }
+        report["by_team"] = {team: teams[team] for team in scope}
         manager_reports[manager_group] = report
 
     return {

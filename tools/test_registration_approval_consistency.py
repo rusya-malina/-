@@ -1,4 +1,5 @@
 """Regression test for all registration approval entry points."""
+
 from __future__ import annotations
 
 import asyncio
@@ -96,9 +97,13 @@ async def run_consistency_test() -> None:
 
         query = FakeQuery(callback_data)
         if screen_flow:
-            result = await admin_handlers.pending_requests_callback(SimpleNamespace(callback_query=query), FakeContext())
+            result = await admin_handlers.pending_requests_callback(
+                SimpleNamespace(callback_query=query), FakeContext()
+            )
         elif callback_data.startswith("adm_"):
-            result = await admin_handlers.admin_moderation_callback(SimpleNamespace(callback_query=query), FakeContext())
+            result = await admin_handlers.admin_moderation_callback(
+                SimpleNamespace(callback_query=query), FakeContext()
+            )
         else:
             result = await request_handlers.requests_callback(SimpleNamespace(callback_query=query), FakeContext())
         assert result == ConversationHandler.END

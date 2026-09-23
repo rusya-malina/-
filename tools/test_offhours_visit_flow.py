@@ -1,4 +1,5 @@
 """Regression tests for the off-hours visit Telegram flow."""
+
 from __future__ import annotations
 
 import asyncio

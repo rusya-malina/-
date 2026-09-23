@@ -1,4 +1,5 @@
 """Contract tests for runtime startup, health and polling supervisor boundaries."""
+
 from __future__ import annotations
 
 import sys

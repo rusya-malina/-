@@ -1,4 +1,5 @@
 """Application service for employee training delivery history."""
+
 from __future__ import annotations
 
 from datetime import datetime

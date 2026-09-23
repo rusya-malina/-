@@ -1,4 +1,5 @@
 """Composition root for the Telegram bot process."""
+
 from __future__ import annotations
 
 from app_factory import build_application
@@ -29,8 +30,7 @@ def main() -> None:
     token = os.getenv("BOT_TOKEN")
     if not token:
         raise RuntimeError(
-            "Переменная окружения BOT_TOKEN не задана. "
-            "Добавьте её в настройках Render или локального окружения."
+            "Переменная окружения BOT_TOKEN не задана. Добавьте её в настройках Render или локального окружения."
         )
 
     transport = os.getenv("TELEGRAM_TRANSPORT", "webhook").strip().lower()

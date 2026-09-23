@@ -37,13 +37,24 @@ def write_sites() -> dict[str, list[str]]:
     for path in [ROOT / "storage.py", *sorted((ROOT / "handlers").glob("*.py")), ROOT / "roles.py"]:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in {"save_json", "update_json", "update_many_json", "save_pending", "update_pending"}:
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id in {"save_json", "update_json", "update_many_json", "save_pending", "update_pending"}
+            ):
                 result[node.func.id].append(f"{path.relative_to(ROOT)}:{node.lineno}")
     return dict(result)
 
 
 def main() -> None:
-    print(json.dumps({"files": {name: summarize_file(name) for name in JSON_FILES}, "write_sites": write_sites()}, ensure_ascii=False, indent=2, default=str))
+    print(
+        json.dumps(
+            {"files": {name: summarize_file(name) for name in JSON_FILES}, "write_sites": write_sites()},
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
+    )
 
 
 if __name__ == "__main__":

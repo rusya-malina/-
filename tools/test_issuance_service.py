@@ -1,4 +1,5 @@
 """Contract tests for issuance application use cases."""
+
 from __future__ import annotations
 
 import asyncio

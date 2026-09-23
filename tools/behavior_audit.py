@@ -124,9 +124,11 @@ async def test_concurrent_registration_updates() -> None:
         storage.PENDING_FILE = str(pending_path)
         storage._sync_save_json({}, str(pending_path))
         try:
+
             async def add_request(index: int):
                 def mutate(data):
                     data[str(index)] = {"name": f"User {index}", "group": "R LAMP"}
+
                 await storage.update_pending(mutate)
 
             await asyncio.gather(*(add_request(index) for index in range(25)))
@@ -136,6 +138,7 @@ async def test_concurrent_registration_updates() -> None:
             async def remove_request(index: int):
                 def mutate(data):
                     return data.pop(str(index), None)
+
                 return await storage.update_pending(mutate)
 
             results = await asyncio.gather(*(remove_request(index) for index in range(10)))

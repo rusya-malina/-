@@ -1,4 +1,5 @@
 """Pure permission policy for the rewritten application layer."""
+
 from __future__ import annotations
 
 from config import ADMIN_ID

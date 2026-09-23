@@ -11,8 +11,8 @@ sys.path.insert(0, str(ROOT))
 
 import handlers.issuance as handler
 from bot_context import ISSUANCE_MENU
-from domain.models import OperationResult
 from config import USERS_FILE
+from domain.models import OperationResult
 
 
 async def main() -> None:
@@ -20,6 +20,7 @@ async def main() -> None:
     original_allowed = handler._target_is_allowed
     original_service_factory = handler.IssuanceService.from_default_storage
     try:
+
         async def fake_load_json(path):
             if path == USERS_FILE:
                 return {"101": "Сотрудник A"}
@@ -40,11 +41,14 @@ async def main() -> None:
             from_user=SimpleNamespace(id=5001),
             message=SimpleNamespace(edit_text=AsyncMock(), chat_id=5001),
         )
-        context = SimpleNamespace(user_data={
-            "issuance_user_id": "101",
-            "issuance_type": "sticks",
-            "issuance_amount": 7.0,
-        }, bot=SimpleNamespace(send_message=AsyncMock()))
+        context = SimpleNamespace(
+            user_data={
+                "issuance_user_id": "101",
+                "issuance_type": "sticks",
+                "issuance_amount": 7.0,
+            },
+            bot=SimpleNamespace(send_message=AsyncMock()),
+        )
         update = SimpleNamespace(callback_query=query)
         result = await handler.confirm_issuance(update, context)
         assert result == ISSUANCE_MENU

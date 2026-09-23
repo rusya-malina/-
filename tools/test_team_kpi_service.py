@@ -1,4 +1,5 @@
 """Regression tests for derived hierarchical KPI calculations."""
+
 from __future__ import annotations
 
 import sys
@@ -34,10 +35,10 @@ def _source_data() -> tuple[dict, dict, dict]:
             "micro_plan": 100,
             "micro_las_fact": 30,
             "micro_lau_fact": 20,
-                "retrafic_plan": 10,
-                "retrafic_fact": 8,
-                "office_hours": 20,
-                "field_hours": 12,
+            "retrafic_plan": 10,
+            "retrafic_fact": 8,
+            "office_hours": 20,
+            "field_hours": 12,
         },
         "a two": {
             "original_name": "A Two",
@@ -46,10 +47,10 @@ def _source_data() -> tuple[dict, dict, dict]:
             "micro_plan": 100,
             "micro_las_fact": 20,
             "micro_lau_fact": 50,
-                "retrafic_plan": 20,
-                "retrafic_fact": 10,
-                "office_hours": 16,
-                "field_hours": 16,
+            "retrafic_plan": 20,
+            "retrafic_fact": 10,
+            "office_hours": 16,
+            "field_hours": 16,
         },
         "r one": {
             "original_name": "R One",
@@ -69,7 +70,9 @@ def _source_data() -> tuple[dict, dict, dict]:
 
 def test_hierarchical_weighted_aggregation() -> None:
     users, groups, kpi_data = _source_data()
-    snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08", calculated_at="2026-08-22T10:00:00+05:00")
+    snapshot = build_team_kpi_snapshot(
+        users, groups, kpi_data, period="2026-08", calculated_at="2026-08-22T10:00:00+05:00"
+    )
 
     a_team = snapshot["teams"]["A LAMP"]
     assert a_team["employee_ids"] == ["101", "102"]
@@ -106,15 +109,9 @@ def test_manager_kpi_menu_and_report() -> None:
     users, groups, kpi_data = _source_data()
     snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08")
 
-    manager_buttons = {
-        button.text
-        for row in my_kpi_markup("SPV", admin_mode=False).inline_keyboard
-        for button in row
-    }
+    manager_buttons = {button.text for row in my_kpi_markup("SPV", admin_mode=False).inline_keyboard for button in row}
     employee_buttons = {
-        button.text
-        for row in my_kpi_markup("A LAMP", admin_mode=False).inline_keyboard
-        for button in row
+        button.text for row in my_kpi_markup("A LAMP", admin_mode=False).inline_keyboard for button in row
     }
     assert "📊 KPI" in manager_buttons
     assert "📊 KPI" in employee_buttons

@@ -121,8 +121,6 @@ def get_extra_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-
-
 cancel_keyboard = ReplyKeyboardMarkup([["⬅️ Назад"]], resize_keyboard=True)
 
 

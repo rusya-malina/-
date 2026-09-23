@@ -1,4 +1,5 @@
 """Общие расчёты, уведомления и фоновые задания."""
+
 from telegram.error import TelegramError
 
 from bot_context import (

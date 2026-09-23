@@ -1,4 +1,5 @@
 """Identity archive use cases for previously registered Telegram users."""
+
 from __future__ import annotations
 
 import re
@@ -69,7 +70,10 @@ class IdentityService:
                 if key not in files[self.issuance.path]:
                     files[self.issuance.path][key] = record
             for key in list(files[self.issuance.path]):
-                if str(key).startswith("excel_") and _normalize_name(files[self.issuance.path][key].get("name", key)) == normalized_name:
+                if (
+                    str(key).startswith("excel_")
+                    and _normalize_name(files[self.issuance.path][key].get("name", key)) == normalized_name
+                ):
                     files[self.issuance.path].pop(key, None)
 
             files[self.deleted.path].pop(telegram_id, None)

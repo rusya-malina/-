@@ -1,4 +1,5 @@
 """Contract tests for the first rewritten application/repository slice."""
+
 from __future__ import annotations
 
 import asyncio
@@ -42,7 +43,9 @@ async def test_registration_service_uses_atomic_contract() -> None:
         users_path = str(base / "users.json")
         groups_path = str(base / "groups.json")
         issuance_path = str(base / "issuance.json")
-        save_json_sync({"100": registration_request({"name": "Иван Петров", "group": "R LAMP"}, user_id="100")}, pending_path)
+        save_json_sync(
+            {"100": registration_request({"name": "Иван Петров", "group": "R LAMP"}, user_id="100")}, pending_path
+        )
         save_json_sync(
             {"excel_ivan_petrov": make_user_record("Иван Петров")},
             users_path,
@@ -81,7 +84,10 @@ async def test_report_service_uses_unified_issuance() -> None:
         issuance_path = str(base / "issuance.json")
         save_json_sync({"100": make_user_record("Иван Петров")}, users_path)
         save_json_sync({"100": make_group_record("Иван Петров", "R LAMP")}, groups_path)
-        save_json_sync({"Иван Петров": {"original_name": "Иван Петров", "gt_fact": 2, "micro_las_fact": 1, "micro_lau_fact": 1}}, kpi_path)
+        save_json_sync(
+            {"Иван Петров": {"original_name": "Иван Петров", "gt_fact": 2, "micro_las_fact": 1, "micro_lau_fact": 1}},
+            kpi_path,
+        )
         save_json_sync({"_schema_version": 2, "100": {"mints_issued": 10, "sticks_issued": 5}}, issuance_path)
         employee_service = EmployeeService(
             users=JsonRepository(users_path),
@@ -108,7 +114,9 @@ async def test_employee_service_reads_unified_registry() -> None:
         groups_path = str(base / "groups.json")
         kpi_path = str(base / "kpi.json")
         issuance_path = str(base / "issuance.json")
-        save_json_sync({"100": make_user_record("Иван Петров"), "excel_ivan": make_user_record("Иван Петров")}, users_path)
+        save_json_sync(
+            {"100": make_user_record("Иван Петров"), "excel_ivan": make_user_record("Иван Петров")}, users_path
+        )
         save_json_sync({"100": make_group_record("Иван Петров", "R LAMP")}, groups_path)
         save_json_sync({"Иван Петров": {"original_name": "Иван Петров", "gt_plan": 1}}, kpi_path)
         save_json_sync({"_schema_version": 2}, issuance_path)

@@ -33,12 +33,12 @@ async def main() -> None:
 
     result = await admin_handler.enter_admin_mode(update, context)
     assert result == ConversationHandler.END
-    admin_markup = message.reply_text.await_args.kwargs['reply_markup']
+    admin_markup = message.reply_text.await_args.kwargs["reply_markup"]
     admin_labels = labels(admin_markup)
-    assert context.user_data['admin_mode'] is True
-    assert 'Загрузить данные' in admin_labels
-    assert '⚙️ Дополнительно' in admin_labels
-    assert 'Моя команда' not in admin_labels
+    assert context.user_data["admin_mode"] is True
+    assert "Загрузить данные" in admin_labels
+    assert "⚙️ Дополнительно" in admin_labels
+    assert "Моя команда" not in admin_labels
 
     message.reply_text.reset_mock()
     result = await admin_handler.open_extra_menu(update, context)
@@ -48,26 +48,26 @@ async def main() -> None:
     message.reply_text.reset_mock()
     result = await user_handler.cancel_action(update, context)
     assert result == ConversationHandler.END
-    back_admin_labels = labels(message.reply_text.await_args.kwargs['reply_markup'])
-    assert 'Загрузить данные' in back_admin_labels
-    assert '⚙️ Дополнительно' in back_admin_labels
-    assert 'Моя команда' not in back_admin_labels
+    back_admin_labels = labels(message.reply_text.await_args.kwargs["reply_markup"])
+    assert "Загрузить данные" in back_admin_labels
+    assert "⚙️ Дополнительно" in back_admin_labels
+    assert "Моя команда" not in back_admin_labels
 
-    context.user_data['admin_mode'] = False
+    context.user_data["admin_mode"] = False
     message.reply_text.reset_mock()
     result = await admin_handler.open_extra_menu(update, context)
     assert result == ConversationHandler.END
-    assert 'нет доступа' in message.reply_text.await_args.args[0]
+    assert "нет доступа" in message.reply_text.await_args.args[0]
 
     message.reply_text.reset_mock()
     result = await admin_handler.exit_admin_mode(update, context)
     assert result == ConversationHandler.END
-    coor_markup = message.reply_text.await_args.kwargs['reply_markup']
+    coor_markup = message.reply_text.await_args.kwargs["reply_markup"]
     coor_labels = labels(coor_markup)
-    assert context.user_data['admin_mode'] is False
-    assert 'Моя команда' in coor_labels
-    assert 'Загрузить данные' not in coor_labels
-    assert '📢 Рассылка' not in coor_labels
+    assert context.user_data["admin_mode"] is False
+    assert "Моя команда" in coor_labels
+    assert "Загрузить данные" not in coor_labels
+    assert "📢 Рассылка" not in coor_labels
     spv_labels = labels(get_main_keyboard(777777, "SPV"))
     assert "Моя команда" in spv_labels
     team_menu_labels = labels(get_team_menu_keyboard())
@@ -106,8 +106,8 @@ async def main() -> None:
         admin_handler.get_user_group = original_get_group
 
     Path(session_path).unlink(missing_ok=True)
-    print('admin mode and SPV team menu tests passed')
+    print("admin mode and SPV team menu tests passed")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

@@ -1,4 +1,5 @@
 """Regression tests for off-hours visit booking rules."""
+
 from __future__ import annotations
 
 import asyncio
@@ -27,7 +28,22 @@ async def main() -> None:
     original_today = visit_module.local_today
     visit_module.local_today = lambda: date(2026, 9, 1)
     assert [day.day for day in month_visit_dates(date(2026, 9, 1))] == [
-        3, 4, 5, 6, 10, 11, 12, 13, 17, 18, 19, 20, 24, 25, 26, 27
+        3,
+        4,
+        5,
+        6,
+        10,
+        11,
+        12,
+        13,
+        17,
+        18,
+        19,
+        20,
+        24,
+        25,
+        26,
+        27,
     ]
     try:
         with tempfile.TemporaryDirectory() as tmp:

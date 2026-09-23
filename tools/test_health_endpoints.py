@@ -1,4 +1,5 @@
 """Contract tests for the production health HTTP handler."""
+
 from __future__ import annotations
 
 import http.client

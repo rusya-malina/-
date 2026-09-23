@@ -1,4 +1,5 @@
 """Contract tests for the user-facing hourly KPI plan."""
+
 from __future__ import annotations
 
 import asyncio
@@ -45,7 +46,10 @@ def main() -> None:
     assert target_100["lau_per_hour_rounded"] == 1
     assert target_100["use_las_only"] is False
     assert round(projection["current_threshold_percent"], 2) == 54.02
-    assert target_100["las_per_hour_rounded"] / (target_100["las_per_hour_rounded"] + target_100["lau_per_hour_rounded"]) > 0.40
+    assert (
+        target_100["las_per_hour_rounded"] / (target_100["las_per_hour_rounded"] + target_100["lau_per_hour_rounded"])
+        > 0.40
+    )
     assert target_111["target_percent"] == 111
     assert round(target_111["gt_remaining"], 1) == 13.9
     assert target_111["las_remaining"] == 23
@@ -55,7 +59,10 @@ def main() -> None:
     assert target_111["las_per_hour_rounded"] == 2
     assert target_111["lau_per_hour_rounded"] == 2
     assert target_111["use_las_only"] is False
-    assert target_111["las_per_hour_rounded"] / (target_111["las_per_hour_rounded"] + target_111["lau_per_hour_rounded"]) > 0.40
+    assert (
+        target_111["las_per_hour_rounded"] / (target_111["las_per_hour_rounded"] + target_111["lau_per_hour_rounded"])
+        > 0.40
+    )
 
     production_case = build_plan_projection(
         {

@@ -1,4 +1,5 @@
 """Единый inbox заявок пользователей для администратора."""
+
 from telegram.error import TelegramError
 
 from application.registration_service import RegistrationService
@@ -50,11 +51,7 @@ async def process_registration_approval(user_id: str, accepted: bool) -> dict | 
 
     request = registration_request(raw_request, user_id=user_id)
     service = RegistrationService.from_default_storage()
-    operation = (
-        await service.approve(user_id, ADMIN_ID)
-        if accepted
-        else await service.reject(user_id, ADMIN_ID)
-    )
+    operation = await service.approve(user_id, ADMIN_ID) if accepted else await service.reject(user_id, ADMIN_ID)
     if not operation.ok:
         return None
 
@@ -123,14 +120,13 @@ async def show_requests_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(
             "📂 Заявок нет. Все заявки обработаны.",
             reply_markup=get_extra_keyboard(),
-            )
+        )
         return EXTRA_MENU_STATE
 
     lines = [f"📥 Заявки ({len(inbox)})\n"]
     for index, request in enumerate(inbox, start=1):
         lines.append(
-            f"{index}. {_request_title(request)} — {_request_name(request)}\n"
-            f"   {_short_text(request.get('text', ''))}"
+            f"{index}. {_request_title(request)} — {_request_name(request)}\n   {_short_text(request.get('text', ''))}"
         )
 
     await update.message.reply_text(
@@ -164,8 +160,7 @@ async def _show_requests_after_callback(query, context: ContextTypes.DEFAULT_TYP
     lines = [status or f"📥 Заявки ({len(inbox)})\n"]
     for index, request in enumerate(inbox, start=1):
         lines.append(
-            f"{index}. {_request_title(request)} — {_request_name(request)}\n"
-            f"   {_short_text(request.get('text', ''))}"
+            f"{index}. {_request_title(request)} — {_request_name(request)}\n   {_short_text(request.get('text', ''))}"
         )
     await query.message.edit_text(
         "\n".join(lines),

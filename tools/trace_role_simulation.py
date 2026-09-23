@@ -89,7 +89,9 @@ async def main() -> None:
             print(f"[8] Balance report state: {state}")
             print("[9] Balance team report:")
             print(team_update.message.reply_text.await_args.args[0])
-            print(f"[10] Assertions: state_ok={state == TEAM_MENU_STATE}; ids_hidden={'ID:' not in team_update.message.reply_text.await_args.args[0]}")
+            print(
+                f"[10] Assertions: state_ok={state == TEAM_MENU_STATE}; ids_hidden={'ID:' not in team_update.message.reply_text.await_args.args[0]}"
+            )
 
         print("\\n=== TRACE RESULT: PASS ===")
     finally:

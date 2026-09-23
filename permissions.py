@@ -4,6 +4,7 @@
 для нового pure domain permission policy. Режим администратора хранится в session
 context и в отдельном persistent session metadata.
 """
+
 from __future__ import annotations
 
 from typing import Any

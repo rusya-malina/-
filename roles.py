@@ -1,4 +1,5 @@
 """Группы пользователей и черновики регистрации."""
+
 from bot_context import (
     GROUPS_FILE,
     REGISTRATION_DRAFTS_FILE,

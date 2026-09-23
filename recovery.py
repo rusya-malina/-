@@ -1,4 +1,5 @@
 """Recovery boundaries for Telegram polling and transient runtime failures."""
+
 from __future__ import annotations
 
 from telegram.error import Conflict, TelegramError

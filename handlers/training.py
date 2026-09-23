@@ -1,4 +1,5 @@
 """Coordinator delivery and employee retrieval flows for training files."""
+
 from __future__ import annotations
 
 import asyncio
@@ -65,10 +66,7 @@ def training_candidates(visible_users: list[dict]) -> list[dict]:
 
 def training_markup(candidates: list[dict]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton(item["name"], callback_data=f"training_user:{item['user_id']}")]
-            for item in candidates
-        ]
+        [[InlineKeyboardButton(item["name"], callback_data=f"training_user:{item['user_id']}")] for item in candidates]
         or [[InlineKeyboardButton("Нет зарегистрированных сотрудников", callback_data="training_empty")]]
     )
 
@@ -100,7 +98,9 @@ def _clear_training_context(context: ContextTypes.DEFAULT_TYPE) -> None:
         context.user_data.pop(key, None)
 
 
-async def _visible_training_candidates(update: Update, context: ContextTypes.DEFAULT_TYPE) -> tuple[str | None, list[dict]]:
+async def _visible_training_candidates(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> tuple[str | None, list[dict]]:
     user_id = update.effective_user.id
     group = await get_user_group(user_id)
     if not is_training_group(group):
@@ -192,8 +192,7 @@ async def training_type_callback(update: Update, context: ContextTypes.DEFAULT_T
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text=(
-            f"📚 Отправьте файл для сотрудника **{recipient_name}**.\n"
-            "Поддерживаются файлы `.xlsx`, `.xls` и `.pdf`."
+            f"📚 Отправьте файл для сотрудника **{recipient_name}**.\nПоддерживаются файлы `.xlsx`, `.xls` и `.pdf`."
         ),
         reply_markup=cancel_keyboard,
         parse_mode="Markdown",
@@ -333,11 +332,20 @@ async def my_training_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.message.reply_text("Выберите обучение ещё раз:", reply_markup=my_training_markup())
             return MY_TRAINING_MENU
         except TelegramError as error:
-            logging.warning("Не удалось выдать Telegram file_id для %s пользователю %s: %s", training_type, query.from_user.id, error)
+            logging.warning(
+                "Не удалось выдать Telegram file_id для %s пользователю %s: %s",
+                training_type,
+                query.from_user.id,
+                error,
+            )
 
     base_path = Path(TRAINING_FILE_PATHS[training_type])
     path = next(
-        (base_path.with_suffix(extension) for extension in TRAINING_ALLOWED_EXTENSIONS if base_path.with_suffix(extension).exists()),
+        (
+            base_path.with_suffix(extension)
+            for extension in TRAINING_ALLOWED_EXTENSIONS
+            if base_path.with_suffix(extension).exists()
+        ),
         base_path,
     )
     if not await asyncio.to_thread(path.exists):

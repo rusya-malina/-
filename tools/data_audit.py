@@ -31,7 +31,8 @@ def main() -> None:
         print(f"{filename}: records={len(data)} type={type(data).__name__}")
         if filename == "users.json":
             invalid = [
-                user_id for user_id, record in data.items()
+                user_id
+                for user_id, record in data.items()
                 if not isinstance(record, dict) or record.get("schema_version") != 1 or not record.get("name")
             ]
             print(f"  user_schema_invalid={len(invalid)}")
@@ -45,7 +46,8 @@ def main() -> None:
         if filename == "issuance_data.json":
             print(f"  schema_version={data.get('_schema_version')}")
             bad = [
-                key for key, record in data.items()
+                key
+                for key, record in data.items()
                 if key != "_schema_version" and (not isinstance(record, dict) or record.get("schema_version") != 1)
             ]
             print(f"  issuance record invalid={len(bad)}")
@@ -57,8 +59,10 @@ def main() -> None:
                 "teams.json": None,
             }[filename]
             invalid = [
-                key for key, record in data.items()
-                if not isinstance(record, dict) or record.get("schema_version") != 1
+                key
+                for key, record in data.items()
+                if not isinstance(record, dict)
+                or record.get("schema_version") != 1
                 or (expected_kind is not None and record.get("kind") != expected_kind)
             ]
             print(f"  canonical_schema_invalid={len(invalid)}")
@@ -68,12 +72,15 @@ def main() -> None:
         if filename == "groups.json":
             allowed = {"A LAMP", "R LAMP", "coor A", "coor R", "SPV", "MNG"}
             invalid = [
-                user_id for user_id, record in data.items()
+                user_id
+                for user_id, record in data.items()
                 if not isinstance(record, dict) or record.get("group") not in allowed or not record.get("name")
             ]
             print(f"  group_schema_invalid={len(invalid)}")
         if filename == "registration_drafts.json":
-            invalid = [user_id for user_id, record in data.items() if not isinstance(record, dict) or not record.get("name")]
+            invalid = [
+                user_id for user_id, record in data.items() if not isinstance(record, dict) or not record.get("name")
+            ]
             print(f"  draft_schema_invalid={len(invalid)}")
 
     workbook = ROOT / "XLS Worksheet.xlsx"

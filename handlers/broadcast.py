@@ -1,4 +1,5 @@
 """Рассылка текста, фотографий и документов администратором."""
+
 from telegram.error import TelegramError
 
 from bot_context import (
@@ -38,9 +39,7 @@ async def send_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     has_document = bool(message.document)
     has_text = bool(message.text)
     if not has_photo and not has_document and not has_text:
-        await message.reply_text(
-            "⚠️ Отправьте текст, фотографию или файл/документ."
-        )
+        await message.reply_text("⚠️ Отправьте текст, фотографию или файл/документ.")
         return BROADCAST
 
     users = await load_json(USERS_FILE)
