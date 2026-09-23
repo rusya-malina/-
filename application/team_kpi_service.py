@@ -249,7 +249,7 @@ def build_team_kpi_snapshot(
     selected_period = period or now.strftime("%Y-%m")
     timestamp = calculated_at or now.isoformat()
     reference_weights = _reference_weights(kpi_reference)
-    weights = reference_weights if reference_weights else (None if kpi_reference is not None else DEFAULT_WEIGHTS)
+    weights = reference_weights if reference_weights else ({} if kpi_reference is not None else DEFAULT_WEIGHTS)
     if isinstance(kpi_reference, dict) and isinstance(weights, dict):
         core_names = {
             "gt", "гт", "gross traffic", "трафик", "microacts", "micro acts",
@@ -265,7 +265,7 @@ def build_team_kpi_snapshot(
                 weights[name] = _number(item.get("weight_percent")) / 100.0
     weights_source = (
         "kpi_reference"
-        if reference_weights
+        if kpi_reference is not None and weights
         else ("kpi_reference_unmapped" if kpi_reference is not None else "legacy_default")
     )
     registry = build_employee_registry(users, groups, kpi_data, {})
