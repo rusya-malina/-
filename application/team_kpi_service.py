@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from config import BOT_TIMEZONE, GROUPS_FILE, KPI_FILE, TEAM_KPI_FILE, USERS_FILE
+from config import BOT_TIMEZONE, GROUPS_FILE, KPI_FILE, KPI_REFERENCE_FILE, TEAM_KPI_FILE, USERS_FILE
 from organization import build_employee_registry
 from repositories.json_repository import JsonRepository
 
@@ -36,6 +36,67 @@ def _percent(fact: float, plan: float) -> float:
 
 def _metric(plan: float, fact: float) -> dict[str, float]:
     return {"plan": plan, "fact": fact, "percent": _percent(fact, plan)}
+
+
+def _metric_key(value: Any) -> str:
+    text = str(value or "").strip().casefold().replace("ё", "е")
+    return " ".join(text.replace("-", " ").replace("_", " ").split())
+
+
+def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | None:
+    """Map handbook KPI names to report metrics and return fractional weights.
+
+    The workbook may use either one combined microacts row or separate LAS and
+    LAU rows. In the latter case their weights are combined for the existing
+    aggregate ``microacts`` metric. Unknown handbook names are intentionally
+    ignored; when no supported metric can be mapped, the report is marked as
+    not configured instead of silently falling back to stale 40/40/20 values.
+    """
+    if not isinstance(reference, dict) or not isinstance(reference.get("items"), list):
+        return None
+
+    aliases = {
+        "gt": {"gt", "гт", "gross traffic", "трафик"},
+        "microacts": {
+            "microacts",
+            "micro acts",
+            "микроакты",
+            "микро акты",
+            "микроакты общие",
+            "microacts total",
+        },
+        "las": {"las", "лас"},
+        "lau": {"lau", "лау"},
+        "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"},
+    }
+    weights = {"gt": 0.0, "microacts": 0.0, "retrafic": 0.0}
+    mapped = False
+    explicit_microacts = False
+    separate_microacts = 0.0
+    for item in reference["items"]:
+        if not isinstance(item, dict):
+            continue
+        name = _metric_key(item.get("name"))
+        try:
+            weight = float(item.get("weight_percent", 0) or 0) / 100.0
+        except (TypeError, ValueError):
+            continue
+        if weight < 0:
+            continue
+        matched = next((metric for metric, names in aliases.items() if name in names), None)
+        if matched in {"gt", "retrafic"}:
+            weights[matched] += weight
+            mapped = True
+        elif matched == "microacts":
+            weights["microacts"] += weight
+            explicit_microacts = True
+            mapped = True
+        elif matched in {"las", "lau"}:
+            separate_microacts += weight
+            mapped = True
+    if not explicit_microacts:
+        weights["microacts"] = separate_microacts
+    return weights if mapped else {}
 
 
 def _aggregate_metrics(records: list[dict[str, Any]]) -> tuple[dict[str, Any], list[str], list[str]]:
@@ -117,6 +178,8 @@ def _report(
     scope_groups: tuple[str, ...],
     manager_group: str | None = None,
     team_group: str | None = None,
+    weights: dict[str, float] | None = DEFAULT_WEIGHTS,
+    weights_source: str = "legacy_default",
 ) -> dict[str, Any]:
     metrics, missing_ids, quality_tail = _aggregate_metrics(employees)
     zero_plan_metrics = [item for item in quality_tail if item in {"gt", "microacts", "retrafic"}]
@@ -128,7 +191,7 @@ def _report(
         "employee_ids": sorted(str(item["user_id"]) for item in employees),
         "employee_count": len(employees),
         "metrics": metrics,
-        "overall": _overall(metrics),
+        "overall": {**_overall(metrics, weights), "weights_source": weights_source},
         "quality": {
             "missing_employee_ids": missing_ids,
             "zero_plan_metrics": zero_plan_metrics,
@@ -146,11 +209,19 @@ def build_team_kpi_snapshot(
     period: str | None = None,
     source_import_id: str | None = None,
     calculated_at: str | None = None,
+    kpi_reference: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic monthly team KPI snapshot from employee KPI data."""
     now = datetime.now(ZoneInfo(BOT_TIMEZONE))
     selected_period = period or now.strftime("%Y-%m")
     timestamp = calculated_at or now.isoformat()
+    reference_weights = _reference_weights(kpi_reference)
+    weights = reference_weights if reference_weights else (None if kpi_reference is not None else DEFAULT_WEIGHTS)
+    weights_source = (
+        "kpi_reference"
+        if reference_weights
+        else ("kpi_reference_unmapped" if kpi_reference is not None else "legacy_default")
+    )
     registry = build_employee_registry(users, groups, kpi_data, {})
     source_records: list[dict[str, Any]] = []
     for employee in registry:
@@ -169,13 +240,21 @@ def build_team_kpi_snapshot(
             [employee for employee in source_records if employee.get("group") == group],
             scope_groups=(group,),
             team_group=group,
+            weights=weights,
+            weights_source=weights_source,
         )
         for group in SOURCE_GROUPS
     }
     manager_reports: dict[str, Any] = {}
     for manager_group, scope in MANAGER_SCOPES.items():
         manager_employees = [employee for employee in source_records if employee.get("group") in scope]
-        report = _report(manager_employees, scope_groups=scope, manager_group=manager_group)
+        report = _report(
+            manager_employees,
+            scope_groups=scope,
+            manager_group=manager_group,
+            weights=weights,
+            weights_source=weights_source,
+        )
         report["team_keys"] = list(scope)
         report["by_team"] = {team: teams[team] for team in scope}
         manager_reports[manager_group] = report
@@ -184,9 +263,12 @@ def build_team_kpi_snapshot(
         "period": selected_period,
         "schema_version": SCHEMA_VERSION,
         "calculation_version": CALCULATION_VERSION,
+        "kpi_reference_updated_at": (kpi_reference.get("updated_at") if isinstance(kpi_reference, dict) else None),
         "calculated_at": timestamp,
         "source_import_id": source_import_id,
         "source_groups": list(SOURCE_GROUPS),
+        "weights": weights,
+        "weights_source": weights_source,
         "teams": teams,
         "manager_reports": manager_reports,
     }
@@ -200,6 +282,7 @@ class TeamKpiService:
     users: JsonRepository
     groups: JsonRepository
     kpi: JsonRepository
+    kpi_reference: JsonRepository
 
     @classmethod
     def from_default_storage(cls) -> "TeamKpiService":
@@ -208,6 +291,7 @@ class TeamKpiService:
             users=JsonRepository(USERS_FILE),
             groups=JsonRepository(GROUPS_FILE),
             kpi=JsonRepository(KPI_FILE),
+            kpi_reference=JsonRepository(KPI_REFERENCE_FILE),
         )
 
     async def rebuild(
@@ -219,12 +303,14 @@ class TeamKpiService:
         users = await self.users.load()
         groups = await self.groups.load()
         kpi_data = await self.kpi.load()
+        kpi_reference = await self.kpi_reference.load()
         snapshot = build_team_kpi_snapshot(
             users,
             groups,
             kpi_data,
             period=period,
             source_import_id=source_import_id,
+            kpi_reference=kpi_reference if kpi_reference else None,
         )
         selected_period = snapshot["period"]
         calculated_at = snapshot["calculated_at"]

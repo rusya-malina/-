@@ -148,8 +148,54 @@ def test_missing_employee_kpi_is_reported_without_becoming_zero_data() -> None:
     assert "У части сотрудников отсутствуют KPI-данные" in report["quality"]["warnings"]
 
 
+def test_uploaded_reference_weights_replace_legacy_40_40_20() -> None:
+    users, groups, kpi_data = _source_data()
+    reference = {
+        "schema_version": 1,
+        "items": [
+            {"name": "GT", "weight_percent": 30},
+            {"name": "Микроакты", "weight_percent": 50},
+            {"name": "Re-trafic", "weight_percent": 20},
+        ],
+    }
+    snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08", kpi_reference=reference)
+    overall = snapshot["manager_reports"]["coor A"]["overall"]
+    assert overall["weights"] == {"gt": 0.3, "microacts": 0.5, "retrafic": 0.2}
+    assert overall["weights_source"] == "kpi_reference"
+    assert overall["percent"] == 57.0
+
+
+def test_uploaded_las_and_lau_weights_are_combined_into_microacts() -> None:
+    users, groups, kpi_data = _source_data()
+    reference = {
+        "items": [
+            {"name": "GT", "weight_percent": 35},
+            {"name": "LAS", "weight_percent": 25},
+            {"name": "LAU", "weight_percent": 25},
+            {"name": "Ретрафик", "weight_percent": 15},
+        ]
+    }
+    snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08", kpi_reference=reference)
+    overall = snapshot["manager_reports"]["coor R"]["overall"]
+    assert overall["weights"] == {"gt": 0.35, "microacts": 0.5, "retrafic": 0.15}
+    assert overall["weights_source"] == "kpi_reference"
+
+
+def test_unmapped_uploaded_reference_never_falls_back_to_old_weights() -> None:
+    users, groups, kpi_data = _source_data()
+    reference = {"items": [{"name": "Новый показатель", "weight_percent": 100}]}
+    snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08", kpi_reference=reference)
+    overall = snapshot["manager_reports"]["coor A"]["overall"]
+    assert overall["percent"] is None
+    assert overall["weights"] is None
+    assert overall["weights_source"] == "kpi_reference_unmapped"
+
+
 if __name__ == "__main__":
     test_hierarchical_weighted_aggregation()
     test_manager_kpi_menu_and_report()
     test_missing_employee_kpi_is_reported_without_becoming_zero_data()
+    test_uploaded_reference_weights_replace_legacy_40_40_20()
+    test_uploaded_las_and_lau_weights_are_combined_into_microacts()
+    test_unmapped_uploaded_reference_never_falls_back_to_old_weights()
     print("TEAM_KPI_SERVICE PASS")

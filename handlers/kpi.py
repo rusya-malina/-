@@ -660,10 +660,18 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         manager_group = "MNG" if admin_mode else group
         service = TeamKpiService.from_default_storage()
         snapshot = await service.load_current()
+        reference = await load_kpi_reference()
+        reference_updated_at = reference.get("updated_at") if isinstance(reference, dict) else None
         manager_report = snapshot.get("manager_reports", {}).get(manager_group, {}) if snapshot else {}
         snapshot_version = snapshot.get("calculation_version") if snapshot else None
+        snapshot_reference_updated_at = snapshot.get("kpi_reference_updated_at") if snapshot else None
         has_work_time = isinstance(manager_report, dict) and "work_time" in manager_report.get("metrics", {})
-        if snapshot is None or snapshot_version != CALCULATION_VERSION or not has_work_time:
+        if (
+            snapshot is None
+            or snapshot_version != CALCULATION_VERSION
+            or snapshot_reference_updated_at != reference_updated_at
+            or not has_work_time
+        ):
             snapshot = await service.rebuild()
         await query.message.edit_text(
             build_team_kpi_report(snapshot, manager_group),
