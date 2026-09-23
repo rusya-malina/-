@@ -757,6 +757,34 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{micro_details}\n"
             f"🔄 **Re-trafic:** План: `{user_kpi['retrafic_plan']:.0f}` | Факт: `{user_kpi['retrafic_fact']:.0f}` (`{retrafic_pct:.1f}%`)\n"
         )
+        reference = await load_kpi_reference()
+        reference_items = reference.get("items", []) if isinstance(reference, dict) else []
+        if reference_items:
+            details = ["", "📋 **Детализация по справочнику KPI**"]
+            weighted_total = 0.0
+            for item in reference_items:
+                name = str(item.get("name", "")).strip()
+                if not name:
+                    continue
+                key = " ".join(name.casefold().replace("ё", "е").replace("-", " ").replace("_", " ").split())
+                aliases = {"gt": {"gt", "гт", "gross traffic", "трафик"}, "microacts": {"microacts", "micro acts", "микроакты", "микро акты", "микроакты общие", "microacts total"}, "las": {"las", "лас"}, "lau": {"lau", "лау"}, "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"}}
+                metric = next((metric for metric, names in aliases.items() if key in names), None)
+                if metric == "gt": fact, plan = float(user_kpi.get("gt_fact", 0) or 0), float(user_kpi.get("gt_plan", 0) or 0)
+                elif metric == "microacts": fact, plan = float(user_kpi.get("micro_las_fact", 0) or 0) + float(user_kpi.get("micro_lau_fact", 0) or 0), float(user_kpi.get("micro_plan", 0) or 0)
+                elif metric == "las": fact, plan = float(user_kpi.get("micro_las_fact", 0) or 0), float(item.get("quantity", 0) or 0)
+                elif metric == "lau": fact, plan = float(user_kpi.get("micro_lau_fact", 0) or 0), float(item.get("quantity", 0) or 0)
+                elif metric == "retrafic": fact, plan = float(user_kpi.get("retrafic_fact", 0) or 0), float(user_kpi.get("retrafic_plan", 0) or 0)
+                else:
+                    fact = float((user_kpi.get("additional_kpi_facts", {}) or {}).get(name, 0) or 0)
+                    plan = float(item.get("quantity", 0) or 0)
+                pct = (fact / plan * 100) if plan > 0 else 0
+                weight = float(item.get("weight_percent", 0) or 0)
+                weighted_total += pct * weight / 100
+                threshold = item.get("threshold_percent")
+                threshold_text = f" | порог: `{float(threshold):.0f}%`" if threshold is not None else ""
+                details.append(f"• **{name}** — План: `{plan:.0f}` | Факт: `{fact:.0f}` (`{pct:.1f}%`) | Вес: `{weight:.0f}%`{threshold_text}")
+            details.append(f"🏆 **Итоговый KPI по весам: `{weighted_total:.1f}%`**")
+            text += "\n" + "\n".join(details)
         inline_keyboard = [[InlineKeyboardButton("⬅️ Назад к меню", callback_data="my_kpi_back")]]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard), parse_mode="Markdown")
 
