@@ -1,4 +1,4 @@
-"""Application service for daily work status and pair invitations."""
+""""Application service for daily work status and pair invitations."""
 
 from __future__ import annotations
 
@@ -59,6 +59,7 @@ async def set_work_status(user_id: str, status: str) -> dict[str, Any]:
         return {"ok": False, "message": "⚠️ Сотрудник не найден в команде A/R."}
 
     day_key = _today()
+
     def mutate(data: dict[str, Any]) -> None:
         day = data.setdefault(day_key, {"employees": {}, "invites": {}})
         employees = day.setdefault("employees", {})
@@ -91,6 +92,7 @@ async def set_work_status(user_id: str, status: str) -> dict[str, Any]:
             # A repeated "working" action must not break an already confirmed pair.
             # The pair is explicitly released only when the employee switches to
             # "not_working".
+            pass
 
     await update_json(STATUS_FILE, mutate)
     return {"ok": True, "status": status}
@@ -149,6 +151,7 @@ async def create_pair_invite(sender_id: str, receiver_id: str) -> dict[str, Any]
             return {"ok": False, "message": "ℹ️ У коллеги уже есть приглашение вам."}
 
     invite_id = f"{sender_id}:{receiver_id}:{_today()}"
+
     def mutate(data: dict[str, Any]) -> None:
         current = data.setdefault(_today(), {"employees": {}, "invites": {}})
         current.setdefault("invites", {})[invite_id] = {
@@ -205,7 +208,7 @@ async def accept_pair_invite(invite_id: str, receiver_id: str) -> dict[str, Any]
     await update_json(STATUS_FILE, mutate)
     return {
         "ok": True,
-        "message": f"✅ Вы приняли приглашение *{sender_name}*.\n👯 Сегодня вы в паре.",
+        "message": f"✅ Вы приняли приглашение *{sender_name}*.\\n👯 Сегодня вы в паре.",
         "sender_id": sender_id,
         "receiver_name": receiver_name,
     }
@@ -269,3 +272,4 @@ async def get_coordinator_overview() -> dict[str, Any]:
         "working": working,
         "not_working": not_working,
     }
+"
