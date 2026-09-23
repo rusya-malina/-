@@ -250,6 +250,19 @@ def build_team_kpi_snapshot(
     timestamp = calculated_at or now.isoformat()
     reference_weights = _reference_weights(kpi_reference)
     weights = reference_weights if reference_weights else (None if kpi_reference is not None else DEFAULT_WEIGHTS)
+    if isinstance(kpi_reference, dict) and isinstance(weights, dict):
+        core_names = {
+            "gt", "гт", "gross traffic", "трафик", "microacts", "micro acts",
+            "микроакты", "микро акты", "микроакты общие", "microacts total",
+            "las", "лас", "lau", "лау", "retrafic", "re trafic", "re traffic",
+            "ре трафик", "ретрафик",
+        }
+        for item in kpi_reference.get("items", []):
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            if name and _metric_key(name) not in core_names:
+                weights[name] = _number(item.get("weight_percent")) / 100.0
     weights_source = (
         "kpi_reference"
         if reference_weights
@@ -275,6 +288,7 @@ def build_team_kpi_snapshot(
             team_group=group,
             weights=weights,
             weights_source=weights_source,
+            reference=kpi_reference,
         )
         for group in SOURCE_GROUPS
     }
@@ -287,6 +301,7 @@ def build_team_kpi_snapshot(
             manager_group=manager_group,
             weights=weights,
             weights_source=weights_source,
+            reference=kpi_reference,
         )
         report["team_keys"] = list(scope)
         report["by_team"] = {team: teams[team] for team in scope}
