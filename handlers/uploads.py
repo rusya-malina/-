@@ -5,7 +5,7 @@ import re
 from telegram.error import TelegramError
 
 from application.import_service import ImportSafetyError, ImportService
-from application.kpi_reference_service import KpiReferenceValidationError, build_kpi_reference, save_kpi_reference
+from application.kpi_reference_service import KpiReferenceValidationError, build_kpi_reference, save_kpi_reference, load_kpi_reference, resolve_reference_fact_columns, _normalized_reference_name
 from application.team_kpi_service import TeamKpiService
 from bot_context import (
     ContextTypes,
@@ -138,8 +138,9 @@ async def start_excel_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "📊 **Загрузка данных KPI из Excel**\n\n"
         "Отправьте `.xlsx` файл со столбцами:\n"
         "• `full_name`, `gt_fact`, `micro_las_fact`, `micro_lau_fact`, `retrafic_fact`, `office_hours`, `field_hours`\n\n"
-        "Месячные планы GT / Microacts / Re-trafic берутся только из загруженного справочника KPI.\n"
-        "Столбцы `gt_plan`, `micro_plan` и `retrafic_plan` в Excel больше не используются.",
+        "Месячные планы берутся только из загруженного справочника KPI.\n"
+        "Дополнительные KPI из справочника должны иметь одноимённый столбец факта в Excel.\n"
+        "Плановые столбцы в Excel не используются.",
         reply_markup=cancel_keyboard,
         parse_mode="Markdown",
     )
