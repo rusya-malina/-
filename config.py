@@ -34,6 +34,7 @@ TRAINING_ONE_FILE = os.path.join(UPLOADED_DATA_DIR, "training_one.xlsx")
 TRAINING_TWO_FILE = os.path.join(UPLOADED_DATA_DIR, "training_two.xlsx")
 TRAINING_HISTORY_FILE = str(BASE_DIR / "training_history.json")
 OFFHOURS_VISITS_FILE = str(BASE_DIR / "offhours_visits.json")
+WORK_STATUS_FILE = str(BASE_DIR / "work_status.json")
 BOT_TIMEZONE = os.getenv("BOT_TIMEZONE", "Asia/Almaty")
 
 TEAM_OPTIONS = ("A LAMP", "R LAMP", "coor A", "coor R", "SPV", "MNG")
