@@ -161,7 +161,11 @@ async def update_many_json(filepaths: Iterable[str], mutator: Callable[[dict[str
         replaced: list[str] = []
         try:
             for filepath in paths:
-                originals[filepath] = None if not os.path.exists(filepath) else open(filepath, "rb").read()
+                if not os.path.exists(filepath):
+                    originals[filepath] = None
+                else:
+                    with open(filepath, "rb") as original_file:
+                        originals[filepath] = original_file.read()
                 parent = os.path.dirname(os.path.abspath(filepath))
                 os.makedirs(parent, exist_ok=True)
                 fd, temp_path = tempfile.mkstemp(prefix=f".{os.path.basename(filepath)}.", suffix=".txn", dir=parent)
