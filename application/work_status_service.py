@@ -88,8 +88,9 @@ async def set_work_status(user_id: str, status: str) -> dict[str, Any]:
                     partner.pop("pair_name", None)
                     partner["status"] = "working"
         else:
-            record.pop("pair_user_id", None)
-            record.pop("pair_name", None)
+            # A repeated "working" action must not break an already confirmed pair.
+            # The pair is explicitly released only when the employee switches to
+            # "not_working".
 
     await update_json(STATUS_FILE, mutate)
     return {"ok": True, "status": status}
