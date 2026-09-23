@@ -148,19 +148,61 @@ async def update_json(filepath: str, mutator):
 
 
 async def update_many_json(filepaths: Iterable[str], mutator: Callable[[dict[str, dict]], object]):
-    """Serialize a related multi-file read-modify-write operation.
-
-    Locks are acquired in sorted path order to avoid deadlocks when concurrent
-    handlers update overlapping JSON stores.
-    """
+    """Atomically update related JSON files with rollback on partial filesystem failure."""
     paths = sorted(set(filepaths))
     async with AsyncExitStack() as stack:
         for filepath in paths:
             await stack.enter_async_context(_get_json_lock(filepath))
         data = {filepath: await load_json(filepath) for filepath in paths}
         result = mutator(data)
-        for filepath in paths:
-            await save_json(data[filepath], filepath)
+
+        originals: dict[str, bytes | None] = {}
+        temp_paths: dict[str, str] = {}
+        replaced: list[str] = []
+        try:
+            for filepath in paths:
+                originals[filepath] = None if not os.path.exists(filepath) else open(filepath, "rb").read()
+                parent = os.path.dirname(os.path.abspath(filepath))
+                os.makedirs(parent, exist_ok=True)
+                fd, temp_path = tempfile.mkstemp(prefix=f".{os.path.basename(filepath)}.", suffix=".txn", dir=parent)
+                temp_paths[filepath] = temp_path
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data[filepath], f, ensure_ascii=False, indent=4)
+                    f.flush()
+                    os.fsync(f.fileno())
+
+            for filepath in paths:
+                os.replace(temp_paths[filepath], filepath)
+                replaced.append(filepath)
+                temp_paths[filepath] = ""
+        except OSError as error:
+            logging.error("Atomic multi-file transaction failed: %s", error)
+            for filepath in reversed(replaced):
+                original = originals.get(filepath)
+                try:
+                    if original is None:
+                        if os.path.exists(filepath):
+                            os.remove(filepath)
+                    else:
+                        parent = os.path.dirname(os.path.abspath(filepath))
+                        fd, rollback_path = tempfile.mkstemp(prefix=f".{os.path.basename(filepath)}.", suffix=".rollback", dir=parent)
+                        with os.fdopen(fd, "wb") as rollback_file:
+                            rollback_file.write(original)
+                            rollback_file.flush()
+                            os.fsync(rollback_file.fileno())
+                        os.replace(rollback_path, filepath)
+                except OSError as rollback_error:
+                    logging.critical("Failed to rollback %s: %s", filepath, rollback_error)
+            raise StorageError("Не удалось атомарно сохранить связанные JSON-хранилища") from error
+        finally:
+            for temp_path in temp_paths.values():
+                if temp_path:
+                    try:
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                    except OSError:
+                        pass
+
     await _sync_saved_paths(paths)
     return result
 
