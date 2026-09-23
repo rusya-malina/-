@@ -45,6 +45,7 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
     if is_management_group(group):
         keyboard = [["📍 Статус работы"], ["Моя команда"], ["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
         if group in COORDINATOR_GROUPS:
+            keyboard.insert(1, ["📋 Списки работающих"])
             keyboard.append(["📦 Выдача"])
         if group in BOOKING_REPORT_GROUPS:
             keyboard.append(["Брони"])
@@ -67,7 +68,6 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
         if group in GROUPS_WITH_PLAN:
             keyboard.insert(0, ["📅 План"])
     else:
-        # Legacy users may predate group registration; keep them active without re-registration.
         keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
