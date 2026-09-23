@@ -206,7 +206,7 @@ def _restore_paths(paths: Iterable[str]) -> bool:
             _validate_sync_content(path, content)
             _write_atomic(path, content)
             restored += 1
-        except Exception:
+        except Exception:  # noqa: BLE001
             failed = True
             LOGGER.exception("Failed to restore state from GitHub: %s", _repo_path(path))
     LOGGER.info("Restored %s runtime state file(s) from GitHub repository %s", restored, _repo())
@@ -232,7 +232,7 @@ def _sync_paths_local(paths: Iterable[str]) -> bool:
             _put_remote(path, local_content, sha, f"Persist bot data: {_repo_path(path)}")
         LOGGER.info("Runtime state synchronized to GitHub repository %s", _repo())
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001
         LOGGER.exception("Failed to synchronize runtime state to GitHub")
         return False
 
