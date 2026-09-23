@@ -189,6 +189,26 @@ def resolve_kpi_reference(reference: dict[str, Any] | None) -> dict[str, float] 
     return None
 
 
+
+def _normalized_reference_name(value: Any) -> str:
+    return " ".join(str(value or "").strip().casefold().replace("ё", "е").split())
+
+
+def resolve_reference_fact_columns(reference: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Return KPI rows that must have a matching fact column in the employee Excel."""
+    if not isinstance(reference, dict) or not isinstance(reference.get("items"), list):
+        return []
+    return [
+        {
+            "name": str(item.get("name", "")).strip(),
+            "quantity": float(item.get("quantity", 0) or 0),
+            "weight_percent": float(item.get("weight_percent", 0) or 0),
+            **({"threshold_percent": float(item["threshold_percent"])} if item.get("threshold_percent") is not None else {}),
+        }
+        for item in reference["items"]
+        if isinstance(item, dict) and str(item.get("name", "")).strip()
+    ]
+
 def resolve_kpi_reference_plans(reference: dict[str, Any] | None) -> dict[str, float] | None:
     """Return only canonical monthly plan values from the KPI handbook."""
     resolved = resolve_kpi_reference(reference)
@@ -218,4 +238,4 @@ async def load_kpi_reference() -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-__all__ = ["KpiReferenceValidationError", "build_kpi_reference", "load_kpi_reference", "save_kpi_reference", "resolve_kpi_reference", "resolve_kpi_reference_plans", "resolve_kpi_reference_weights"]
+__all__ = ["KpiReferenceValidationError", "build_kpi_reference", "load_kpi_reference", "save_kpi_reference", "resolve_kpi_reference", "resolve_kpi_reference_plans", "resolve_kpi_reference_weights", "resolve_reference_fact_columns", "_normalized_reference_name"]
