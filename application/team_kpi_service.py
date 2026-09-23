@@ -110,7 +110,7 @@ def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | N
     return {}
 
 
-def _aggregate_metrics(records: list[dict[str, Any]]) -> tuple[dict[str, Any], list[str], list[str]]:
+def _aggregate_metrics(records: list[dict[str, Any]], reference: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str], list[str]]:
     totals = {
         "gt_plan": 0.0,
         "gt_fact": 0.0,
@@ -159,6 +159,27 @@ def _aggregate_metrics(records: list[dict[str, Any]]) -> tuple[dict[str, Any], l
         },
         "retrafic": _metric(totals["retrafic_plan"], totals["retrafic_fact"]),
     }
+    if isinstance(reference, dict):
+        core_names = {
+            "gt", "гт", "gross traffic", "трафик", "microacts", "micro acts",
+            "микроакты", "микро акты", "микроакты общие", "microacts total",
+            "las", "лас", "lau", "лау", "retrafic", "re trafic", "re traffic",
+            "ре трафик", "ретрафик",
+        }
+        for item in reference.get("items", []):
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            if not name or _metric_key(name) in core_names:
+                continue
+            plan = _number(item.get("quantity"))
+            fact = sum(
+                _number(record.get("kpi", {}).get("additional_kpi_facts", {}).get(name))
+                for record in records
+                if isinstance(record.get("kpi"), dict)
+            )
+            metrics[name] = _metric(plan, fact)
+
     for metric_name, plan in (
         ("gt", totals["gt_plan"]),
         ("microacts", totals["micro_plan"]),
@@ -191,8 +212,9 @@ def _report(
     team_group: str | None = None,
     weights: dict[str, float] | None = DEFAULT_WEIGHTS,
     weights_source: str = "legacy_default",
+    reference: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    metrics, missing_ids, quality_tail = _aggregate_metrics(employees)
+    metrics, missing_ids, quality_tail = _aggregate_metrics(employees, reference)
     zero_plan_metrics = [item for item in quality_tail if item in {"gt", "microacts", "retrafic"}]
     warnings = [item for item in quality_tail if item not in {"gt", "microacts", "retrafic"}]
     return {
