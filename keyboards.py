@@ -32,7 +32,6 @@ def get_registration_group_keyboard() -> ReplyKeyboardMarkup:
 def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool = False) -> ReplyKeyboardMarkup:
     if user_id == ADMIN_ID and admin_mode:
         keyboard = [
-            ["Новый расчет"],
             ["Мой KPI", "Справочник KPI"],
             ["Остатки"],
             ["📦 Выдача"],
@@ -43,7 +42,7 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
 
     group = group or get_user_group_sync(user_id)
     if is_management_group(group):
-        keyboard = [["Моя команда"], ["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
+        keyboard = [["Моя команда"], ["Мой KPI", "Справочник KPI"]]
         if group in COORDINATOR_GROUPS:
             keyboard.append(["📦 Выдача"])
         if group in BOOKING_REPORT_GROUPS:
@@ -53,7 +52,7 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
         if group in GROUPS_WITH_BALANCES:
             keyboard.append(["Остатки"])
     elif group in GROUPS_WITH_HOURS or group in GROUPS_WITH_BALANCES:
-        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"], ["Остатки"]]
+        keyboard = [["Мой KPI", "Справочник KPI"], ["Остатки"]]
         if group in GROUPS_WITH_MY_TRAINING:
             keyboard.append(["Мои обучения"])
         if group in GROUPS_WITH_OFFHOURS_VISITS:
@@ -61,14 +60,14 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
         if group in GROUPS_WITH_PLAN:
             keyboard.insert(0, ["📅 План"])
     elif group in TEAM_OPTIONS:
-        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
+        keyboard = [["Мой KPI", "Справочник KPI"]]
         if group in GROUPS_WITH_OFFHOURS_VISITS:
             keyboard.append(["🏪 Внерабочие посещения"])
         if group in GROUPS_WITH_PLAN:
             keyboard.insert(0, ["📅 План"])
     else:
         # Legacy users may predate group registration; keep them active without re-registration.
-        keyboard = [["Новый расчет"], ["Мой KPI", "Справочник KPI"]]
+        keyboard = [["Мой KPI", "Справочник KPI"]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 

@@ -69,9 +69,6 @@ from handlers.uploads import (
 )
 from handlers.user import (
     cancel_action,
-    get_las,
-    get_lau,
-    new_calculation,
     reg_get_first_name,
     reg_get_group,
     reg_get_last_name,
@@ -92,8 +89,6 @@ from states import (
     ISSUANCE_USER,
     KPI_MENU_STATE,
     KPI_REFERENCE_UPLOAD,
-    LAS,
-    LAU,
     MANUAL_KPI_FIELD_HOURS,
     MANUAL_KPI_GT_FACT,
     MANUAL_KPI_MICRO_LAS_FACT,
@@ -128,7 +123,6 @@ def build_conversation_handler() -> ConversationHandler:
             CommandHandler("start", start),
             CommandHandler("admin", enter_admin_mode),
             CommandHandler("coor", exit_admin_mode),
-            MessageHandler(filters.Regex(r"^Новый расчет$"), new_calculation),
             MessageHandler(filters.Regex(r"^Моя команда$"), open_my_team_menu),
             MessageHandler(filters.Regex(r"^Загрузить обучение$"), open_training_menu),
             MessageHandler(filters.Regex(r"^Мои обучения$"), open_my_training_menu),
@@ -152,14 +146,6 @@ def build_conversation_handler() -> ConversationHandler:
             REG_LAST_NAME: [
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, reg_get_last_name),
-            ],
-            LAS: [
-                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_las),
-            ],
-            LAU: [
-                MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_lau),
             ],
             CHANGE_NAME: [
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),

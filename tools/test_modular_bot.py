@@ -74,7 +74,6 @@ def main() -> None:
     admin_buttons = {button.text for row in main_keyboard.keyboard for button in row}
     assert "📝 Оставить заявку" not in admin_buttons
     assert {
-        "Новый расчет",
         "Мой KPI",
         "Справочник KPI",
         "Остатки",
@@ -98,11 +97,10 @@ def main() -> None:
     r_lamp_buttons = {button.text for row in get_main_keyboard(100, "R LAMP").keyboard for button in row}
     coor_buttons = {button.text for row in get_main_keyboard(101, "coor A").keyboard for button in row}
     spv_buttons = {button.text for row in get_main_keyboard(102, "SPV").keyboard for button in row}
-    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Мои обучения"}.issubset(r_lamp_buttons)
-    assert {"Новый расчет", "Мой KPI", "Справочник KPI", "Остатки", "Загрузить обучение", "📦 Выдача"}.issubset(
-        coor_buttons
-    )
-    assert {"Новый расчет", "Мой KPI", "Справочник KPI"}.issubset(spv_buttons)
+    assert {"Мой KPI", "Справочник KPI", "Остатки", "Мои обучения"}.issubset(r_lamp_buttons)
+    assert {"Мой KPI", "Справочник KPI", "Остатки", "Загрузить обучение", "📦 Выдача"}.issubset(coor_buttons)
+    assert {"Мой KPI", "Справочник KPI"}.issubset(spv_buttons)
+    assert all("Новый расчет" not in buttons for buttons in (admin_buttons, r_lamp_buttons, coor_buttons, spv_buttons))
     assert "Остатки" not in spv_buttons
     assert "Мои обучения" not in coor_buttons
     assert "📝 Оставить заявку" not in r_lamp_buttons | coor_buttons | spv_buttons

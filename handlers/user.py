@@ -28,8 +28,6 @@ from roles import get_user_group
 from states import (
     CHANGE_LAST_NAME,
     CHANGE_NAME,
-    LAS,
-    LAU,
     REG_FIRST_NAME,
     REG_GROUP,
     REG_LAST_NAME,
@@ -291,77 +289,6 @@ async def save_new_full_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
         parse_mode="Markdown",
     )
     return ConversationHandler.END
-
-
-async def new_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    users = await load_json(USERS_FILE)
-    user_id = str(update.effective_user.id)
-
-    group = await get_user_group(user_id)
-    if user_id not in users or group not in TEAM_OPTIONS:
-        await update.message.reply_text(
-            "⚠️ Сначала завершите регистрацию: выберите группу.",
-            reply_markup=get_registration_group_keyboard(),
-        )
-        return REG_GROUP
-
-    context.user_data["name"] = user_name(users[user_id])
-    await update.message.reply_text(
-        "📊 **Новый расчет**\n\nВведите количество **LAS**:", reply_markup=cancel_keyboard, parse_mode="Markdown"
-    )
-    return LAS
-
-
-async def get_las(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        val = float(update.message.text.replace(",", "."))
-        if val < 0:
-            raise ValueError
-        context.user_data["las"] = val
-        await update.message.reply_text(
-            "Введите количество **LAU**:", reply_markup=cancel_keyboard, parse_mode="Markdown"
-        )
-        return LAU
-    except ValueError:
-        await update.message.reply_text("❌ Ошибка. Введите положительное число для LAS:")
-        return LAS
-
-
-async def get_lau(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        val = float(update.message.text.replace(",", "."))
-        if val < 0:
-            raise ValueError
-        context.user_data["lau"] = val
-
-        name = context.user_data["name"]
-        las = context.user_data["las"]
-        lau = context.user_data["lau"]
-        total = las + lau
-        las_percent = (las / total) * 100 if total > 0 else 0
-
-        need_las = 0 if las_percent >= 40 else max(0, int(((0.4 * total) - las) / 0.6) + 1)
-
-        result = (
-            f"📊 **Результат расчета**\n👤 *{name}*\n"
-            f"• LAS: `{las}` | LAU: `{lau}` | Сумма: `{total}`\n"
-            f"• Итоговый LAS %: `{las_percent:.2f}%`\n"
-        )
-        if need_las > 0:
-            result += f"⚠️ **Рекомендация:** Добавить LAS: `{need_las}`"
-        else:
-            result += "✅ **Показатель в норме!**"
-
-        group = await get_user_group(update.effective_user.id)
-        await update.message.reply_text(
-            result,
-            reply_markup=main_menu_markup(update.effective_user.id, context, group=group),
-            parse_mode="Markdown",
-        )
-        return ConversationHandler.END
-    except ValueError:
-        await update.message.reply_text("❌ Ошибка. Введите положительное число для LAU:")
-        return LAU
 
 
 async def cancel_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
