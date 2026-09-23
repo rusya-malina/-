@@ -769,11 +769,23 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 key = " ".join(name.casefold().replace("ё", "е").replace("-", " ").replace("_", " ").split())
                 aliases = {"gt": {"gt", "гт", "gross traffic", "трафик"}, "microacts": {"microacts", "micro acts", "микроакты", "микро акты", "микроакты общие", "microacts total"}, "las": {"las", "лас"}, "lau": {"lau", "лау"}, "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"}}
                 metric = next((metric for metric, names in aliases.items() if key in names), None)
-                if metric == "gt": fact, plan = float(user_kpi.get("gt_fact", 0) or 0), float(user_kpi.get("gt_plan", 0) or 0)
-                elif metric == "microacts": fact, plan = float(user_kpi.get("micro_las_fact", 0) or 0) + float(user_kpi.get("micro_lau_fact", 0) or 0), float(user_kpi.get("micro_plan", 0) or 0)
-                elif metric == "las": fact, plan = float(user_kpi.get("micro_las_fact", 0) or 0), float(item.get("quantity", 0) or 0)
-                elif metric == "lau": fact, plan = float(user_kpi.get("micro_lau_fact", 0) or 0), float(item.get("quantity", 0) or 0)
-                elif metric == "retrafic": fact, plan = float(user_kpi.get("retrafic_fact", 0) or 0), float(user_kpi.get("retrafic_plan", 0) or 0)
+                if metric == "gt":
+                    fact = float(user_kpi.get("gt_fact", 0) or 0)
+                    plan = float(user_kpi.get("gt_plan", 0) or 0)
+                elif metric == "microacts":
+                    fact = float(user_kpi.get("micro_las_fact", 0) or 0) + float(
+                        user_kpi.get("micro_lau_fact", 0) or 0
+                    )
+                    plan = float(user_kpi.get("micro_plan", 0) or 0)
+                elif metric == "las":
+                    fact = float(user_kpi.get("micro_las_fact", 0) or 0)
+                    plan = float(item.get("quantity", 0) or 0)
+                elif metric == "lau":
+                    fact = float(user_kpi.get("micro_lau_fact", 0) or 0)
+                    plan = float(item.get("quantity", 0) or 0)
+                elif metric == "retrafic":
+                    fact = float(user_kpi.get("retrafic_fact", 0) or 0)
+                    plan = float(user_kpi.get("retrafic_plan", 0) or 0)
                 else:
                     fact = float((user_kpi.get("additional_kpi_facts", {}) or {}).get(name, 0) or 0)
                     plan = float(item.get("quantity", 0) or 0)
