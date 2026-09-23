@@ -99,6 +99,112 @@ def build_kpi_reference(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+
+def _metric_key(value: Any) -> str:
+    text = str(value or "").strip().casefold().replace("ё", "е")
+    return " ".join(text.replace("-", " ").replace("_", " ").split())
+
+
+REFERENCE_ALIASES = {
+    "gt": {"gt", "гт", "gross traffic", "трафик"},
+    "microacts": {
+        "microacts",
+        "micro acts",
+        "микроакты",
+        "микро акты",
+        "микроакты общие",
+        "microacts total",
+    },
+    "las": {"las", "лас"},
+    "lau": {"lau", "лау"},
+    "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"},
+}
+
+
+def resolve_kpi_reference(reference: dict[str, Any] | None) -> dict[str, float] | None:
+    """Resolve handbook rows into canonical plan fields and KPI weights.
+
+    GT and Re-trafic map directly. Microacts may be a combined row or separate
+    LAS/LAU rows; their quantities and weights are combined into Microacts.
+    A three-row handbook with renamed labels keeps the historical positional
+    order GT, Microacts, Re-trafic.
+    """
+    if not isinstance(reference, dict) or not isinstance(reference.get("items"), list):
+        return None
+
+    items = [item for item in reference["items"] if isinstance(item, dict)]
+    plans = {"gt_plan": 0.0, "micro_plan": 0.0, "retrafic_plan": 0.0}
+    weights = {"gt": 0.0, "microacts": 0.0, "retrafic": 0.0}
+    mapped = False
+    explicit_microacts = False
+    separate_micro_plan = 0.0
+    separate_micro_weight = 0.0
+
+    for item in items:
+        name = _metric_key(item.get("name"))
+        try:
+            quantity = float(item.get("quantity", 0) or 0)
+            weight = float(item.get("weight_percent", 0) or 0) / 100.0
+        except (TypeError, ValueError):
+            continue
+        matched = next((metric for metric, names in REFERENCE_ALIASES.items() if name in names), None)
+        if matched == "gt":
+            plans["gt_plan"] += quantity
+            weights["gt"] += weight
+            mapped = True
+        elif matched == "retrafic":
+            plans["retrafic_plan"] += quantity
+            weights["retrafic"] += weight
+            mapped = True
+        elif matched == "microacts":
+            plans["micro_plan"] += quantity
+            weights["microacts"] += weight
+            explicit_microacts = True
+            mapped = True
+        elif matched in {"las", "lau"}:
+            separate_micro_plan += quantity
+            separate_micro_weight += weight
+            mapped = True
+
+    if not explicit_microacts:
+        plans["micro_plan"] = separate_micro_plan
+        weights["microacts"] = separate_micro_weight
+
+    if mapped:
+        return {**plans, **weights}
+
+    if len(items) == 3:
+        for plan_key, weight_key, item in zip(
+            ("gt_plan", "micro_plan", "retrafic_plan"),
+            ("gt", "microacts", "retrafic"),
+            items,
+            strict=True,
+        ):
+            try:
+                plans[plan_key] = float(item.get("quantity", 0) or 0)
+                weights[weight_key] = float(item.get("weight_percent", 0) or 0) / 100.0
+            except (TypeError, ValueError):
+                return None
+        return {**plans, **weights}
+    return None
+
+
+def resolve_kpi_reference_plans(reference: dict[str, Any] | None) -> dict[str, float] | None:
+    """Return only canonical monthly plan values from the KPI handbook."""
+    resolved = resolve_kpi_reference(reference)
+    if not resolved:
+        return None
+    return {key: resolved[key] for key in ("gt_plan", "micro_plan", "retrafic_plan")}
+
+
+def resolve_kpi_reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | None:
+    """Return only canonical fractional KPI weights from the KPI handbook."""
+    resolved = resolve_kpi_reference(reference)
+    if not resolved:
+        return None
+    return {key: resolved[key] for key in ("gt", "microacts", "retrafic")}
+
+
 async def save_kpi_reference(reference: dict[str, Any]) -> None:
     def replace(data: dict[str, Any]) -> None:
         data.clear()
@@ -112,4 +218,4 @@ async def load_kpi_reference() -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-__all__ = ["KpiReferenceValidationError", "build_kpi_reference", "load_kpi_reference", "save_kpi_reference"]
+__all__ = ["KpiReferenceValidationError", "build_kpi_reference", "load_kpi_reference", "save_kpi_reference", "resolve_kpi_reference", "resolve_kpi_reference_plans", "resolve_kpi_reference_weights"]
