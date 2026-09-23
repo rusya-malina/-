@@ -49,6 +49,10 @@ async def main() -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "offhours_visits.json"
             service = OffhoursVisitService(JsonRepository(str(path)))
+            zevon_friday = await service.book("808", "Зевон Тест", "A LAMP", "zevon", "2026-09-04")
+            assert not zevon_friday.ok and zevon_friday.code == "invalid_input"
+            zevon_saturday = await service.book("808", "Зевон Тест", "A LAMP", "zevon", "2026-09-05")
+            assert zevon_saturday.ok
             first_day = next_allowed_day()
             second_day = next_allowed_day(1)
             if second_day == first_day:
@@ -136,7 +140,7 @@ async def main() -> None:
 
             stored = json.loads(path.read_text(encoding="utf-8"))
             assert stored["schema_version"] == 1
-            assert len(stored["history"]) == 11
+            assert len(stored["history"]) == 12
             assert stored["bookings"][first.changed_ids[0]]["status"] == "cancelled"
     finally:
         visit_module.local_today = original_today

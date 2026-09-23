@@ -41,7 +41,7 @@ def offhours_home_markup() -> InlineKeyboardMarkup:
             [InlineKeyboardButton("Q bar", callback_data="offh_venue:q_bar")],
             [InlineKeyboardButton("John Dilinger", callback_data="offh_venue:john_dilinger")],
             [InlineKeyboardButton("Midnight", callback_data="offh_venue:midnight")],
-            [InlineKeyboardButton("Зевон", callback_data="offh_venue:zevon")],
+            [InlineKeyboardButton("Зевон (суб)", callback_data="offh_venue:zevon")],
             [InlineKeyboardButton("Шанхай", callback_data="offh_venue:shanghai")],
             [InlineKeyboardButton("Гао Гао", callback_data="offh_venue:gao_gao")],
             [InlineKeyboardButton("Мои брони", callback_data="offh_my")],
@@ -66,7 +66,7 @@ def _venue_day_records(bookings: list[dict[str, Any]], venue: str, day: date) ->
 def venue_dates_markup(venue: str, bookings: list[dict[str, Any]], today: date | None = None) -> InlineKeyboardMarkup:
     current = today or local_today()
     date_buttons: list[InlineKeyboardButton] = []
-    for day in month_visit_dates(current):
+    for day in month_visit_dates(current, venue):
         occupied = len(_venue_day_records(bookings, venue, day))
         marker = "·" if day < current else "✖" if occupied >= MAX_EMPLOYEES_PER_VENUE_DAY else ""
         label = f"{WEEKDAY_SHORT[day.weekday()]} {day.day:02d}{marker}"
@@ -198,6 +198,8 @@ async def _render_schedule(query) -> None:
     for day in month_visit_dates(current):
         lines.append(f"\n<b>{_date_label(day.isoformat())}</b>")
         for venue, venue_name in VENUES.items():
+            if day not in month_visit_dates(current, venue):
+                continue
             records = _venue_day_records(bookings, venue, day)
             names = ", ".join(escape(str(record.get("name", "—"))) for record in records) or "свободно"
             lines.append(f"{escape(venue_name)}: {names} ({len(records)}/2)")
@@ -213,7 +215,7 @@ async def _render_coordinator_report(query, venue: str) -> None:
     bookings = await OffhoursVisitService.from_default_storage().active_bookings()
     venue_name = escape(VENUES[venue])
     lines = [f"📋 <b>{venue_name}</b> — брони за {current.strftime('%m.%Y')}\n"]
-    for day in month_visit_dates(current):
+    for day in month_visit_dates(current, venue):
         records = _venue_day_records(bookings, venue, day)
         names = [escape(str(record.get("name", "—"))) for record in records]
         if len(names) == 2:

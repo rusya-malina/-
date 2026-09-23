@@ -79,6 +79,7 @@ async def main() -> None:
         "offh_my",
     ]
     assert handler.VENUES["gao_gao"] == "Гао Гао"
+    assert handler.VENUES["zevon"] == "Зевон (суб)"
     report_labels = inline_labels(handler.coordinator_venues_markup())
     assert report_labels[:4] == ["Bla Bla Bar", "Куранты", "Сплетни", "Зебра (Hype)"]
     assert "Гао Гао" in report_labels
@@ -98,6 +99,11 @@ async def main() -> None:
     assert callbacks[-1] == "offh_home"
     assert all(len(row) == 4 for row in month_markup.inline_keyboard[:-1])
     assert inline_labels(month_markup)[0] == "Ч 03·"
+
+    zevon_markup = handler.venue_dates_markup("zevon", [], today=date(2026, 9, 1))
+    zevon_callbacks = inline_callbacks(zevon_markup)
+    assert zevon_callbacks[:-1] == [f"offh_day:zevon:2026-09-{day:02d}" for day in (5, 12, 19, 26)]
+    assert all(label.startswith("С ") for label in inline_labels(zevon_markup)[:-1])
 
     occupied = [
         {"venue": "bla_bla_bar", "visit_date": "2026-09-10", "name": "Алина A"},

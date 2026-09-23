@@ -21,11 +21,12 @@ VENUES = {
     "q_bar": "Q bar",
     "john_dilinger": "John Dilinger",
     "midnight": "Midnight",
-    "zevon": "Зевон",
+    "zevon": "Зевон (суб)",
     "shanghai": "Шанхай",
     "gao_gao": "Гао Гао",
 }
 ALLOWED_WEEKDAYS = frozenset({3, 4, 5, 6})  # Thursday through Sunday
+VENUE_WEEKDAYS = {"zevon": frozenset({5})}  # Зевон работает только по субботам
 MAX_EMPLOYEES_PER_VENUE_DAY = 2
 MAX_USER_VENUE_MONTHLY_BOOKINGS = 2
 
@@ -41,14 +42,19 @@ def week_visit_dates(as_of: date | None = None) -> tuple[date, ...]:
     return tuple(monday + timedelta(days=offset) for offset in range(3, 7))
 
 
-def month_visit_dates(as_of: date | None = None) -> tuple[date, ...]:
-    """Return every Thursday-Sunday date in the calendar month containing *as_of*."""
+def allowed_weekdays_for_venue(venue: str | None = None) -> frozenset[int]:
+    return VENUE_WEEKDAYS.get(str(venue), ALLOWED_WEEKDAYS)
+
+
+def month_visit_dates(as_of: date | None = None, venue: str | None = None) -> tuple[date, ...]:
+    """Return available dates for a venue in the current calendar month."""
     current = as_of or local_today()
     last_day = monthrange(current.year, current.month)[1]
+    allowed_weekdays = allowed_weekdays_for_venue(venue)
     return tuple(
         day
         for number in range(1, last_day + 1)
-        if (day := date(current.year, current.month, number)).weekday() in ALLOWED_WEEKDAYS
+        if (day := date(current.year, current.month, number)).weekday() in allowed_weekdays
     )
 
 
@@ -103,7 +109,7 @@ class OffhoursVisitService:
             or not person_name
             or group_name not in {"A LAMP", "R LAMP"}
             or venue not in VENUES
-            or parsed_date.weekday() not in ALLOWED_WEEKDAYS
+            or parsed_date.weekday() not in allowed_weekdays_for_venue(venue)
             or parsed_date < today
             or parsed_date.year != today.year
             or parsed_date.month != today.month
@@ -258,6 +264,7 @@ __all__ = [
     "MAX_EMPLOYEES_PER_VENUE_DAY",
     "MAX_USER_VENUE_MONTHLY_BOOKINGS",
     "OffhoursVisitService",
+    "allowed_weekdays_for_venue",
     "local_today",
     "month_visit_dates",
     "VENUES",
