@@ -216,14 +216,12 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         result = await accept_pair_invite(invite_id, user_id)
         await query.message.edit_text(result["message"], parse_mode="Markdown")
         if result["ok"]:
-            try:
+            with suppress(Exception):
                 await context.bot.send_message(
                     chat_id=int(result["sender_id"]),
                     text=f"✅ *{result['receiver_name']}* приняла приглашение.\n👯 Вы в паре на {_today()}.",
                     parse_mode="Markdown",
                 )
-            except Exception:  # noqa: BLE001
-                pass
         return
 
     if data.startswith("work_status:reject:"):
@@ -237,7 +235,7 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         else:
             await query.message.edit_text(text, parse_mode="Markdown")
         if result.get("sender_id"):
-            try:
+            with suppress(Exception):
                 sender_id = str(result["sender_id"])
                 sender_candidates = await get_pair_candidates(sender_id)
                 sender_text = f"ℹ️ *{result['receiver_name']}* отказалась от приглашения в пару."
@@ -255,6 +253,4 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                         text=sender_text,
                         parse_mode="Markdown",
                     )
-            except Exception:  # noqa: BLE001
-                pass
         return
