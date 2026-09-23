@@ -197,7 +197,7 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=_invite_markup(result["invite_id"]),
                 parse_mode="Markdown",
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             await reject_pair_invite(result["invite_id"], reason="notification_failed")
             await query.message.edit_text(
                 "⚠️ Не удалось отправить приглашение коллеге. Попробуйте снова.",
@@ -221,7 +221,7 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     text=f"✅ *{result['receiver_name']}* приняла приглашение.\n👯 Вы в паре на {_today()}.",
                     parse_mode="Markdown",
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
         return
 
@@ -254,6 +254,6 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                         text=sender_text,
                         parse_mode="Markdown",
                     )
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
         return
