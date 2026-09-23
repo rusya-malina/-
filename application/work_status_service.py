@@ -272,4 +272,3 @@ async def get_coordinator_overview() -> dict[str, Any]:
         "working": working,
         "not_working": not_working,
     }
-"
