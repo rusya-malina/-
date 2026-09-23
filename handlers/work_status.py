@@ -16,9 +16,7 @@ from application.work_status_service import (
 )
 from bot_context import ContextTypes, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from config import BOT_TIMEZONE, GROUPS_FILE, USERS_FILE
-from organization import is_management_group
 from roles import get_user_group
-from storage import load_json
 
 STATUS_BUTTON = "📍 Статус работы"
 TEAM_GROUPS = frozenset({"A LAMP", "R LAMP"})
