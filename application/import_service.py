@@ -8,10 +8,22 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from config import GROUPS_FILE, ISSUANCE_FILE, KPI_FILE, KPI_REFERENCE_FILE, LATEST_ISSUANCE_FILE, LATEST_KPI_FILE, USERS_FILE
+from application.kpi_reference_service import (
+    _normalized_reference_name,
+    resolve_kpi_reference_plans,
+    resolve_reference_fact_columns,
+)
+from config import (
+    GROUPS_FILE,
+    ISSUANCE_FILE,
+    KPI_FILE,
+    KPI_REFERENCE_FILE,
+    LATEST_ISSUANCE_FILE,
+    LATEST_KPI_FILE,
+    USERS_FILE,
+)
 from data_models import make_group_record, make_user_record, normalize_issuance_record, user_name
 from repositories.json_repository import JsonRepository, transaction
-from application.kpi_reference_service import resolve_kpi_reference_plans, resolve_reference_fact_columns, _normalized_reference_name
 from services import _normalize_person_name
 from storage import replace_latest_file
 
