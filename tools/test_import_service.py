@@ -34,7 +34,7 @@ def test_import_service() -> None:
             encoding="utf-8",
         )
         issuance_path.write_text("{}", encoding="utf-8")
-        reference_path.write_text(json.dumps({"items": [{"name": "Микроакты", "weight_percent": 40, "quantity": 160}, {"name": "ГТ", "weight_percent": 35, "quantity": 112}, {"name": "Ретрафик", "weight_percent": 25, "quantity": 15}]}, ensure_ascii=False), encoding="utf-8")
+        reference_path.write_text(json.dumps({"items": [{"name": "Микроакты", "weight_percent": 30, "quantity": 160}, {"name": "ГТ", "weight_percent": 30, "quantity": 112}, {"name": "Ретрафик", "weight_percent": 20, "quantity": 15}, {"name": "Новые клиенты", "weight_percent": 20, "quantity": 10}]}, ensure_ascii=False), encoding="utf-8")
         users_path.write_text(
             json.dumps(
                 {
@@ -63,6 +63,7 @@ def test_import_service() -> None:
                         "retrafic_fact": 4,
                         "office_hours": 8,
                         "field_hours": 16,
+                        "Новые клиенты": 7,
                     }
                 ]
             )
@@ -75,6 +76,7 @@ def test_import_service() -> None:
             assert applied_kpi["test employee"]["gt_plan"] == 112.0
             assert applied_kpi["test employee"]["micro_plan"] == 160.0
             assert applied_kpi["test employee"]["retrafic_plan"] == 15.0
+            assert applied_kpi["test employee"]["additional_kpi_facts"]["Новые клиенты"] == 7.0
             assert "old employee" in applied_kpi
             users = json.loads(users_path.read_text(encoding="utf-8"))
             assert "excel_old employee" in users
