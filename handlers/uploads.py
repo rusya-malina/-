@@ -136,8 +136,10 @@ async def start_excel_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await update.message.reply_text(
         "📊 **Загрузка данных KPI из Excel**\n\n"
-        "Отправьте `.xlsx` файл со следующими столбцами:\n"
-        "• `full_name`, `gt_plan`, `gt_fact`, `micro_plan`, `micro_las_fact`, `micro_lau_fact`, `retrafic_plan`, `retrafic_fact`, `office_hours`, `field_hours`",
+        "Отправьте `.xlsx` файл со столбцами:\n"
+        "• `full_name`, `gt_fact`, `micro_las_fact`, `micro_lau_fact`, `retrafic_fact`, `office_hours`, `field_hours`\n\n"
+        "Месячные планы GT / Microacts / Re-trafic берутся только из загруженного справочника KPI.\n"
+        "Столбцы `gt_plan`, `micro_plan` и `retrafic_plan` в Excel больше не используются.",
         reply_markup=cancel_keyboard,
         parse_mode="Markdown",
     )
@@ -175,31 +177,16 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         def read_and_clean_excel(path):
             df = pd.read_excel(path)
             required_cols = [
-                "full_name",
-                "gt_plan",
-                "gt_fact",
-                "micro_plan",
-                "micro_las_fact",
-                "micro_lau_fact",
-                "retrafic_plan",
-                "retrafic_fact",
-                "office_hours",
-                "field_hours",
+                "full_name", "gt_fact", "micro_las_fact", "micro_lau_fact",
+                "retrafic_fact", "office_hours", "field_hours",
             ]
             if not all(col in df.columns for col in required_cols):
                 return None
 
             # Заменяем NaN на 0 для числовых столбцов
             numeric_cols = [
-                "gt_plan",
-                "gt_fact",
-                "micro_plan",
-                "micro_las_fact",
-                "micro_lau_fact",
-                "retrafic_plan",
-                "retrafic_fact",
-                "office_hours",
-                "field_hours",
+                "gt_fact", "micro_las_fact", "micro_lau_fact",
+                "retrafic_fact", "office_hours", "field_hours",
             ]
             df[numeric_cols] = df[numeric_cols].fillna(0)
             return df
@@ -208,7 +195,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         if df is None:
             await update.message.reply_text(
-                "❌ **Ошибка структуры файла! Проверьте обязательные столбцы (включая office_hours и field_hours).**",
+                "❌ **Ошибка структуры файла! Нужны ФИО, факты GT/LAS/LAU/Re-trafic и часы. Планы из Excel больше не загружаются.**",
                 parse_mode="Markdown",
             )
             if os.path.exists(file_path):
