@@ -7,7 +7,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from config import BOT_TIMEZONE, GROUPS_FILE, USERS_FILE, WORK_STATUS_FILE
-from data_models import user_name
 from organization import TEAM_GROUPS, build_employee_registry
 from storage import load_json, update_json
 
