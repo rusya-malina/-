@@ -69,13 +69,12 @@ def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | N
         "lau": {"lau", "лау"},
         "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"},
     }
+    items = [item for item in reference["items"] if isinstance(item, dict)]
     weights = {"gt": 0.0, "microacts": 0.0, "retrafic": 0.0}
     mapped = False
     explicit_microacts = False
     separate_microacts = 0.0
-    for item in reference["items"]:
-        if not isinstance(item, dict):
-            continue
+    for item in items:
         name = _metric_key(item.get("name"))
         try:
             weight = float(item.get("weight_percent", 0) or 0) / 100.0
@@ -96,7 +95,19 @@ def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | N
             mapped = True
     if not explicit_microacts:
         weights["microacts"] = separate_microacts
-    return weights if mapped else {}
+    if mapped:
+        return weights
+    if len(items) == 3:
+        # The monthly handbook has historically used this canonical order.
+        # It keeps renamed display labels connected to the source KPI fields.
+        positional = {"gt": 0.0, "microacts": 0.0, "retrafic": 0.0}
+        for metric, item in zip(positional, items, strict=True):
+            try:
+                positional[metric] = float(item.get("weight_percent", 0) or 0) / 100.0
+            except (TypeError, ValueError):
+                return {}
+        return positional
+    return {}
 
 
 def _aggregate_metrics(records: list[dict[str, Any]]) -> tuple[dict[str, Any], list[str], list[str]]:
