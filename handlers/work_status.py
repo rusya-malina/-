@@ -11,7 +11,6 @@ from application.work_status_service import (
     accept_pair_invite,
     create_pair_invite,
     get_coordinator_overview,
-    get_pair_candidates,
     get_today_status,
     get_work_status_recipients,
     reject_pair_invite,
@@ -130,14 +129,7 @@ async def show_work_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if status.get("pair_name"):
         text = f"📍 **Ваш статус на {_today()}:**\n👯 Вы в паре с *{status['pair_name']}*."
     elif status.get("status") == "working":
-        text = f"📍 **Ваш статус на {_today()}:** 🟢 Работаю\n\nВыберите коллегу в пару:"
-        candidates = await get_pair_candidates(user_id)
-        if not candidates:
-            text += "\n\nПока нет других работающих коллег без пары."
-            await update.message.reply_text(text, parse_mode="Markdown")
-            return
-        await update.message.reply_text(text, reply_markup=_candidate_markup(candidates), parse_mode="Markdown")
-        return
+        text = f"📍 **Ваш статус на {_today()}:** 🟢 Работаю"
     elif status.get("status") == "not_working":
         text = f"📍 **Ваш статус на {_today()}:** 🔴 Не работаю"
     else:
@@ -179,7 +171,7 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.message.edit_text(f"👯 Сегодня вы в паре с *{status['pair_name']}*.", parse_mode="Markdown")
             return
         await query.message.edit_text(
-            f"📍 **Статус работы на {_today()}**\n\nВыберите статус:",
+            f"📍 **Статус на {_today()}:** 🟢 Работаю",
             reply_markup=_status_markup(user_id, status),
             parse_mode="Markdown",
         )
@@ -196,18 +188,7 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         if desired == "not_working":
             await query.message.edit_text(f"🔴 **Статус на {_today()}: Не работаю**", parse_mode="Markdown")
             return
-        candidates = await get_pair_candidates(user_id)
-        if candidates:
-            await query.message.edit_text(
-                f"🟢 **Статус на {_today()}: Работаю**\n\nВыберите коллегу в пару:",
-                reply_markup=_candidate_markup(candidates),
-                parse_mode="Markdown",
-            )
-        else:
-            await query.message.edit_text(
-                f"🟢 **Статус на {_today()}: Работаю**\n\nПока нет других работающих коллег без пары.",
-                parse_mode="Markdown",
-            )
+        await query.message.edit_text(f"🟢 **Статус на {_today()}: Работаю**", parse_mode="Markdown")
         return
 
     if data.startswith("work_status:invite:"):
@@ -252,32 +233,17 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if data.startswith("work_status:reject:"):
         invite_id = data.rsplit(":", 1)[1]
         result = await reject_pair_invite(invite_id, reason="user_rejected")
-        candidates = await get_pair_candidates(user_id)
         text = result["message"]
-        if candidates:
-            text += "\n\nВыберите другого коллегу:"
-            await query.message.edit_text(text, reply_markup=_candidate_markup(candidates), parse_mode="Markdown")
-        else:
-            await query.message.edit_text(text, parse_mode="Markdown")
+        await query.message.edit_text(text, parse_mode="Markdown")
         if result.get("sender_id"):
             try:
                 sender_id = str(result["sender_id"])
-                sender_candidates = await get_pair_candidates(sender_id)
                 sender_text = f"ℹ️ *{result['receiver_name']}* отказалась от приглашения в пару."
-                if sender_candidates:
-                    sender_text += "\n\nВыберите другого коллегу:"
-                    await context.bot.send_message(
-                        chat_id=int(sender_id),
-                        text=sender_text,
-                        reply_markup=_candidate_markup(sender_candidates),
-                        parse_mode="Markdown",
-                    )
-                else:
-                    await context.bot.send_message(
-                        chat_id=int(sender_id),
-                        text=sender_text,
-                        parse_mode="Markdown",
-                    )
+                await context.bot.send_message(
+                    chat_id=int(sender_id),
+                    text=sender_text,
+                    parse_mode="Markdown",
+                )
             except Exception:  # noqa: BLE001
                 pass
         return
