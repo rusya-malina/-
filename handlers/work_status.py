@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import suppress
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -12,6 +13,7 @@ from application.work_status_service import (
     get_coordinator_overview,
     get_pair_candidates,
     get_today_status,
+    get_work_status_recipients,
     reject_pair_invite,
     set_work_status,
 )
@@ -22,6 +24,7 @@ from roles import get_user_group
 STATUS_BUTTON = "📍 Статус работы"
 TEAM_GROUPS = frozenset({"A LAMP", "R LAMP"})
 COORDINATOR_GROUPS = frozenset({"coor A", "coor R"})
+logger = logging.getLogger(__name__)
 
 
 def _today() -> str:
@@ -57,6 +60,30 @@ def _invite_markup(invite_id: str) -> InlineKeyboardMarkup:
             [InlineKeyboardButton("❌ Отказать", callback_data=f"work_status:reject:{invite_id}")],
         ]
     )
+
+
+def _daily_poll_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✅ Да, работаю", callback_data="work_status:set:working")],
+            [InlineKeyboardButton("❌ Нет, не работаю", callback_data="work_status:set:not_working")],
+        ]
+    )
+
+
+async def send_work_status_poll_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ask every A/R LAMP employee whether they work today at 15:00."""
+    recipients = await get_work_status_recipients()
+    for employee in recipients:
+        user_id = str(employee["user_id"])
+        try:
+            await context.bot.send_message(
+                chat_id=int(user_id),
+                text="Вы работаете сегодня?",
+                reply_markup=_daily_poll_markup(),
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("Не удалось отправить опрос статуса сотруднику %s", user_id)
 
 
 def _format_overview(overview: dict) -> str:

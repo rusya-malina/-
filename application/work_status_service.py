@@ -27,6 +27,11 @@ async def _roster() -> list[dict[str, Any]]:
     ]
 
 
+async def get_work_status_recipients() -> list[dict[str, Any]]:
+    """Return registered A/R LAMP employees who receive the daily poll."""
+    return await _roster()
+
+
 async def _load_day() -> dict[str, Any]:
     data = await load_json(STATUS_FILE)
     day = data.get(_today(), {})

@@ -12,7 +12,12 @@ from handlers.requests import requests_callback
 from handlers.teams import team_moderation_callback
 from handlers.training import send_training_compliance_job
 from handlers.uploads import process_excel_file, process_issuance_excel_file  # noqa: F401
-from handlers.work_status import show_work_status, show_working_lists, work_status_callback
+from handlers.work_status import (
+    send_work_status_poll_job,
+    show_work_status,
+    show_working_lists,
+    work_status_callback,
+)
 from presentation.router import build_conversation_handler
 from recovery import handle_application_error
 from services import check_pending_requests_job
@@ -31,6 +36,11 @@ def build_application(token: str) -> Application:
             time=time(hour=10, minute=0, tzinfo=ZoneInfo(BOT_TIMEZONE)),
             days=(4,),
             name="training_compliance_thursday",
+        )
+        app.job_queue.run_daily(
+            send_work_status_poll_job,
+            time=time(hour=15, minute=0, tzinfo=ZoneInfo(BOT_TIMEZONE)),
+            name="work_status_daily_poll",
         )
 
     app.add_handler(build_conversation_handler())

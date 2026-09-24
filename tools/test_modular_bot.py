@@ -168,7 +168,10 @@ def main() -> None:
     assert Path("handlers/uploads.py").exists()
     assert hasattr(app_factory, "process_excel_file")
     assert hasattr(app_factory, "process_issuance_excel_file")
-    assert {job.name for job in app.job_queue.jobs()} >= {"training_compliance_thursday"}
+    assert {job.name for job in app.job_queue.jobs()} >= {
+        "training_compliance_thursday",
+        "work_status_daily_poll",
+    }
     assert not hasattr(bot, "process_excel_file")
     polling_source = (ROOT / "runtime" / "polling_supervisor.py").read_text(encoding="utf-8")
     assert "except Conflict" in polling_source
