@@ -110,7 +110,7 @@ def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | N
     return {}
 
 
-def _aggregate_metrics(records: list[dict[str, Any]]) -> tuple[dict[str, Any], list[str], list[str]]:
+def _aggregate_metrics(records: list[dict[str, Any]], reference: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str], list[str]]:
     totals = {
         "gt_plan": 0.0,
         "gt_fact": 0.0,
@@ -159,6 +159,27 @@ def _aggregate_metrics(records: list[dict[str, Any]]) -> tuple[dict[str, Any], l
         },
         "retrafic": _metric(totals["retrafic_plan"], totals["retrafic_fact"]),
     }
+    if isinstance(reference, dict):
+        core_names = {
+            "gt", "гт", "gross traffic", "трафик", "microacts", "micro acts",
+            "микроакты", "микро акты", "микроакты общие", "microacts total",
+            "las", "лас", "lau", "лау", "retrafic", "re trafic", "re traffic",
+            "ре трафик", "ретрафик",
+        }
+        for item in reference.get("items", []):
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            if not name or _metric_key(name) in core_names:
+                continue
+            plan = _number(item.get("quantity")) * len(records)
+            fact = sum(
+                _number(record.get("kpi", {}).get("additional_kpi_facts", {}).get(name))
+                for record in records
+                if isinstance(record.get("kpi"), dict)
+            )
+            metrics[name] = _metric(plan, fact)
+
     for metric_name, plan in (
         ("gt", totals["gt_plan"]),
         ("microacts", totals["micro_plan"]),
@@ -191,8 +212,9 @@ def _report(
     team_group: str | None = None,
     weights: dict[str, float] | None = DEFAULT_WEIGHTS,
     weights_source: str = "legacy_default",
+    reference: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    metrics, missing_ids, quality_tail = _aggregate_metrics(employees)
+    metrics, missing_ids, quality_tail = _aggregate_metrics(employees, reference)
     zero_plan_metrics = [item for item in quality_tail if item in {"gt", "microacts", "retrafic"}]
     warnings = [item for item in quality_tail if item not in {"gt", "microacts", "retrafic"}]
     return {
@@ -227,10 +249,23 @@ def build_team_kpi_snapshot(
     selected_period = period or now.strftime("%Y-%m")
     timestamp = calculated_at or now.isoformat()
     reference_weights = _reference_weights(kpi_reference)
-    weights = reference_weights if reference_weights else (None if kpi_reference is not None else DEFAULT_WEIGHTS)
+    weights = reference_weights if reference_weights else ({} if kpi_reference is not None else DEFAULT_WEIGHTS)
+    if isinstance(kpi_reference, dict) and isinstance(weights, dict):
+        core_names = {
+            "gt", "гт", "gross traffic", "трафик", "microacts", "micro acts",
+            "микроакты", "микро акты", "микроакты общие", "microacts total",
+            "las", "лас", "lau", "лау", "retrafic", "re trafic", "re traffic",
+            "ре трафик", "ретрафик",
+        }
+        for item in kpi_reference.get("items", []):
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            if name and _metric_key(name) not in core_names:
+                weights[name] = _number(item.get("weight_percent")) / 100.0
     weights_source = (
         "kpi_reference"
-        if reference_weights
+        if kpi_reference is not None and weights
         else ("kpi_reference_unmapped" if kpi_reference is not None else "legacy_default")
     )
     registry = build_employee_registry(users, groups, kpi_data, {})
@@ -253,6 +288,7 @@ def build_team_kpi_snapshot(
             team_group=group,
             weights=weights,
             weights_source=weights_source,
+            reference=kpi_reference,
         )
         for group in SOURCE_GROUPS
     }
@@ -265,6 +301,7 @@ def build_team_kpi_snapshot(
             manager_group=manager_group,
             weights=weights,
             weights_source=weights_source,
+            reference=kpi_reference,
         )
         report["team_keys"] = list(scope)
         report["by_team"] = {team: teams[team] for team in scope}

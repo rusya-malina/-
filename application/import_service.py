@@ -8,7 +8,20 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from config import GROUPS_FILE, ISSUANCE_FILE, KPI_FILE, LATEST_ISSUANCE_FILE, LATEST_KPI_FILE, USERS_FILE
+from application.kpi_reference_service import (
+    _normalized_reference_name,
+    resolve_kpi_reference_plans,
+    resolve_reference_fact_columns,
+)
+from config import (
+    GROUPS_FILE,
+    ISSUANCE_FILE,
+    KPI_FILE,
+    KPI_REFERENCE_FILE,
+    LATEST_ISSUANCE_FILE,
+    LATEST_KPI_FILE,
+    USERS_FILE,
+)
 from data_models import make_group_record, make_user_record, normalize_issuance_record, user_name
 from repositories.json_repository import JsonRepository, transaction
 from services import _normalize_person_name
@@ -80,6 +93,7 @@ class ImportService:
     issuance: JsonRepository
     users: JsonRepository
     groups: JsonRepository | None = None
+    kpi_reference: JsonRepository | None = None
 
     @classmethod
     def from_default_storage(cls) -> "ImportService":
@@ -88,12 +102,29 @@ class ImportService:
             issuance=JsonRepository(ISSUANCE_FILE),
             users=JsonRepository(USERS_FILE),
             groups=JsonRepository(GROUPS_FILE),
+            kpi_reference=JsonRepository(KPI_REFERENCE_FILE),
         )
 
     async def prepare_kpi_import(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
         users_data = await self.users.load()
         existing_kpi = await self.kpi.load()
         groups_data = await self.groups.load() if self.groups is not None else {}
+        reference = await self.kpi_reference.load() if self.kpi_reference is not None else {}
+        reference_plans = resolve_kpi_reference_plans(reference)
+        reference_items = resolve_reference_fact_columns(reference)
+        if not reference_plans or not reference_items:
+            raise ImportSafetyError("KPI reference is missing or invalid")
+        core_names = {
+            "gt", "гт", "gross traffic", "трафик",
+            "microacts", "micro acts", "микроакты", "микро акты",
+            "микроакты общие", "microacts total", "las", "лас", "lau", "лау",
+            "retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик",
+        }
+        required_fact_names = {
+            _normalized_reference_name(item["name"]): item["name"]
+            for item in reference_items
+            if _normalized_reference_name(item["name"]) not in core_names
+        }
         users_before = dict(users_data)
         valid_rows: list[dict[str, Any]] = []
         for row in rows:
@@ -133,17 +164,35 @@ class ImportService:
         for row in valid_rows:
             employee_name = str(row["full_name"]).strip()
             clean_name = _normalize_person_name(employee_name)
+            row_columns = {_normalized_reference_name(key): key for key in row}
+            missing = [display for key, display in required_fact_names.items() if key not in row_columns]
+            if missing:
+                raise ImportSafetyError(
+                    "В Excel отсутствуют столбцы фактических значений для KPI: "
+                    + ", ".join(missing)
+                    + ". Добавьте их в файл и загрузите повторно."
+                )
+            custom_facts: dict[str, float] = {}
+            for key, display in required_fact_names.items():
+                value = row[row_columns[key]]
+                if value != value:
+                    value = 0
+                try:
+                    custom_facts[display] = float(value or 0)
+                except (TypeError, ValueError):
+                    raise ImportSafetyError(f"Факт KPI «{display}» должен быть числом") from None
             kpi_data[clean_name] = {
                 "original_name": employee_name,
-                "gt_plan": float(row["gt_plan"]),
+                "gt_plan": reference_plans["gt_plan"],
                 "gt_fact": float(row["gt_fact"]),
-                "micro_plan": float(row["micro_plan"]),
+                "micro_plan": reference_plans["micro_plan"],
                 "micro_las_fact": float(row["micro_las_fact"]),
                 "micro_lau_fact": float(row["micro_lau_fact"]),
-                "retrafic_plan": float(row["retrafic_plan"]),
+                "retrafic_plan": reference_plans["retrafic_plan"],
                 "retrafic_fact": float(row["retrafic_fact"]),
                 "office_hours": float(row["office_hours"]),
                 "field_hours": float(row["field_hours"]),
+                "additional_kpi_facts": custom_facts,
             }
             if clean_name not in updated_keys:
                 updated_names.append(employee_name)
