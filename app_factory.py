@@ -13,6 +13,7 @@ from handlers.teams import team_moderation_callback
 from handlers.training import send_training_compliance_job
 from handlers.uploads import process_excel_file, process_issuance_excel_file  # noqa: F401
 from handlers.work_status import (
+    send_missed_work_status_poll_job,
     send_work_status_poll_job,
     show_work_status,
     show_working_lists,
@@ -41,6 +42,11 @@ def build_application(token: str) -> Application:
             send_work_status_poll_job,
             time=time(hour=15, minute=0, tzinfo=ZoneInfo(BOT_TIMEZONE)),
             name="work_status_daily_poll",
+        )
+        app.job_queue.run_once(
+            send_missed_work_status_poll_job,
+            when=5,
+            name="work_status_missed_poll_catchup",
         )
 
     app.add_handler(build_conversation_handler())

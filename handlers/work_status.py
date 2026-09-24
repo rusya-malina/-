@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import suppress
-from datetime import datetime
+from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
 from application.work_status_service import (
@@ -87,6 +87,14 @@ async def send_work_status_poll_job(context: ContextTypes.DEFAULT_TYPE) -> None:
             )
         except Exception:  # noqa: BLE001
             logger.exception("Не удалось отправить опрос статуса сотруднику %s", user_id)
+
+
+async def send_missed_work_status_poll_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send today's poll after a restart that happened after the daily time."""
+    current_time = datetime.now(ZoneInfo(BOT_TIMEZONE)).time().replace(tzinfo=None)
+    if current_time < time(hour=15, minute=5):
+        return
+    await send_work_status_poll_job(context)
 
 
 def _format_overview(overview: dict) -> str:
