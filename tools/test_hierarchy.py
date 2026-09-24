@@ -46,6 +46,9 @@ async def test_scope_and_team_view() -> None:
     lamp_buttons = {button.text for row in get_main_keyboard(11, "A LAMP").keyboard for button in row}
     assert "Моя команда" in coor_buttons
     assert "Моя команда" not in lamp_buttons
+    assert "📋 Списки работающих" in coor_buttons
+    assert "📍 Статус работы" not in coor_buttons
+    assert "📍 Статус работы" in lamp_buttons
 
     original_group = teams_handler.get_user_group
     original_load_json = teams_handler.load_json

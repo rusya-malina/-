@@ -42,7 +42,8 @@ def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool =
 
     group = group or get_user_group_sync(user_id)
     if is_management_group(group):
-        keyboard = [["📍 Статус работы"], ["Моя команда"], ["Мой KPI", "Справочник KPI"]]
+        status_row = [] if group in COORDINATOR_GROUPS else [["📍 Статус работы"]]
+        keyboard = status_row + [["Моя команда"], ["Мой KPI", "Справочник KPI"]]
         if group in COORDINATOR_GROUPS:
             keyboard.insert(1, ["📋 Списки работающих"])
             keyboard.append(["📦 Выдача"])
