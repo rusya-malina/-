@@ -178,16 +178,25 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         def read_and_clean_excel(path):
             df = pd.read_excel(path)
             required_cols = [
-                "full_name", "gt_fact", "micro_las_fact", "micro_lau_fact",
-                "retrafic_fact", "office_hours", "field_hours",
+                "full_name",
+                "gt_fact",
+                "micro_las_fact",
+                "micro_lau_fact",
+                "retrafic_fact",
+                "office_hours",
+                "field_hours",
             ]
             if not all(col in df.columns for col in required_cols):
                 return None
 
             # Заменяем NaN на 0 для числовых столбцов
             numeric_cols = [
-                "gt_fact", "micro_las_fact", "micro_lau_fact",
-                "retrafic_fact", "office_hours", "field_hours",
+                "gt_fact",
+                "micro_las_fact",
+                "micro_lau_fact",
+                "retrafic_fact",
+                "office_hours",
+                "field_hours",
             ]
             df[numeric_cols] = df[numeric_cols].fillna(0)
             return df

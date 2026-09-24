@@ -767,15 +767,26 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if not name:
                     continue
                 key = " ".join(name.casefold().replace("ё", "е").replace("-", " ").replace("_", " ").split())
-                aliases = {"gt": {"gt", "гт", "gross traffic", "трафик"}, "microacts": {"microacts", "micro acts", "микроакты", "микро акты", "микроакты общие", "microacts total"}, "las": {"las", "лас"}, "lau": {"lau", "лау"}, "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"}}
+                aliases = {
+                    "gt": {"gt", "гт", "gross traffic", "трафик"},
+                    "microacts": {
+                        "microacts",
+                        "micro acts",
+                        "микроакты",
+                        "микро акты",
+                        "микроакты общие",
+                        "microacts total",
+                    },
+                    "las": {"las", "лас"},
+                    "lau": {"lau", "лау"},
+                    "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"},
+                }
                 metric = next((metric for metric, names in aliases.items() if key in names), None)
                 if metric == "gt":
                     fact = float(user_kpi.get("gt_fact", 0) or 0)
                     plan = float(user_kpi.get("gt_plan", 0) or 0)
                 elif metric == "microacts":
-                    fact = float(user_kpi.get("micro_las_fact", 0) or 0) + float(
-                        user_kpi.get("micro_lau_fact", 0) or 0
-                    )
+                    fact = float(user_kpi.get("micro_las_fact", 0) or 0) + float(user_kpi.get("micro_lau_fact", 0) or 0)
                     plan = float(user_kpi.get("micro_plan", 0) or 0)
                 elif metric == "las":
                     fact = float(user_kpi.get("micro_las_fact", 0) or 0)
@@ -794,7 +805,9 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 weighted_total += pct * weight / 100
                 threshold = item.get("threshold_percent")
                 threshold_text = f" | порог: `{float(threshold):.0f}%`" if threshold is not None else ""
-                details.append(f"• **{name}** — План: `{plan:.0f}` | Факт: `{fact:.0f}` (`{pct:.1f}%`) | Вес: `{weight:.0f}%`{threshold_text}")
+                details.append(
+                    f"• **{name}** — План: `{plan:.0f}` | Факт: `{fact:.0f}` (`{pct:.1f}%`) | Вес: `{weight:.0f}%`{threshold_text}"
+                )
             details.append(f"🏆 **Итоговый KPI по весам: `{weighted_total:.1f}%`**")
             text += "\n" + "\n".join(details)
         inline_keyboard = [[InlineKeyboardButton("⬅️ Назад к меню", callback_data="my_kpi_back")]]

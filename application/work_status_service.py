@@ -1,4 +1,4 @@
-""""Application service for daily work status and pair invitations."""
+""" "Application service for daily work status and pair invitations."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from zoneinfo import ZoneInfo
 from config import BOT_TIMEZONE, GROUPS_FILE, USERS_FILE, WORK_STATUS_FILE
 from organization import TEAM_GROUPS, build_employee_registry
 from storage import load_json, update_json
-
 
 STATUS_FILE = WORK_STATUS_FILE
 
@@ -22,7 +21,8 @@ async def _roster() -> list[dict[str, Any]]:
     users = await load_json(USERS_FILE)
     groups = await load_json(GROUPS_FILE)
     return [
-        item for item in build_employee_registry(users, groups)
+        item
+        for item in build_employee_registry(users, groups)
         if item.get("group") in TEAM_GROUPS and str(item.get("user_id", "")).isdigit()
     ]
 
@@ -183,9 +183,14 @@ async def accept_pair_invite(invite_id: str, receiver_id: str) -> dict[str, Any]
         return {"ok": False, "message": "⛔️ Это приглашение адресовано другому сотруднику."}
 
     sender_id = str(invite["sender_id"])
-    if day["employees"].get(sender_id, {}).get("status") != "working" or day["employees"].get(receiver_id, {}).get("status") != "working":
+    if (
+        day["employees"].get(sender_id, {}).get("status") != "working"
+        or day["employees"].get(receiver_id, {}).get("status") != "working"
+    ):
         return {"ok": False, "message": "⚠️ Оба сотрудника должны иметь статус «Работаю»."}
-    if day["employees"].get(sender_id, {}).get("pair_user_id") or day["employees"].get(receiver_id, {}).get("pair_user_id"):
+    if day["employees"].get(sender_id, {}).get("pair_user_id") or day["employees"].get(receiver_id, {}).get(
+        "pair_user_id"
+    ):
         return {"ok": False, "message": "⚠️ Один из сотрудников уже находится в паре."}
 
     sender_name = invite["sender_name"]
@@ -198,10 +203,14 @@ async def accept_pair_invite(invite_id: str, receiver_id: str) -> dict[str, Any]
         current["employees"][sender_id].update({"pair_user_id": receiver_id, "pair_name": receiver_name})
         current["employees"][receiver_id].update({"pair_user_id": sender_id, "pair_name": sender_name})
         for other in current["invites"].values():
-            if other.get("status") == "pending" and (
-                str(other.get("sender_id")) in {sender_id, receiver_id}
-                or str(other.get("receiver_id")) in {sender_id, receiver_id}
-            ) and other.get("invite_id") != invite_id:
+            if (
+                other.get("status") == "pending"
+                and (
+                    str(other.get("sender_id")) in {sender_id, receiver_id}
+                    or str(other.get("receiver_id")) in {sender_id, receiver_id}
+                )
+                and other.get("invite_id") != invite_id
+            ):
                 other["status"] = "cancelled"
 
     await update_json(STATUS_FILE, mutate)

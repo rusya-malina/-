@@ -74,6 +74,7 @@ class RecordSource(StrEnum):
     EXCEL = "excel"
     MERGED = "merged"
 
+
 class ReconciliationStatus(StrEnum):
     MATCHED = "matched"
     NEW_EXCEL = "new_excel"
@@ -83,6 +84,7 @@ class ReconciliationStatus(StrEnum):
     CONFLICT = "conflict"
     INVALID = "invalid"
 
+
 @dataclass(frozen=True)
 class ReconciliationIssue:
     status: ReconciliationStatus
@@ -91,6 +93,7 @@ class ReconciliationIssue:
     candidate_ids: tuple[str, ...] = ()
     message_key: str = ""
     severity: str = "info"
+
 
 @dataclass(frozen=True)
 class ReconciliationPlan:

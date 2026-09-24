@@ -9,9 +9,9 @@ from zoneinfo import ZoneInfo
 from application.work_status_service import (
     accept_pair_invite,
     create_pair_invite,
+    get_coordinator_overview,
     get_pair_candidates,
     get_today_status,
-    get_coordinator_overview,
     reject_pair_invite,
     set_work_status,
 )
@@ -142,14 +142,10 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if data == "work_status:menu":
         status = await get_today_status(user_id)
         if group in COORDINATOR_GROUPS:
-            await query.message.edit_text(
-                _format_overview(await get_coordinator_overview()), parse_mode="Markdown"
-            )
+            await query.message.edit_text(_format_overview(await get_coordinator_overview()), parse_mode="Markdown")
             return
         if status.get("pair_name"):
-            await query.message.edit_text(
-                f"👯 Сегодня вы в паре с *{status['pair_name']}*.", parse_mode="Markdown"
-            )
+            await query.message.edit_text(f"👯 Сегодня вы в паре с *{status['pair_name']}*.", parse_mode="Markdown")
             return
         await query.message.edit_text(
             f"📍 **Статус работы на {_today()}**\n\nВыберите статус:",
@@ -167,9 +163,7 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.message.edit_text(result["message"], parse_mode="Markdown")
             return
         if desired == "not_working":
-            await query.message.edit_text(
-                f"🔴 **Статус на {_today()}: Не работаю**", parse_mode="Markdown"
-            )
+            await query.message.edit_text(f"🔴 **Статус на {_today()}: Не работаю**", parse_mode="Markdown")
             return
         candidates = await get_pair_candidates(user_id)
         if candidates:
@@ -216,14 +210,12 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         result = await accept_pair_invite(invite_id, user_id)
         await query.message.edit_text(result["message"], parse_mode="Markdown")
         if result["ok"]:
-            try:
+            with suppress(Exception):
                 await context.bot.send_message(
                     chat_id=int(result["sender_id"]),
                     text=f"✅ *{result['receiver_name']}* приняла приглашение.\n👯 Вы в паре на {_today()}.",
                     parse_mode="Markdown",
                 )
-            except Exception:  # noqa: BLE001
-                pass
         return
 
     if data.startswith("work_status:reject:"):

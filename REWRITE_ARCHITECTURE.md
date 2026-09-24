@@ -75,6 +75,7 @@ class ApproveRegistrationCommand:
     request_id: str
     actor_id: int
 
+
 @dataclass(frozen=True)
 class OperationResult:
     ok: bool

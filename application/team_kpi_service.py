@@ -110,7 +110,9 @@ def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | N
     return {}
 
 
-def _aggregate_metrics(records: list[dict[str, Any]], reference: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str], list[str]]:
+def _aggregate_metrics(
+    records: list[dict[str, Any]], reference: dict[str, Any] | None = None
+) -> tuple[dict[str, Any], list[str], list[str]]:
     totals = {
         "gt_plan": 0.0,
         "gt_fact": 0.0,
@@ -161,10 +163,25 @@ def _aggregate_metrics(records: list[dict[str, Any]], reference: dict[str, Any] 
     }
     if isinstance(reference, dict):
         core_names = {
-            "gt", "гт", "gross traffic", "трафик", "microacts", "micro acts",
-            "микроакты", "микро акты", "микроакты общие", "microacts total",
-            "las", "лас", "lau", "лау", "retrafic", "re trafic", "re traffic",
-            "ре трафик", "ретрафик",
+            "gt",
+            "гт",
+            "gross traffic",
+            "трафик",
+            "microacts",
+            "micro acts",
+            "микроакты",
+            "микро акты",
+            "микроакты общие",
+            "microacts total",
+            "las",
+            "лас",
+            "lau",
+            "лау",
+            "retrafic",
+            "re trafic",
+            "re traffic",
+            "ре трафик",
+            "ретрафик",
         }
         for item in reference.get("items", []):
             if not isinstance(item, dict):
@@ -252,16 +269,35 @@ def build_team_kpi_snapshot(
     weights = reference_weights if reference_weights else ({} if kpi_reference is not None else DEFAULT_WEIGHTS)
     if isinstance(kpi_reference, dict) and isinstance(weights, dict):
         core_names = {
-            "gt", "гт", "gross traffic", "трафик", "microacts", "micro acts",
-            "микроакты", "микро акты", "микроакты общие", "microacts total",
-            "las", "лас", "lau", "лау", "retrafic", "re trafic", "re traffic",
-            "ре трафик", "ретрафик",
+            "gt",
+            "гт",
+            "gross traffic",
+            "трафик",
+            "microacts",
+            "micro acts",
+            "микроакты",
+            "микро акты",
+            "микроакты общие",
+            "microacts total",
+            "las",
+            "лас",
+            "lau",
+            "лау",
+            "retrafic",
+            "re trafic",
+            "re traffic",
+            "ре трафик",
+            "ретрафик",
         }
+        has_named_core_metric = any(
+            isinstance(item, dict) and _metric_key(item.get("name")) in core_names
+            for item in kpi_reference.get("items", [])
+        )
         for item in kpi_reference.get("items", []):
             if not isinstance(item, dict):
                 continue
             name = str(item.get("name", "")).strip()
-            if name and _metric_key(name) not in core_names:
+            if weights and has_named_core_metric and name and _metric_key(name) not in core_names:
                 weights[name] = _number(item.get("weight_percent")) / 100.0
     weights_source = (
         "kpi_reference"

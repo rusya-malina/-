@@ -115,10 +115,25 @@ class ImportService:
         if not reference_plans or not reference_items:
             raise ImportSafetyError("KPI reference is missing or invalid")
         core_names = {
-            "gt", "гт", "gross traffic", "трафик",
-            "microacts", "micro acts", "микроакты", "микро акты",
-            "микроакты общие", "microacts total", "las", "лас", "lau", "лау",
-            "retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик",
+            "gt",
+            "гт",
+            "gross traffic",
+            "трафик",
+            "microacts",
+            "micro acts",
+            "микроакты",
+            "микро акты",
+            "микроакты общие",
+            "microacts total",
+            "las",
+            "лас",
+            "lau",
+            "лау",
+            "retrafic",
+            "re trafic",
+            "re traffic",
+            "ре трафик",
+            "ретрафик",
         }
         required_fact_names = {
             _normalized_reference_name(item["name"]): item["name"]

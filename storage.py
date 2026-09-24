@@ -126,12 +126,12 @@ async def save_json(data: dict, filepath: str) -> None:
     await asyncio.to_thread(_sync_save_json, data, filepath)
 
 
-async def _read_bytes_sync(filepath: str) -> bytes:
+def _read_bytes_sync(filepath: str) -> bytes:
     with open(filepath, "rb") as original_file:
         return original_file.read()
 
 
-def _sync_saved_paths(filepaths: Iterable[str]) -> None:
+async def _sync_saved_paths(filepaths: Iterable[str]) -> None:
     try:
         from github_sync import DATA_SYNC_PATHS, sync_data_state
 
@@ -193,7 +193,9 @@ async def update_many_json(filepaths: Iterable[str], mutator: Callable[[dict[str
                             os.remove(filepath)
                     else:
                         parent = os.path.dirname(os.path.abspath(filepath))
-                        fd, rollback_path = tempfile.mkstemp(prefix=f".{os.path.basename(filepath)}.", suffix=".rollback", dir=parent)
+                        fd, rollback_path = tempfile.mkstemp(
+                            prefix=f".{os.path.basename(filepath)}.", suffix=".rollback", dir=parent
+                        )
                         with os.fdopen(fd, "wb") as rollback_file:
                             rollback_file.write(original)
                             rollback_file.flush()

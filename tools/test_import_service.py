@@ -34,7 +34,20 @@ def test_import_service() -> None:
             encoding="utf-8",
         )
         issuance_path.write_text("{}", encoding="utf-8")
-        reference_path.write_text(json.dumps({"items": [{"name": "Микроакты", "weight_percent": 30, "quantity": 160}, {"name": "ГТ", "weight_percent": 30, "quantity": 112}, {"name": "Ретрафик", "weight_percent": 20, "quantity": 15}, {"name": "Новые клиенты", "weight_percent": 20, "quantity": 10}]}, ensure_ascii=False), encoding="utf-8")
+        reference_path.write_text(
+            json.dumps(
+                {
+                    "items": [
+                        {"name": "Микроакты", "weight_percent": 30, "quantity": 160},
+                        {"name": "ГТ", "weight_percent": 30, "quantity": 112},
+                        {"name": "Ретрафик", "weight_percent": 20, "quantity": 15},
+                        {"name": "Новые клиенты", "weight_percent": 20, "quantity": 10},
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
         users_path.write_text(
             json.dumps(
                 {
@@ -49,7 +62,8 @@ def test_import_service() -> None:
             JsonRepository(str(kpi_path)),
             JsonRepository(str(issuance_path)),
             JsonRepository(str(users_path)),
-            JsonRepository(str(reference_path)),
+            groups=None,
+            kpi_reference=JsonRepository(str(reference_path)),
         )
 
         async def scenario() -> None:
@@ -173,13 +187,28 @@ def test_excel_only_employee_keeps_team_assignment_for_team_kpi() -> None:
         issuance_path = root / "issuance.json"
         users_path = root / "users.json"
         groups_path = root / "groups.json"
+        reference_path = root / "kpi_reference.json"
         for path in (kpi_path, issuance_path, users_path, groups_path):
             path.write_text("{}", encoding="utf-8")
+        reference_path.write_text(
+            json.dumps(
+                {
+                    "items": [
+                        {"name": "ГТ", "weight_percent": 40, "quantity": 100},
+                        {"name": "Микроакты", "weight_percent": 40, "quantity": 100},
+                        {"name": "Ретрафик", "weight_percent": 20, "quantity": 10},
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
         service = ImportService(
             JsonRepository(str(kpi_path)),
             JsonRepository(str(issuance_path)),
             JsonRepository(str(users_path)),
             JsonRepository(str(groups_path)),
+            JsonRepository(str(reference_path)),
         )
 
         async def scenario() -> None:
