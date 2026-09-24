@@ -76,6 +76,10 @@ async def send_work_status_poll_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     recipients = await get_work_status_recipients()
     for employee in recipients:
         user_id = str(employee["user_id"])
+        current_status = await get_today_status(user_id)
+        if current_status.get("status") in {"working", "not_working"}:
+            logger.info("Опрос статуса пропущен: сотрудник %s уже проголосовал", user_id)
+            continue
         try:
             await context.bot.send_message(
                 chat_id=int(user_id),
