@@ -83,6 +83,9 @@ async def main() -> None:
     report_labels = inline_labels(handler.coordinator_venues_markup())
     assert report_labels[:4] == ["Bla Bla Bar", "Куранты", "Сплетни", "Зебра (Hype)"]
     assert "Гао Гао" in report_labels
+    coordinator_report_labels = inline_labels(handler.coordinator_venues_markup("coor A"))
+    assert "📅 Брони на сегодня" in coordinator_report_labels
+    assert "📅 Брони на сегодня" not in inline_labels(handler.coordinator_venues_markup("SPV"))
     assert "🏪 Внерабочие посещения" in reply_labels(get_main_keyboard(101, "A LAMP"))
     assert "🏪 Внерабочие посещения" in reply_labels(get_main_keyboard(102, "R LAMP"))
     assert "🏪 Внерабочие посещения" not in reply_labels(get_main_keyboard(103, "coor A"))
@@ -187,6 +190,25 @@ async def main() -> None:
         assert "Выберите заведение" in selector
         selector_markup = coordinator_message.reply_text.await_args.kwargs["reply_markup"]
         assert "offh_report_venue:bla_bla_bar" in inline_callbacks(selector_markup)
+
+        handler.get_user_group = AsyncMock(return_value="coor A")
+        coordinator_message = SimpleNamespace(reply_text=AsyncMock())
+        coordinator_update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=303),
+            message=coordinator_message,
+        )
+        await handler.show_coordinator_bookings(coordinator_update, context)
+        coordinator_markup = coordinator_message.reply_text.await_args.kwargs["reply_markup"]
+        assert "offh_report_today" in inline_callbacks(coordinator_markup)
+
+        today_query = FakeQuery("offh_report_today")
+        await handler.coordinator_bookings_callback(
+            SimpleNamespace(callback_query=today_query, effective_user=today_query.from_user), context
+        )
+        today_report = today_query.message.edit_text.await_args.args[0]
+        assert "Брони заведений на сегодня" in today_report
+        assert "Bla Bla Bar" in today_report
+        assert "Куранты" in today_report
 
         report_query = FakeQuery("offh_report_venue:bla_bla_bar")
         await handler.coordinator_bookings_callback(

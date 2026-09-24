@@ -87,10 +87,12 @@ def my_bookings_markup(has_bookings: bool) -> InlineKeyboardMarkup:
     )
 
 
-def coordinator_venues_markup() -> InlineKeyboardMarkup:
+def coordinator_venues_markup(group: str | None = None) -> InlineKeyboardMarkup:
     """Return one compact venue selector for the management booking report."""
     buttons = [InlineKeyboardButton(name, callback_data=f"offh_report_venue:{venue}") for venue, name in VENUES.items()]
     keyboard = [buttons[index : index + 2] for index in range(0, len(buttons), 2)]
+    if group in {"coor A", "coor R"}:
+        keyboard.append([InlineKeyboardButton("📅 Брони на сегодня", callback_data="offh_report_today")])
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="offh_report_close")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -232,6 +234,21 @@ async def _render_coordinator_report(query, venue: str) -> None:
     )
 
 
+async def _render_today_coordinator_report(query) -> None:
+    current = local_today()
+    bookings = await OffhoursVisitService.from_default_storage().active_bookings()
+    lines = [f"📅 <b>Брони заведений на сегодня — {current.strftime('%d.%m.%Y')}</b>\n"]
+    for venue, venue_name in VENUES.items():
+        records = _venue_day_records(bookings, venue, current)
+        names = ", ".join(escape(str(record.get("name", "—"))) for record in records) or "—"
+        lines.append(f"<b>{escape(venue_name)}</b> — {names}")
+    await query.message.edit_text(
+        "\n".join(lines),
+        reply_markup=_back_markup("offh_report_home"),
+        parse_mode="HTML",
+    )
+
+
 async def offhours_visit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     identity = await _employee_identity(update)
@@ -358,9 +375,17 @@ async def coordinator_bookings_callback(update: Update, context: ContextTypes.DE
         await query.answer()
         await query.message.edit_text(
             "📋 <b>Брони</b>\n\nВыберите заведение, чтобы открыть его расписание:",
-            reply_markup=coordinator_venues_markup(),
+            reply_markup=coordinator_venues_markup(group),
             parse_mode="HTML",
         )
+        return OFFHOURS_VISITS_MENU
+
+    if data == "offh_report_today":
+        if group not in {"coor A", "coor R"}:
+            await query.answer("Выгрузка за сегодня доступна только координаторам.", show_alert=True)
+            return OFFHOURS_VISITS_MENU
+        await query.answer()
+        await _render_today_coordinator_report(query)
         return OFFHOURS_VISITS_MENU
 
     if data.startswith("offh_report_venue:"):
@@ -386,7 +411,7 @@ async def show_coordinator_bookings(update: Update, context: ContextTypes.DEFAUL
 
     await update.message.reply_text(
         "📋 <b>Брони</b>\n\nВыберите заведение, чтобы открыть его расписание:",
-        reply_markup=coordinator_venues_markup(),
+        reply_markup=coordinator_venues_markup(group),
         parse_mode="HTML",
     )
     return OFFHOURS_VISITS_MENU
