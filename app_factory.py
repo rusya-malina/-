@@ -15,6 +15,7 @@ from handlers.uploads import process_excel_file, process_issuance_excel_file  # 
 from handlers.work_status import (
     send_missed_work_status_poll_job,
     send_work_status_poll_job,
+    send_work_status_retry_job,
     show_work_status,
     show_working_lists,
     work_status_callback,
@@ -42,6 +43,11 @@ def build_application(token: str) -> Application:
             send_work_status_poll_job,
             time=time(hour=15, minute=0, tzinfo=ZoneInfo(BOT_TIMEZONE)),
             name="work_status_daily_poll",
+        )
+        app.job_queue.run_daily(
+            send_work_status_retry_job,
+            time=time(hour=15, minute=30, tzinfo=ZoneInfo(BOT_TIMEZONE)),
+            name="work_status_retry_unanswered_poll",
         )
         app.job_queue.run_once(
             send_missed_work_status_poll_job,

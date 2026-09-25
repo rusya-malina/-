@@ -171,6 +171,7 @@ def main() -> None:
     assert {job.name for job in app.job_queue.jobs()} >= {
         "training_compliance_thursday",
         "work_status_daily_poll",
+        "work_status_retry_unanswered_poll",
         "work_status_missed_poll_catchup",
     }
     assert not hasattr(bot, "process_excel_file")

@@ -14,6 +14,7 @@ from application.work_status_service import (
     get_today_status,
     get_work_status_recipients,
     reject_pair_invite,
+    save_poll_message_id,
     set_work_status,
 )
 from bot_context import ContextTypes, InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -81,13 +82,38 @@ async def send_work_status_poll_job(context: ContextTypes.DEFAULT_TYPE) -> None:
             logger.info("Опрос статуса пропущен: сотрудник %s уже проголосовал", user_id)
             continue
         try:
-            await context.bot.send_message(
+            message = await context.bot.send_message(
                 chat_id=int(user_id),
                 text="Вы работаете сегодня?",
                 reply_markup=_daily_poll_markup(),
             )
+            await save_poll_message_id(user_id, message.message_id)
         except Exception:  # noqa: BLE001
             logger.exception("Не удалось отправить опрос статуса сотруднику %s", user_id)
+
+
+async def send_work_status_retry_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Retry unanswered polls at 15:30, replacing the previous message."""
+    recipients = await get_work_status_recipients()
+    for employee in recipients:
+        user_id = str(employee["user_id"])
+        current_status = await get_today_status(user_id)
+        if current_status.get("status") in {"working", "not_working"}:
+            logger.info("Повторный опрос пропущен: сотрудник %s уже проголосовал", user_id)
+            continue
+        previous_message_id = current_status.get("poll_message_id")
+        try:
+            if previous_message_id:
+                with suppress(Exception):
+                    await context.bot.delete_message(chat_id=int(user_id), message_id=int(previous_message_id))
+            message = await context.bot.send_message(
+                chat_id=int(user_id),
+                text="Вы работаете сегодня?",
+                reply_markup=_daily_poll_markup(),
+            )
+            await save_poll_message_id(user_id, message.message_id)
+        except Exception:  # noqa: BLE001
+            logger.exception("Не удалось повторно отправить опрос сотруднику %s", user_id)
 
 
 async def send_missed_work_status_poll_job(context: ContextTypes.DEFAULT_TYPE) -> None:

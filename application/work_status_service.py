@@ -102,6 +102,19 @@ async def set_work_status(user_id: str, status: str) -> dict[str, Any]:
     return {"ok": True, "status": status}
 
 
+async def save_poll_message_id(user_id: str, message_id: int) -> None:
+    """Remember the latest unanswered poll message for retry cleanup."""
+    user_id = str(user_id)
+    day_key = _today()
+
+    def mutate(data: dict[str, Any]) -> None:
+        day = data.setdefault(day_key, {"employees": {}, "invites": {}})
+        record = day.setdefault("employees", {}).setdefault(user_id, {})
+        record["poll_message_id"] = int(message_id)
+
+    await update_json(STATUS_FILE, mutate)
+
+
 async def get_pair_candidates(user_id: str) -> list[dict[str, Any]]:
     user_id = str(user_id)
     roster = await _roster()
