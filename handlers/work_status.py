@@ -18,6 +18,7 @@ from application.work_status_service import (
 )
 from bot_context import ContextTypes, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from config import BOT_TIMEZONE
+from keyboards import get_main_keyboard
 from roles import get_user_group
 
 STATUS_BUTTON = "📍 Статус работы"
@@ -97,6 +98,15 @@ async def send_missed_work_status_poll_job(context: ContextTypes.DEFAULT_TYPE) -
     await send_work_status_poll_job(context)
 
 
+async def _show_result_and_main_menu(query, text: str, user_id: str, group: str) -> None:
+    """Show the saved status and restore the role-specific reply keyboard."""
+    await query.message.edit_text(text, parse_mode="Markdown")
+    await query.message.reply_text(
+        "🏠 Главное меню",
+        reply_markup=get_main_keyboard(int(user_id), group=group),
+    )
+
+
 def _format_overview(overview: dict) -> str:
     lines = [f"📍 **Статус работы на {overview['date']}**", ""]
     pairs = overview["pairs"]
@@ -130,7 +140,11 @@ async def show_work_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if group in COORDINATOR_GROUPS:
         overview = await get_coordinator_overview()
-        await update.message.reply_text(_format_overview(overview), parse_mode="Markdown")
+        await update.message.reply_text(
+            _format_overview(overview),
+            reply_markup=get_main_keyboard(int(user_id), group=group),
+            parse_mode="Markdown",
+        )
         return
 
     status = await get_today_status(user_id)
@@ -143,6 +157,13 @@ async def show_work_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         text = f"📍 **Статус работы на {_today()}**\n\nВыберите статус:"
 
+    if status.get("status") in {"working", "not_working"} or status.get("pair_name"):
+        await update.message.reply_text(
+            text,
+            reply_markup=get_main_keyboard(int(user_id), group=group),
+            parse_mode="Markdown",
+        )
+        return
     await update.message.reply_text(text, reply_markup=_status_markup(user_id, status), parse_mode="Markdown")
 
 
@@ -154,7 +175,11 @@ async def show_working_lists(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("⚠️ Списки работающих доступны только координаторам A/R.")
         return
     overview = await get_coordinator_overview()
-    await update.message.reply_text(_format_overview(overview), parse_mode="Markdown")
+    await update.message.reply_text(
+        _format_overview(overview),
+        reply_markup=get_main_keyboard(int(user_id), group=group),
+        parse_mode="Markdown",
+    )
 
 
 async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -167,16 +192,25 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if data == "work_status:noop":
         status = await get_today_status(user_id)
         text = f"👯 Сегодня вы в паре с *{status.get('pair_name', 'коллегой')}*."
-        await query.message.edit_text(text, parse_mode="Markdown")
+        await _show_result_and_main_menu(query, text, user_id, group)
         return
 
     if data == "work_status:menu":
         status = await get_today_status(user_id)
         if group in COORDINATOR_GROUPS:
             await query.message.edit_text(_format_overview(await get_coordinator_overview()), parse_mode="Markdown")
+            await query.message.reply_text(
+                "🏠 Главное меню",
+                reply_markup=get_main_keyboard(int(user_id), group=group),
+            )
             return
         if status.get("pair_name"):
-            await query.message.edit_text(f"👯 Сегодня вы в паре с *{status['pair_name']}*.", parse_mode="Markdown")
+            await _show_result_and_main_menu(
+                query,
+                f"👯 Сегодня вы в паре с *{status['pair_name']}*.",
+                user_id,
+                group,
+            )
             return
         await query.message.edit_text(
             f"📍 **Статус на {_today()}:** 🟢 Работаю",
@@ -194,9 +228,19 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.message.edit_text(result["message"], parse_mode="Markdown")
             return
         if desired == "not_working":
-            await query.message.edit_text(f"🔴 **Статус на {_today()}: Не работаю**", parse_mode="Markdown")
+            await _show_result_and_main_menu(
+                query,
+                f"🔴 **Статус на {_today()}: Не работаю**",
+                user_id,
+                group,
+            )
             return
-        await query.message.edit_text(f"🟢 **Статус на {_today()}: Работаю**", parse_mode="Markdown")
+        await _show_result_and_main_menu(
+            query,
+            f"🟢 **Статус на {_today()}: Работаю**",
+            user_id,
+            group,
+        )
         return
 
     if data.startswith("work_status:invite:"):

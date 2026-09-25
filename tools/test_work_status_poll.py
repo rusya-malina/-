@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from handlers import work_status
 
@@ -39,6 +40,31 @@ def test_poll_skips_employees_who_already_voted() -> None:
     assert sent[0]["reply_markup"].inline_keyboard[0][0].callback_data == "work_status:set:working"
 
 
+def test_status_answer_returns_to_main_menu() -> None:
+    query = SimpleNamespace(
+        from_user=SimpleNamespace(id=101),
+        data="work_status:set:working",
+        answer=AsyncMock(),
+        message=SimpleNamespace(edit_text=AsyncMock(), reply_text=AsyncMock()),
+    )
+    original_group = work_status.get_user_group
+    original_set_status = work_status.set_work_status
+    work_status.get_user_group = AsyncMock(return_value="A LAMP")
+    work_status.set_work_status = AsyncMock(return_value={"ok": True})
+    try:
+        asyncio.run(work_status.work_status_callback(SimpleNamespace(callback_query=query), SimpleNamespace()))
+    finally:
+        work_status.get_user_group = original_group
+        work_status.set_work_status = original_set_status
+
+    query.message.reply_text.assert_awaited_once()
+    menu_markup = query.message.reply_text.await_args.kwargs["reply_markup"]
+    menu_labels = [button.text for row in menu_markup.keyboard for button in row]
+    assert "📅 План" in menu_labels
+    assert "Мой KPI" in menu_labels
+
+
 if __name__ == "__main__":
     test_poll_skips_employees_who_already_voted()
+    test_status_answer_returns_to_main_menu()
     print("WORK_STATUS_POLL PASS")
