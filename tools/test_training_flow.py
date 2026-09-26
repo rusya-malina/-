@@ -14,6 +14,7 @@ from handlers.training import (
     build_training_compliance_text,
     is_my_training_group,
     is_training_group,
+    my_training_callback,
     my_training_markup,
     process_training_file,
     training_candidates,
@@ -21,7 +22,7 @@ from handlers.training import (
     training_type_callback,
 )
 from keyboards import get_main_keyboard
-from states import TRAINING_EMPLOYEE, TRAINING_TYPE
+from states import MY_TRAINING_MENU, TRAINING_EMPLOYEE, TRAINING_TYPE
 
 
 def _keyboard_text(keyboard) -> list[str]:
@@ -161,9 +162,51 @@ def test_training_upload_returns_to_employee_list() -> None:
     service.record_delivery.assert_awaited_once_with("100", "Сотрудник A", "one", 500, file_id="telegram-file-one")
 
 
+def test_my_training_request_replaces_previous_form() -> None:
+    for training_type in ("one", "two"):
+        query = SimpleNamespace(
+            data=f"my_training:{training_type}",
+            from_user=SimpleNamespace(id=100),
+            answer=AsyncMock(),
+            message=SimpleNamespace(delete=AsyncMock(), reply_text=AsyncMock()),
+        )
+        update = SimpleNamespace(callback_query=query)
+        history = SimpleNamespace(load=AsyncMock(return_value={}))
+        service = SimpleNamespace(history=history)
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_document=AsyncMock()),
+        )
+
+        async def scenario(
+            training_type=training_type,
+            service=service,
+            update=update,
+            context=context,
+        ) -> int:
+            with (
+                patch("handlers.training.get_user_group", new=AsyncMock(return_value="A LAMP")),
+                patch("handlers.training.TrainingService.from_default_storage", return_value=service),
+                patch(
+                    "handlers.training.TrainingService.latest_file_id_from_data",
+                    return_value=f"telegram-file-{training_type}",
+                ),
+            ):
+                return await my_training_callback(update, context)
+
+        result = asyncio.run(scenario())
+        assert result == MY_TRAINING_MENU
+        query.message.delete.assert_awaited_once()
+        context.bot.send_document.assert_awaited_once_with(
+            chat_id=100,
+            document=f"telegram-file-{training_type}",
+            caption=f"📚 {'Обучение один' if training_type == 'one' else 'Обучение два'}",
+        )
+
+
 if __name__ == "__main__":
     test_training_visibility_and_scoped_candidates()
     test_training_one_guard_message()
     test_training_two_guard_message()
     test_training_upload_returns_to_employee_list()
+    test_my_training_request_replaces_previous_form()
     print("TRAINING_FLOW PASS")

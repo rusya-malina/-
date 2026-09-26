@@ -308,6 +308,14 @@ async def open_my_training_menu(update: Update, context: ContextTypes.DEFAULT_TY
     return MY_TRAINING_MENU
 
 
+async def _delete_previous_training_form(query) -> None:
+    """Remove the inline training selector before showing the requested file."""
+    try:
+        await query.message.delete()
+    except TelegramError as error:
+        logging.warning("Не удалось удалить предыдущую форму обучения: %s", error)
+
+
 async def my_training_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     training_type = query.data.split(":", 1)[1] if ":" in query.data else ""
@@ -319,6 +327,7 @@ async def my_training_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.answer("Раздел недоступен для вашей группы.", show_alert=True)
         return ConversationHandler.END
     await query.answer()
+    await _delete_previous_training_form(query)
 
     history = await TrainingService.from_default_storage().history.load()
     file_id = TrainingService.latest_file_id_from_data(history, query.from_user.id, training_type)
