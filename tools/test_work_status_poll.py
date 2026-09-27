@@ -68,6 +68,20 @@ def test_status_answer_returns_to_main_menu() -> None:
     assert "Мой KPI" in menu_labels
 
 
+def test_overview_contains_unanswered_group() -> None:
+    text = work_status._format_overview(
+        {
+            "date": "2026-09-27",
+            "pairs": [],
+            "working": [],
+            "not_working": [],
+            "unanswered": [{"name": "Аня Один", "group": "A LAMP"}],
+        }
+    )
+    assert "🟡 **Не ответили**" in text
+    assert "• Аня Один (A LAMP)" in text
+
+
 def test_unanswered_poll_is_replaced() -> None:
     sent: list[dict] = []
     deleted: list[dict] = []
@@ -112,5 +126,6 @@ def test_unanswered_poll_is_replaced() -> None:
 if __name__ == "__main__":
     test_poll_skips_employees_who_already_voted()
     test_status_answer_returns_to_main_menu()
+    test_overview_contains_unanswered_group()
     test_unanswered_poll_is_replaced()
     print("WORK_STATUS_POLL PASS")

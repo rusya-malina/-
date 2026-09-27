@@ -57,7 +57,8 @@ def test_daily_pair_invitation_flow(monkeypatch):
         assert len(overview["pairs"]) == 1
         assert overview["pairs"][0]["first_name"] == "Аня Один"
         assert overview["pairs"][0]["second_name"] == "Бэлла Два"
-        assert all(item["name"] == "Рита Три" for item in overview["not_working"])
+        assert all(item["name"] == "Рита Три" for item in overview["unanswered"])
+        assert overview["not_working"] == []
 
         recipients = await service.get_work_status_recipients()
         assert [item["name"] for item in recipients] == ["Аня Один", "Бэлла Два", "Рита Три"]
@@ -65,6 +66,9 @@ def test_daily_pair_invitation_flow(monkeypatch):
 
         assert (await service.set_work_status("201", "not_working"))["ok"]
         assert (await service.get_today_status("201"))["status"] == "not_working"
+        overview = await service.get_coordinator_overview()
+        assert all(item["name"] == "Рита Три" for item in overview["not_working"])
+        assert overview["unanswered"] == []
         assert all(item["name"] != "Коор A" for item in recipients)
 
     asyncio.run(scenario())

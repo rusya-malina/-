@@ -271,6 +271,7 @@ async def get_coordinator_overview() -> dict[str, Any]:
     seen = set()
     working = []
     not_working = []
+    unanswered = []
     for employee in roster:
         user_id = str(employee["user_id"])
         record = employees.get(user_id, {})
@@ -289,12 +290,15 @@ async def get_coordinator_overview() -> dict[str, Any]:
                 )
         elif status == "working":
             working.append({"name": employee["name"], "group": employee.get("group")})
-        else:
+        elif status == "not_working":
             not_working.append({"name": employee["name"], "group": employee.get("group")})
+        else:
+            unanswered.append({"name": employee["name"], "group": employee.get("group")})
 
     return {
         "date": _today(),
         "pairs": pairs,
         "working": working,
         "not_working": not_working,
+        "unanswered": unanswered,
     }

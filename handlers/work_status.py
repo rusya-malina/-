@@ -154,6 +154,12 @@ def _format_overview(overview: dict) -> str:
         lines.extend(f"• {item['name']} ({item['group']})" for item in overview["not_working"])
     else:
         lines.append("• Нет")
+
+    lines.extend(["", "🟡 **Не ответили**"])
+    if overview["unanswered"]:
+        lines.extend(f"• {item['name']} ({item['group']})" for item in overview["unanswered"])
+    else:
+        lines.append("• Нет")
     return "\n".join(lines)
 
 
