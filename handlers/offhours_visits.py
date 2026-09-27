@@ -139,6 +139,44 @@ async def _render_home(query) -> None:
 async def _render_venue(query, venue: str) -> None:
     service = OffhoursVisitService.from_default_storage()
     bookings = await service.active_bookings()
+    current = local_today()
+    lines = [
+        f"🏪 <b>{escape(VENUES[venue])}</b>",
+        "",
+        "👥 <b>Кто уже занял места</b>",
+        "",
+    ]
+    venue_bookings = [
+        record
+        for record in bookings
+        if record.get("venue") == venue and str(record.get("visit_date", ""))[:7] == current.strftime("%Y-%m")
+    ]
+    if venue_bookings:
+        for day in month_visit_dates(current, venue):
+            names = [
+                escape(str(record.get("name", "—")))
+                for record in venue_bookings
+                if record.get("visit_date") == day.isoformat()
+            ]
+            if names:
+                lines.append(f"📅 {_date_label(day.isoformat())}: {', '.join(names)}")
+    else:
+        lines.append("Пока никто не забронировал места.")
+    lines.extend(["", "Выберите дату после просмотра списка:"])
+    await query.message.edit_text(
+        "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [InlineKeyboardButton("📅 Открыть календарь", callback_data=f"offh_calendar:{venue}")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="offh_home")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+
+
+async def _render_venue_calendar(query, venue: str) -> None:
+    bookings = await OffhoursVisitService.from_default_storage().active_bookings()
     await query.message.edit_text(
         f"🏪 <b>{escape(VENUES[venue])}</b>\n\nВыберите дату текущего месяца. Кнопки расположены по четыре в строке; «·» означает прошедшую дату, «✖» — два занятых места:",
         reply_markup=venue_dates_markup(venue, bookings),
@@ -285,6 +323,15 @@ async def offhours_visit_callback(update: Update, context: ContextTypes.DEFAULT_
             return OFFHOURS_VISITS_MENU
         await query.answer()
         await _render_venue(query, venue)
+        return OFFHOURS_VISITS_MENU
+
+    if data.startswith("offh_calendar:"):
+        venue = data.split(":", 1)[1]
+        if venue not in VENUES:
+            await query.answer("Неизвестное заведение.", show_alert=True)
+            return OFFHOURS_VISITS_MENU
+        await query.answer()
+        await _render_venue_calendar(query, venue)
         return OFFHOURS_VISITS_MENU
 
     if data.startswith("offh_day:"):

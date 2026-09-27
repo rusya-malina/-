@@ -125,6 +125,29 @@ async def main() -> None:
         handler.local_today = lambda: date(2026, 9, 7)
         context = SimpleNamespace(user_data={})
 
+        venue_query = FakeQuery("offh_venue:bla_bla_bar")
+        state = await handler.offhours_visit_callback(
+            SimpleNamespace(callback_query=venue_query, effective_user=venue_query.from_user), context
+        )
+        assert state == OFFHOURS_VISITS_MENU
+        venue_text = venue_query.message.edit_text.await_args.args[0]
+        assert "Кто уже занял места" in venue_text
+        assert "Четверг, 10.09.2026: Алина A, Рита R" in venue_text
+        assert inline_callbacks(venue_query.message.edit_text.await_args.kwargs["reply_markup"]) == [
+            "offh_calendar:bla_bla_bar",
+            "offh_home",
+        ]
+
+        calendar_query = FakeQuery("offh_calendar:bla_bla_bar")
+        await handler.offhours_visit_callback(
+            SimpleNamespace(callback_query=calendar_query, effective_user=calendar_query.from_user), context
+        )
+        calendar_text = calendar_query.message.edit_text.await_args.args[0]
+        assert "Выберите дату текущего месяца" in calendar_text
+        assert "offh_day:bla_bla_bar:2026-09-10" in inline_callbacks(
+            calendar_query.message.edit_text.await_args.kwargs["reply_markup"]
+        )
+
         day_query = FakeQuery("offh_day:bla_bla_bar:2026-09-10")
         state = await handler.offhours_visit_callback(
             SimpleNamespace(callback_query=day_query, effective_user=day_query.from_user), context
