@@ -73,7 +73,7 @@ def _daily_poll_markup() -> InlineKeyboardMarkup:
 
 
 async def send_work_status_poll_job(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Ask every A/R LAMP employee whether they work today at 15:00."""
+    """Ask every A/R LAMP employee whether they work today at 10:00."""
     recipients = await get_work_status_recipients()
     for employee in recipients:
         user_id = str(employee["user_id"])
@@ -93,7 +93,7 @@ async def send_work_status_poll_job(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def send_work_status_retry_job(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Retry unanswered polls at 15:30, replacing the previous message."""
+    """Retry unanswered polls hourly, replacing the previous message."""
     recipients = await get_work_status_recipients()
     for employee in recipients:
         user_id = str(employee["user_id"])
@@ -119,7 +119,7 @@ async def send_work_status_retry_job(context: ContextTypes.DEFAULT_TYPE) -> None
 async def send_missed_work_status_poll_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send today's poll after a restart that happened after the daily time."""
     current_time = datetime.now(ZoneInfo(BOT_TIMEZONE)).time().replace(tzinfo=None)
-    if current_time < time(hour=15, minute=5):
+    if current_time < time(hour=10, minute=5):
         return
     await send_work_status_poll_job(context)
 

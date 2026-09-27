@@ -41,14 +41,15 @@ def build_application(token: str) -> Application:
         )
         app.job_queue.run_daily(
             send_work_status_poll_job,
-            time=time(hour=15, minute=0, tzinfo=ZoneInfo(BOT_TIMEZONE)),
+            time=time(hour=10, minute=0, tzinfo=ZoneInfo(BOT_TIMEZONE)),
             name="work_status_daily_poll",
         )
-        app.job_queue.run_daily(
-            send_work_status_retry_job,
-            time=time(hour=15, minute=30, tzinfo=ZoneInfo(BOT_TIMEZONE)),
-            name="work_status_retry_unanswered_poll",
-        )
+        for retry_hour in range(11, 20):
+            app.job_queue.run_daily(
+                send_work_status_retry_job,
+                time=time(hour=retry_hour, minute=0, tzinfo=ZoneInfo(BOT_TIMEZONE)),
+                name=f"work_status_retry_unanswered_{retry_hour:02d}",
+            )
         app.job_queue.run_once(
             send_missed_work_status_poll_job,
             when=5,

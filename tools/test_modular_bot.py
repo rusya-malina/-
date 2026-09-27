@@ -171,9 +171,11 @@ def main() -> None:
     assert {job.name for job in app.job_queue.jobs()} >= {
         "training_compliance_thursday",
         "work_status_daily_poll",
-        "work_status_retry_unanswered_poll",
         "work_status_missed_poll_catchup",
     }
+    assert {f"work_status_retry_unanswered_{hour:02d}" for hour in range(11, 20)}.issubset(
+        {job.name for job in app.job_queue.jobs()}
+    )
     assert not hasattr(bot, "process_excel_file")
     polling_source = (ROOT / "runtime" / "polling_supervisor.py").read_text(encoding="utf-8")
     assert "except Conflict" in polling_source
