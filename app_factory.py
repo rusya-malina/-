@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import time
 from zoneinfo import ZoneInfo
 
+from telegram import BotCommand, BotCommandScopeAllGroupChats
+
 from bot_context import Application, CallbackQueryHandler, CommandHandler, HTTPXRequest, MessageHandler, filters
 from config import BOT_TIMEZONE
 from handlers.kpi import kpi_callback, kpi_menu, my_kpi_callback, my_kpi_menu, show_balances, show_plan
@@ -27,10 +29,21 @@ from recovery import handle_application_error
 from services import check_pending_requests_job
 
 
+async def _configure_group_commands(app: Application) -> None:
+    """Expose report commands in Telegram's slash-command menu for groups."""
+    await app.bot.set_my_commands(
+        [
+            BotCommand("working_today", "Список работающих сегодня"),
+            BotCommand("bookings_today", "Забронированные точки сегодня"),
+        ],
+        scope=BotCommandScopeAllGroupChats(),
+    )
+
+
 def build_application(token: str) -> Application:
     """Create the Telegram application and attach routes/background jobs."""
     request = HTTPXRequest(connect_timeout=30.0, read_timeout=30.0)
-    app = Application.builder().token(token).request(request).build()
+    app = Application.builder().token(token).request(request).post_init(_configure_group_commands).build()
     app.add_error_handler(handle_application_error)
 
     if app.job_queue:
