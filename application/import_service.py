@@ -127,8 +127,12 @@ class ImportService:
             "microacts total",
             "las",
             "лас",
+            "las event",
+            "лас ивент",
             "lau",
             "лау",
+            "lau event",
+            "лау ивент",
             "retrafic",
             "re trafic",
             "re traffic",
@@ -196,6 +200,21 @@ class ImportService:
                     custom_facts[display] = float(value or 0)
                 except (TypeError, ValueError):
                     raise ImportSafetyError(f"Факт KPI «{display}» должен быть числом") from None
+
+            def event_fact(*aliases: str, _row=row, _row_columns=row_columns) -> float:
+                column = next((_row_columns[key] for key in aliases if key in _row_columns), None)
+                if column is None:
+                    return 0.0
+                value = _row[column]
+                if value != value:
+                    return 0.0
+                try:
+                    return float(value or 0)
+                except (TypeError, ValueError):
+                    raise ImportSafetyError(f"Факт KPI «{column}» должен быть числом") from None
+
+            las_event_fact = event_fact("las event", "las_event", "лас ивент", "лас_ивент")
+            lau_event_fact = event_fact("lau event", "lau_event", "лау ивент", "лау_ивент")
             kpi_data[clean_name] = {
                 "original_name": employee_name,
                 "gt_plan": reference_plans["gt_plan"],
@@ -203,6 +222,8 @@ class ImportService:
                 "micro_plan": reference_plans["micro_plan"],
                 "micro_las_fact": float(row["micro_las_fact"]),
                 "micro_lau_fact": float(row["micro_lau_fact"]),
+                "micro_las_event_fact": las_event_fact,
+                "micro_lau_event_fact": lau_event_fact,
                 "retrafic_plan": reference_plans["retrafic_plan"],
                 "retrafic_fact": float(row["retrafic_fact"]),
                 "office_hours": float(row["office_hours"]),

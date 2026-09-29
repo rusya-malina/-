@@ -74,6 +74,8 @@ def test_import_service() -> None:
                         "gt_fact": 10,
                         "micro_las_fact": 20,
                         "micro_lau_fact": 30,
+                        "las_event": 7,
+                        "lau_event": 3,
                         "retrafic_fact": 4,
                         "office_hours": 8,
                         "field_hours": 16,
@@ -90,6 +92,8 @@ def test_import_service() -> None:
             assert applied_kpi["test employee"]["gt_plan"] == 112.0
             assert applied_kpi["test employee"]["micro_plan"] == 160.0
             assert applied_kpi["test employee"]["retrafic_plan"] == 15.0
+            assert applied_kpi["test employee"]["micro_las_event_fact"] == 7.0
+            assert applied_kpi["test employee"]["micro_lau_event_fact"] == 3.0
             assert applied_kpi["test employee"]["additional_kpi_facts"]["Новые клиенты"] == 7.0
             assert "old employee" in applied_kpi
             users = json.loads(users_path.read_text(encoding="utf-8"))

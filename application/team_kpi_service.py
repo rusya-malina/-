@@ -67,6 +67,8 @@ def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | N
         },
         "las": {"las", "лас"},
         "lau": {"lau", "лау"},
+        "las_event": {"las event", "лас ивент"},
+        "lau_event": {"lau event", "лау ивент"},
         "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"},
     }
     items = [item for item in reference["items"] if isinstance(item, dict)]
@@ -90,7 +92,7 @@ def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | N
             weights["microacts"] += weight
             explicit_microacts = True
             mapped = True
-        elif matched in {"las", "lau"}:
+        elif matched in {"las", "lau", "las_event", "lau_event"}:
             separate_microacts += weight
             mapped = True
     if not explicit_microacts:
@@ -119,6 +121,8 @@ def _aggregate_metrics(
         "micro_plan": 0.0,
         "micro_las_fact": 0.0,
         "micro_lau_fact": 0.0,
+        "micro_las_event_fact": 0.0,
+        "micro_lau_event_fact": 0.0,
         "retrafic_plan": 0.0,
         "retrafic_fact": 0.0,
         "office_hours": 0.0,
@@ -135,8 +139,10 @@ def _aggregate_metrics(
         for field in totals:
             totals[field] += _number(kpi.get(field))
 
-    micro_fact = totals["micro_las_fact"] + totals["micro_lau_fact"]
-    las_percent = _percent(totals["micro_las_fact"], micro_fact)
+    standard_micro_fact = totals["micro_las_fact"] + totals["micro_lau_fact"]
+    event_micro_fact = totals["micro_las_event_fact"] + totals["micro_lau_event_fact"]
+    micro_fact = standard_micro_fact + event_micro_fact
+    las_percent = _percent(totals["micro_las_fact"], standard_micro_fact)
     work_time_fact = totals["field_hours"]
     work_time_total_fact = totals["office_hours"] + totals["field_hours"]
     work_time_plan = len(records) * 64.0
@@ -155,6 +161,8 @@ def _aggregate_metrics(
             **_metric(totals["micro_plan"], micro_fact),
             "las_fact": totals["micro_las_fact"],
             "lau_fact": totals["micro_lau_fact"],
+            "las_event_fact": totals["micro_las_event_fact"],
+            "lau_event_fact": totals["micro_lau_event_fact"],
             "las_percent": las_percent,
             "las_threshold_percent": 40.0,
             "las_threshold_status": "no_data" if micro_fact <= 0 else ("pass" if las_percent >= 40 else "below"),
@@ -175,8 +183,12 @@ def _aggregate_metrics(
             "microacts total",
             "las",
             "лас",
+            "las event",
+            "лас ивент",
             "lau",
             "лау",
+            "lau event",
+            "лау ивент",
             "retrafic",
             "re trafic",
             "re traffic",
@@ -281,8 +293,12 @@ def build_team_kpi_snapshot(
             "microacts total",
             "las",
             "лас",
+            "las event",
+            "лас ивент",
             "lau",
             "лау",
+            "lau event",
+            "лау ивент",
             "retrafic",
             "re trafic",
             "re traffic",

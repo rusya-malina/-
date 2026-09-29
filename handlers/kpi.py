@@ -728,7 +728,10 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         las_fact = user_kpi.get("micro_las_fact", 0)
         lau_fact = user_kpi.get("micro_lau_fact", 0)
-        micro_fact = las_fact + lau_fact
+        las_event_fact = float(user_kpi.get("micro_las_event_fact", 0) or 0)
+        lau_event_fact = float(user_kpi.get("micro_lau_event_fact", 0) or 0)
+        standard_micro_fact = las_fact + lau_fact
+        micro_fact = standard_micro_fact + las_event_fact + lau_event_fact
         micro_plan = user_kpi.get("micro_plan", 0)
 
         gt_pct = calc_pct(user_kpi["gt_fact"], user_kpi["gt_plan"])
@@ -736,12 +739,13 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         retrafic_pct = calc_pct(user_kpi["retrafic_fact"], user_kpi["retrafic_plan"])
 
         # Расчет трешхолда LAS %
-        las_percent = (las_fact / micro_fact * 100) if micro_fact > 0 else 0
-        need_las = 0 if las_percent >= 40 else max(0, int(((0.4 * micro_fact) - las_fact) / 0.6) + 1)
+        las_percent = (las_fact / standard_micro_fact * 100) if standard_micro_fact > 0 else 0
+        need_las = 0 if las_percent >= 40 else max(0, int(((0.4 * standard_micro_fact) - las_fact) / 0.6) + 1)
 
         micro_details = (
             f"🎯 **Микроакты:** План: `{micro_plan:.0f}` | Факт: `{micro_fact:.0f}` (`{micro_pct:.1f}%`)\n"
             f"  ├ Факт по LAS: `{las_fact:.0f}` | Факт по LAU: `{lau_fact:.0f}`\n"
+            f"  ├ LAS Event: `{las_event_fact:.0f}` | LAU Event: `{lau_event_fact:.0f}`\n"
             f"  ├ Итоговый LAS %: `{las_percent:.2f}%`\n"
         )
         if need_las > 0:
@@ -778,7 +782,9 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         "microacts total",
                     },
                     "las": {"las", "лас"},
+                    "las_event": {"las event", "лас ивент"},
                     "lau": {"lau", "лау"},
+                    "lau_event": {"lau event", "лау ивент"},
                     "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"},
                 }
                 metric = next((metric for metric, names in aliases.items() if key in names), None)
@@ -786,13 +792,27 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     fact = float(user_kpi.get("gt_fact", 0) or 0)
                     plan = float(user_kpi.get("gt_plan", 0) or 0)
                 elif metric == "microacts":
-                    fact = float(user_kpi.get("micro_las_fact", 0) or 0) + float(user_kpi.get("micro_lau_fact", 0) or 0)
+                    fact = sum(
+                        float(user_kpi.get(field, 0) or 0)
+                        for field in (
+                            "micro_las_fact",
+                            "micro_lau_fact",
+                            "micro_las_event_fact",
+                            "micro_lau_event_fact",
+                        )
+                    )
                     plan = float(user_kpi.get("micro_plan", 0) or 0)
                 elif metric == "las":
                     fact = float(user_kpi.get("micro_las_fact", 0) or 0)
                     plan = float(item.get("quantity", 0) or 0)
+                elif metric == "las_event":
+                    fact = float(user_kpi.get("micro_las_event_fact", 0) or 0)
+                    plan = float(item.get("quantity", 0) or 0)
                 elif metric == "lau":
                     fact = float(user_kpi.get("micro_lau_fact", 0) or 0)
+                    plan = float(item.get("quantity", 0) or 0)
+                elif metric == "lau_event":
+                    fact = float(user_kpi.get("micro_lau_event_fact", 0) or 0)
                     plan = float(item.get("quantity", 0) or 0)
                 elif metric == "retrafic":
                     fact = float(user_kpi.get("retrafic_fact", 0) or 0)

@@ -181,6 +181,18 @@ def test_uploaded_las_and_lau_weights_are_combined_into_microacts() -> None:
     assert overall["weights_source"] == "kpi_reference"
 
 
+def test_event_microacts_are_added_to_total_but_not_las_threshold() -> None:
+    users, groups, kpi_data = _source_data()
+    kpi_data["a one"]["micro_las_event_fact"] = 7
+    kpi_data["a one"]["micro_lau_event_fact"] = 3
+    snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08")
+    microacts = snapshot["teams"]["A LAMP"]["metrics"]["microacts"]
+    assert microacts["fact"] == 130
+    assert microacts["las_event_fact"] == 7
+    assert microacts["lau_event_fact"] == 3
+    assert microacts["las_percent"] == 50 / 120 * 100
+
+
 def test_unmapped_uploaded_reference_never_falls_back_to_old_weights() -> None:
     users, groups, kpi_data = _source_data()
     reference = {"items": [{"name": "Новый показатель", "weight_percent": 100}]}
@@ -212,6 +224,7 @@ if __name__ == "__main__":
     test_missing_employee_kpi_is_reported_without_becoming_zero_data()
     test_uploaded_reference_weights_replace_legacy_40_40_20()
     test_uploaded_las_and_lau_weights_are_combined_into_microacts()
+    test_event_microacts_are_added_to_total_but_not_las_threshold()
     test_unmapped_uploaded_reference_never_falls_back_to_old_weights()
     test_renamed_three_row_reference_uses_canonical_row_order()
     print("TEAM_KPI_SERVICE PASS")

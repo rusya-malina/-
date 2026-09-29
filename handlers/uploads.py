@@ -137,7 +137,8 @@ async def start_excel_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(
         "📊 **Загрузка данных KPI из Excel**\n\n"
         "Отправьте `.xlsx` файл со столбцами:\n"
-        "• `full_name`, `gt_fact`, `micro_las_fact`, `micro_lau_fact`, `retrafic_fact`, `office_hours`, `field_hours`\n\n"
+        "• `full_name`, `gt_fact`, `micro_las_fact`, `micro_lau_fact`, `las_event`, `lau_event`, `retrafic_fact`, `office_hours`, `field_hours`\n"
+        "Столбцы `las_event` и `lau_event` необязательны: при отсутствии значение равно 0.\n\n"
         "Месячные планы берутся только из загруженного справочника KPI.\n"
         "Дополнительные KPI из справочника должны иметь одноимённый столбец факта в Excel.\n"
         "Плановые столбцы в Excel не используются.",

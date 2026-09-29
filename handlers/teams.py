@@ -111,7 +111,15 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
             gt_plan = float(kpi.get("gt_plan", 0) or 0)
             gt_fact = float(kpi.get("gt_fact", 0) or 0)
             micro_plan = float(kpi.get("micro_plan", 0) or 0)
-            micro_fact = float(kpi.get("micro_las_fact", 0) or 0) + float(kpi.get("micro_lau_fact", 0) or 0)
+            micro_fact = sum(
+                float(kpi.get(field, 0) or 0)
+                for field in (
+                    "micro_las_fact",
+                    "micro_lau_fact",
+                    "micro_las_event_fact",
+                    "micro_lau_event_fact",
+                )
+            )
             retrafic_plan = float(kpi.get("retrafic_plan", 0) or 0)
             retrafic_fact = float(kpi.get("retrafic_fact", 0) or 0)
             office_hours = float(kpi.get("office_hours", 0) or 0)
