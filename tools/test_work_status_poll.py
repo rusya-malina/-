@@ -78,6 +78,8 @@ def test_overview_contains_unanswered_group() -> None:
             "unanswered": [{"name": "Аня Один", "group": "A LAMP"}],
         }
     )
+    assert "Пары" not in text
+    assert "🟢 **Работают**" in text
     assert "🟡 **Не ответили**" in text
     assert "• Аня Один (A LAMP)" in text
 

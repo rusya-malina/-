@@ -139,15 +139,7 @@ async def _show_result_and_main_menu(query, text: str, user_id: str, group: str)
 
 def _format_overview(overview: dict) -> str:
     lines = [f"📍 **Статус работы на {overview['date']}**", ""]
-    pairs = overview["pairs"]
-    lines.append("👯 **Пары**")
-    if pairs:
-        for pair in pairs:
-            lines.append(f"• {pair['first_name']} + {pair['second_name']}")
-    else:
-        lines.append("• Нет подтверждённых пар")
-
-    lines.extend(["", "🟢 **Работают без пары**"])
+    lines.extend(["🟢 **Работают**"])
     if overview["working"]:
         lines.extend(f"• {item['name']} ({item['group']})" for item in overview["working"])
     else:

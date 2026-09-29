@@ -288,7 +288,7 @@ async def get_coordinator_overview() -> dict[str, Any]:
                         "first_group": record.get("group", employee.get("group")),
                     }
                 )
-        elif status == "working":
+        if status == "working":
             working.append({"name": employee["name"], "group": employee.get("group")})
         elif status == "not_working":
             not_working.append({"name": employee["name"], "group": employee.get("group")})
