@@ -5,14 +5,16 @@ from __future__ import annotations
 from datetime import time
 from zoneinfo import ZoneInfo
 
-from bot_context import Application, CallbackQueryHandler, HTTPXRequest, MessageHandler, filters
+from bot_context import Application, CallbackQueryHandler, CommandHandler, HTTPXRequest, MessageHandler, filters
 from config import BOT_TIMEZONE
 from handlers.kpi import kpi_callback, kpi_menu, my_kpi_callback, my_kpi_menu, show_balances, show_plan
+from handlers.offhours_visits import group_bookings_today
 from handlers.requests import requests_callback
 from handlers.teams import team_moderation_callback
 from handlers.training import send_training_compliance_job
 from handlers.uploads import process_excel_file, process_issuance_excel_file  # noqa: F401
 from handlers.work_status import (
+    group_working_today,
     send_missed_work_status_poll_job,
     send_work_status_poll_job,
     send_work_status_retry_job,
@@ -57,6 +59,8 @@ def build_application(token: str) -> Application:
         )
 
     app.add_handler(build_conversation_handler())
+    app.add_handler(CommandHandler("working_today", group_working_today))
+    app.add_handler(CommandHandler("bookings_today", group_bookings_today))
     app.add_handler(CallbackQueryHandler(team_moderation_callback, pattern=r"^team_(accept|reject):"))
     app.add_handler(CallbackQueryHandler(requests_callback, pattern=r"^req_"))
     app.add_handler(MessageHandler(filters.Regex(r"^📍 Статус работы$"), show_work_status))

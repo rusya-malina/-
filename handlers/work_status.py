@@ -214,6 +214,22 @@ async def show_working_lists(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 
+async def group_working_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Reply with today's work-status report when called by management in a group."""
+    chat = update.effective_chat
+    if not chat or chat.type not in {"group", "supergroup"}:
+        await update.message.reply_text("Эта команда доступна только в групповом чате.")
+        return
+    group = await get_user_group(update.effective_user.id)
+    if group not in COORDINATOR_GROUPS | {"SPV", "MNG"}:
+        await update.message.reply_text("⛔️ Отчёт доступен только координаторам, супервайзеру и менеджеру.")
+        return
+    await update.message.reply_text(
+        _format_overview(await get_coordinator_overview()),
+        parse_mode="Markdown",
+    )
+
+
 async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()

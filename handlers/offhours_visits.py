@@ -275,14 +275,37 @@ async def _render_coordinator_report(query, venue: str) -> None:
 async def _render_today_coordinator_report(query) -> None:
     current = local_today()
     bookings = await OffhoursVisitService.from_default_storage().active_bookings()
+    lines = [_today_bookings_text(current, bookings)]
+    await query.message.edit_text(
+        "\n".join(lines),
+        reply_markup=_back_markup("offh_report_home"),
+        parse_mode="HTML",
+    )
+
+
+def _today_bookings_text(current: date, bookings: list[dict]) -> str:
+    """Build a compact HTML report of today's venue bookings."""
     lines = [f"📅 <b>Брони заведений на сегодня — {current.strftime('%d.%m.%Y')}</b>\n"]
     for venue, venue_name in VENUES.items():
         records = _venue_day_records(bookings, venue, current)
         names = ", ".join(escape(str(record.get("name", "—"))) for record in records) or "—"
         lines.append(f"<b>{escape(venue_name)}</b> — {names}")
-    await query.message.edit_text(
-        "\n".join(lines),
-        reply_markup=_back_markup("offh_report_home"),
+    return "\n".join(lines)
+
+
+async def group_bookings_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Reply with today's venue bookings when called by management in a group."""
+    chat = update.effective_chat
+    if not chat or chat.type not in {"group", "supergroup"}:
+        await update.message.reply_text("Эта команда доступна только в групповом чате.")
+        return
+    group = await get_user_group(update.effective_user.id)
+    if group not in {"coor A", "coor R", "SPV", "MNG"}:
+        await update.message.reply_text("⛔️ Отчёт доступен только координаторам, супервайзеру и менеджеру.")
+        return
+    bookings = await OffhoursVisitService.from_default_storage().active_bookings()
+    await update.message.reply_text(
+        _today_bookings_text(local_today(), bookings),
         parse_mode="HTML",
     )
 
@@ -465,6 +488,7 @@ async def show_coordinator_bookings(update: Update, context: ContextTypes.DEFAUL
 
 
 __all__ = [
+    "group_bookings_today",
     "my_bookings_markup",
     "coordinator_bookings_callback",
     "coordinator_venues_markup",
