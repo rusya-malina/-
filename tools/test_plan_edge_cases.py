@@ -54,6 +54,26 @@ class PlanProjectionEdgeCaseTests(unittest.TestCase):
             self.assertEqual(row["las_per_hour"], 0)
             self.assertEqual(row["lau_per_hour"], 0)
 
+    def test_event_microacts_count_for_plan_and_threshold(self) -> None:
+        projection = build_plan_projection(
+            {
+                "gt_plan": 0,
+                "gt_fact": 0,
+                "micro_plan": 128,
+                "micro_las_fact": 0,
+                "micro_lau_fact": 0,
+                "micro_las_event_fact": 52,
+                "micro_lau_event_fact": 77,
+            },
+            as_of=date(2026, 8, 21),
+        )
+        first, second = projection["rows"]
+        self.assertEqual(first["las_remaining"], 0)
+        self.assertEqual(first["lau_remaining"], 0)
+        self.assertEqual(first["micro_total_remaining"], 0)
+        self.assertGreater(second["micro_total_remaining"], 0)
+        self.assertGreater(projection["current_threshold_percent"], 40)
+
     def test_small_positive_remainder_rounds_up_to_one_per_hour(self) -> None:
         projection = build_plan_projection(
             {

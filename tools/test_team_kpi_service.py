@@ -190,7 +190,7 @@ def test_event_microacts_are_added_to_total_but_not_las_threshold() -> None:
     assert microacts["fact"] == 130
     assert microacts["las_event_fact"] == 7
     assert microacts["lau_event_fact"] == 3
-    assert microacts["las_percent"] == 50 / 120 * 100
+    assert microacts["las_percent"] == 57 / 130 * 100
 
 
 def test_unmapped_uploaded_reference_never_falls_back_to_old_weights() -> None:

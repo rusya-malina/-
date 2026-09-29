@@ -112,12 +112,15 @@ def build_plan_projection(
     gt_fact = float(record.get("gt_fact", 0) or 0)
     las_fact = float(record.get("micro_las_fact", 0) or 0)
     lau_fact = float(record.get("micro_lau_fact", 0) or 0)
+    las_event_fact = float(record.get("micro_las_event_fact", 0) or 0)
+    lau_event_fact = float(record.get("micro_lau_event_fact", 0) or 0)
+    event_micro_fact = las_event_fact + lau_event_fact
     rows: list[dict[str, Any]] = []
     for multiplier in PLAN_TARGETS:
         gt_target = float(record.get("gt_plan", 0) or 0) * multiplier
         micro_total_target = float(record.get("micro_plan", 0) or 0) * multiplier
         planned_las_target, planned_lau_target = _strict_threshold_targets(micro_total_target)
-        current_total = las_fact + lau_fact
+        current_total = las_fact + lau_fact + event_micro_fact
         remaining_total = max(0.0, (planned_las_target + planned_lau_target) - current_total)
         # Distribute the remaining combined volume by the 40/60 target split.
         las_remaining = _ceil_nonnegative(remaining_total * LAS_THRESHOLD)
@@ -128,7 +131,7 @@ def build_plan_projection(
         if micro_total_target > 0:
             threshold_las_additional = max(
                 0,
-                _strict_las_minimum_for_lau(lau_fact + lau_remaining) - las_fact,
+                _strict_las_minimum_for_lau(lau_fact + lau_event_fact + lau_remaining) - (las_fact + las_event_fact),
             )
         if threshold_las_additional > las_remaining:
             las_remaining = threshold_las_additional
@@ -163,8 +166,9 @@ def build_plan_projection(
                 "use_las_only": use_las_only,
             }
         )
-    current_micro_total = las_fact + lau_fact
-    current_threshold_percent = las_fact / current_micro_total * 100 if current_micro_total > 0 else 0.0
+    current_micro_total = las_fact + lau_fact + event_micro_fact
+    current_threshold_las = las_fact + las_event_fact
+    current_threshold_percent = current_threshold_las / current_micro_total * 100 if current_micro_total > 0 else 0.0
     return {
         "as_of": current_date.isoformat(),
         "period_end": period_end.isoformat(),

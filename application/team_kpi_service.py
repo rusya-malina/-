@@ -142,7 +142,8 @@ def _aggregate_metrics(
     standard_micro_fact = totals["micro_las_fact"] + totals["micro_lau_fact"]
     event_micro_fact = totals["micro_las_event_fact"] + totals["micro_lau_event_fact"]
     micro_fact = standard_micro_fact + event_micro_fact
-    las_percent = _percent(totals["micro_las_fact"], standard_micro_fact)
+    threshold_las_fact = totals["micro_las_fact"] + totals["micro_las_event_fact"]
+    las_percent = _percent(threshold_las_fact, micro_fact)
     work_time_fact = totals["field_hours"]
     work_time_total_fact = totals["office_hours"] + totals["field_hours"]
     work_time_plan = len(records) * 64.0

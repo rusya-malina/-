@@ -739,8 +739,11 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         retrafic_pct = calc_pct(user_kpi["retrafic_fact"], user_kpi["retrafic_plan"])
 
         # Расчет трешхолда LAS %
-        las_percent = (las_fact / standard_micro_fact * 100) if standard_micro_fact > 0 else 0
-        need_las = 0 if las_percent >= 40 else max(0, int(((0.4 * standard_micro_fact) - las_fact) / 0.6) + 1)
+        threshold_las_fact = las_fact + las_event_fact
+        threshold_lau_fact = lau_fact + lau_event_fact
+        threshold_total = threshold_las_fact + threshold_lau_fact
+        las_percent = (threshold_las_fact / threshold_total * 100) if threshold_total > 0 else 0
+        need_las = 0 if las_percent >= 40 else max(0, int(((0.4 * threshold_total) - threshold_las_fact) / 0.6) + 1)
 
         micro_details = (
             f"🎯 **Микроакты:** План: `{micro_plan:.0f}` | Факт: `{micro_fact:.0f}` (`{micro_pct:.1f}%`)\n"
