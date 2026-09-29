@@ -199,6 +199,8 @@ class WebhookServer:
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(self.application.initialize())
+            if self.application.post_init is not None:
+                loop.run_until_complete(self.application.post_init(self.application))
             loop.run_until_complete(
                 self.application.bot.set_webhook(
                     url=f"{self.public_url}{self.path}",
