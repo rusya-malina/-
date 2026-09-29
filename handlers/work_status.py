@@ -23,6 +23,7 @@ from keyboards import get_main_keyboard
 from roles import get_user_group
 
 STATUS_BUTTON = "📍 Статус работы"
+WORK_STATUS_POLL_WEEKDAYS = frozenset({3, 4, 5, 6})  # Thursday through Sunday
 TEAM_GROUPS = frozenset({"A LAMP", "R LAMP"})
 COORDINATOR_GROUPS = frozenset({"coor A", "coor R"})
 logger = logging.getLogger(__name__)
@@ -118,7 +119,10 @@ async def send_work_status_retry_job(context: ContextTypes.DEFAULT_TYPE) -> None
 
 async def send_missed_work_status_poll_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send today's poll after a restart that happened after the daily time."""
-    current_time = datetime.now(ZoneInfo(BOT_TIMEZONE)).time().replace(tzinfo=None)
+    current = datetime.now(ZoneInfo(BOT_TIMEZONE))
+    if current.weekday() not in WORK_STATUS_POLL_WEEKDAYS:
+        return
+    current_time = current.time().replace(tzinfo=None)
     if current_time < time(hour=10, minute=5):
         return
     await send_work_status_poll_job(context)
