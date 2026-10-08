@@ -170,6 +170,13 @@ def _validate_sync_content(path: str, content: bytes) -> None:
             raise TypeError(f"Remote JSON file is not an object: {_repo_path(path)}")
 
 
+def _is_empty_json_object(content: bytes) -> bool:
+    try:
+        return json.loads(content.decode("utf-8")) == {}
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return False
+
+
 def _get_remote(path: str) -> tuple[bytes, str | None] | None:
     response = _request("GET", path)
     if response.status_code == 404:
@@ -206,6 +213,14 @@ def _restore_paths(paths: Iterable[str]) -> bool:
                 continue
             content, _sha = remote
             _validate_sync_content(path, content)
+            if (
+                path in {KPI_REFERENCE_FILE, PENDING_KPI_REFERENCE_FILE}
+                and _is_empty_json_object(content)
+                and os.path.exists(path)
+                and not _is_empty_json_object(_read_local(path))
+            ):
+                LOGGER.warning("Skipped empty remote KPI state: %s", _repo_path(path))
+                continue
             _write_atomic(path, content)
             restored += 1
         except Exception:  # noqa: BLE001
@@ -230,6 +245,14 @@ def _sync_paths_local(paths: Iterable[str]) -> bool:
             local_content = _read_local(path)
             _validate_sync_content(path, local_content)
             remote = _get_remote(path)
+            if (
+                path in {KPI_REFERENCE_FILE, PENDING_KPI_REFERENCE_FILE}
+                and _is_empty_json_object(local_content)
+                and remote is not None
+                and not _is_empty_json_object(remote[0])
+            ):
+                LOGGER.warning("Skipped empty local KPI state: %s", _repo_path(path))
+                continue
             sha = remote[1] if remote else None
             _put_remote(path, local_content, sha, f"Persist bot data: {_repo_path(path)}")
         LOGGER.info("Runtime state synchronized to GitHub repository %s", _repo())
