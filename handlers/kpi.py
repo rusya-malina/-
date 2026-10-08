@@ -545,6 +545,19 @@ def _team_metric_line(label: str, metric: dict) -> str:
 
 def _team_report_lines(report: dict, title: str) -> list[str]:
     metrics = report.get("metrics", {})
+    dynamic_metrics = [
+        (name, metric)
+        for name, metric in metrics.items()
+        if name not in {"work_time", "gt", "microacts", "retrafic"} and isinstance(metric, dict)
+    ]
+    if dynamic_metrics:
+        lines = [
+            f"🏷 **{title}**",
+            f"👥 Сотрудников: **{report.get('employee_count', 0)}**",
+            "📊 **Показатели за текущий месяц**",
+        ]
+        lines.extend(f"📌 {_team_metric_line(name, metric)}" for name, metric in dynamic_metrics)
+        return lines
     microacts = metrics.get("microacts", {})
     las_fact = float(microacts.get("las_fact", 0))
     lau_fact = float(microacts.get("lau_fact", 0))
