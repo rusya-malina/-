@@ -171,12 +171,16 @@ def build_conversation_handler() -> ConversationHandler:
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             ],
             UPLOAD_EXCEL: [
-                CallbackQueryHandler(excel_preview_callback, pattern=r"^excel_(confirm|cancel)$"),
+                CallbackQueryHandler(
+                    excel_preview_callback, pattern=r"^(excel_(confirm|cancel)|monthly_kpi_(now|next|cancel))$"
+                ),
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
                 MessageHandler(filters.Document.ALL, process_excel_file),
             ],
             KPI_REFERENCE_UPLOAD: [
-                CallbackQueryHandler(excel_preview_callback, pattern=r"^excel_(confirm|cancel)$"),
+                CallbackQueryHandler(
+                    excel_preview_callback, pattern=r"^(excel_(confirm|cancel)|monthly_kpi_(now|next|cancel))$"
+                ),
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
                 MessageHandler(filters.Document.ALL, process_monthly_kpi_file),
             ],
@@ -283,7 +287,9 @@ def build_conversation_handler() -> ConversationHandler:
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             ],
             ISSUANCE_EXCEL_UPLOAD: [
-                CallbackQueryHandler(excel_preview_callback, pattern=r"^excel_(confirm|cancel)$"),
+                CallbackQueryHandler(
+                    excel_preview_callback, pattern=r"^(excel_(confirm|cancel)|monthly_kpi_(now|next|cancel))$"
+                ),
                 MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
                 MessageHandler(filters.Document.ALL, process_issuance_excel_file),
             ],

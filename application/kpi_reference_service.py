@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from config import KPI_REFERENCE_FILE
+from config import KPI_REFERENCE_FILE, PENDING_KPI_REFERENCE_FILE
 from repositories.json_repository import JsonRepository
 
 
@@ -236,9 +236,23 @@ async def save_kpi_reference(reference: dict[str, Any]) -> None:
     await JsonRepository(KPI_REFERENCE_FILE).update(replace)
 
 
+async def save_pending_kpi_reference(reference: dict[str, Any]) -> None:
+    def replace(data: dict[str, Any]) -> None:
+        data.clear()
+        data.update(reference)
+
+    await JsonRepository(PENDING_KPI_REFERENCE_FILE).update(replace)
+
+
 async def load_kpi_reference() -> dict[str, Any]:
     data = await JsonRepository(KPI_REFERENCE_FILE).load()
-    return data if isinstance(data, dict) else {}
+    current = data if isinstance(data, dict) else {}
+    pending = await JsonRepository(PENDING_KPI_REFERENCE_FILE).load()
+    if isinstance(pending, dict) and str(pending.get("effective_month", "")) <= datetime.now().strftime("%Y-%m"):
+        await save_kpi_reference(pending)
+        await JsonRepository(PENDING_KPI_REFERENCE_FILE).update(lambda stored: stored.clear())
+        return pending
+    return current
 
 
 __all__ = [
@@ -246,6 +260,7 @@ __all__ = [
     "build_kpi_reference",
     "load_kpi_reference",
     "save_kpi_reference",
+    "save_pending_kpi_reference",
     "resolve_kpi_reference",
     "resolve_kpi_reference_plans",
     "resolve_kpi_reference_weights",

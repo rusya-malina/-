@@ -102,12 +102,20 @@ def test_preview_markup() -> None:
     assert callbacks == ["excel_confirm", "excel_cancel"]
 
 
+def test_monthly_kpi_preview_markup() -> None:
+    callbacks = [
+        button.callback_data for row in uploads._monthly_kpi_preview_markup().inline_keyboard for button in row
+    ]
+    assert callbacks == ["monthly_kpi_now", "monthly_kpi_next", "monthly_kpi_cancel"]
+
+
 async def main() -> None:
     await test_cancel_kpi_preview()
     await test_confirm_kpi_preview_does_not_rewrite_callback_contract()
     await test_cancel_issuance_preview_returns_issuance_menu()
     test_management_rows_are_blocked()
     test_preview_markup()
+    test_monthly_kpi_preview_markup()
 
     print("EXCEL_PREVIEW PASS")
 

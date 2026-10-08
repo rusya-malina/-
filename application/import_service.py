@@ -10,6 +10,7 @@ from typing import Any
 
 from application.kpi_reference_service import (
     _normalized_reference_name,
+    load_kpi_reference,
     resolve_kpi_reference_plans,
     resolve_reference_fact_columns,
 )
@@ -109,7 +110,11 @@ class ImportService:
         users_data = await self.users.load()
         existing_kpi = await self.kpi.load()
         groups_data = await self.groups.load() if self.groups is not None else {}
-        reference = await self.kpi_reference.load() if self.kpi_reference is not None else {}
+        reference = (
+            await load_kpi_reference()
+            if self.kpi_reference is not None and self.kpi_reference.path == KPI_REFERENCE_FILE
+            else (await self.kpi_reference.load() if self.kpi_reference is not None else {})
+        )
         reference_plans = resolve_kpi_reference_plans(reference)
         reference_items = resolve_reference_fact_columns(reference)
         if not reference_plans or not reference_items:

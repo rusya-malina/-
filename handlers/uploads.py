@@ -1,11 +1,17 @@
 """Тяжёлые операции с Excel, изолированные от меню и основного роутера."""
 
 import re
+from datetime import datetime
 
 from telegram.error import TelegramError
 
 from application.import_service import ImportSafetyError, ImportService
-from application.kpi_reference_service import KpiReferenceValidationError, build_kpi_reference, save_kpi_reference
+from application.kpi_reference_service import (
+    KpiReferenceValidationError,
+    build_kpi_reference,
+    save_kpi_reference,
+    save_pending_kpi_reference,
+)
 from application.team_kpi_service import TeamKpiService
 from bot_context import (
     ContextTypes,
@@ -59,6 +65,16 @@ def _excel_preview_markup() -> InlineKeyboardMarkup:
         [
             [InlineKeyboardButton("✅ Подтвердить импорт", callback_data="excel_confirm")],
             [InlineKeyboardButton("❌ Отменить", callback_data="excel_cancel")],
+        ]
+    )
+
+
+def _monthly_kpi_preview_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✅ Загрузить сейчас", callback_data="monthly_kpi_now")],
+            [InlineKeyboardButton("📅 Загрузить в начале следующего месяца", callback_data="monthly_kpi_next")],
+            [InlineKeyboardButton("❌ Отмена", callback_data="monthly_kpi_cancel")],
         ]
     )
 
@@ -311,7 +327,8 @@ async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_T
         await query.message.edit_text("ℹ️ Предпросмотр устарел. Загрузите файл заново.")
         return ConversationHandler.END
 
-    if query.data == "excel_cancel":
+    is_monthly = staged.get("kind") == "kpi_reference"
+    if query.data in {"excel_cancel", "monthly_kpi_cancel"}:
         clear_pending_import(context)
         await query.message.edit_text("❌ Импорт отменён. Данные не изменены.")
         await context.bot.send_message(
@@ -323,7 +340,9 @@ async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_T
         )
         return KPI_MENU_STATE if staged.get("kind") in {"kpi", "kpi_reference"} else ISSUANCE_MENU
 
-    if query.data != "excel_confirm":
+    if (is_monthly and query.data not in {"monthly_kpi_now", "monthly_kpi_next"}) or (
+        not is_monthly and query.data != "excel_confirm"
+    ):
         return UPLOAD_EXCEL
 
     kind = staged.get("kind")
@@ -334,10 +353,15 @@ async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_T
             state = KPI_MENU_STATE
             text = "✅ Импорт KPI подтверждён и применён."
         elif kind == "kpi_reference":
-            await _apply_kpi_reference_import(staged)
+            activate_now = query.data == "monthly_kpi_now"
+            await _apply_kpi_reference_import(staged, activate_now=activate_now)
             menu = get_data_keyboard()
             state = KPI_MENU_STATE
-            text = "✅ Месячный KPI подтверждён и применён."
+            text = (
+                "✅ Месячный KPI загружен и применён."
+                if activate_now
+                else "✅ Месячный KPI сохранён. Он будет автоматически активирован в начале следующего месяца."
+            )
         elif kind == "issuance":
             await _apply_issuance_import(staged)
             menu = get_issuance_keyboard()
@@ -593,7 +617,9 @@ async def process_monthly_kpi_file(update: Update, context: ContextTypes.DEFAULT
                 )
             )
         lines.extend(["", "Данные ещё не записаны. Подтвердите импорт или отмените его."])
-        await update.message.reply_text("\n".join(lines), reply_markup=_excel_preview_markup(), parse_mode="Markdown")
+        await update.message.reply_text(
+            "\n".join(lines), reply_markup=_monthly_kpi_preview_markup(), parse_mode="Markdown"
+        )
         return KPI_REFERENCE_UPLOAD
     except KpiReferenceValidationError as error:
         if temp_path and os.path.exists(temp_path):
@@ -610,9 +636,19 @@ async def process_monthly_kpi_file(update: Update, context: ContextTypes.DEFAULT
         return KPI_MENU_STATE
 
 
-async def _apply_kpi_reference_import(staged: dict) -> None:
+async def _apply_kpi_reference_import(staged: dict, *, activate_now: bool = True) -> None:
     reference = staged["reference"]
-    await save_kpi_reference(reference)
+    if activate_now:
+        await save_kpi_reference(reference)
+    else:
+        year, month = map(int, datetime.now().strftime("%Y-%m").split("-"))
+        if month == 12:
+            year, month = year + 1, 1
+        else:
+            month += 1
+        reference = {**reference, "effective_month": f"{year:04d}-{month:02d}"}
+        staged["reference"] = reference
+        await save_pending_kpi_reference(reference)
     source_path = staged.get("temp_path")
     if source_path and os.path.exists(source_path):
         import shutil

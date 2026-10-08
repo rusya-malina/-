@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from application.kpi_reference_service import load_kpi_reference
 from config import BOT_TIMEZONE, GROUPS_FILE, KPI_FILE, KPI_REFERENCE_FILE, TEAM_KPI_FILE, USERS_FILE
 from organization import build_employee_registry
 from repositories.json_repository import JsonRepository
@@ -404,7 +405,11 @@ class TeamKpiService:
         users = await self.users.load()
         groups = await self.groups.load()
         kpi_data = await self.kpi.load()
-        kpi_reference = await self.kpi_reference.load()
+        kpi_reference = (
+            await load_kpi_reference()
+            if self.kpi_reference.path == KPI_REFERENCE_FILE
+            else await self.kpi_reference.load()
+        )
         snapshot = build_team_kpi_snapshot(
             users,
             groups,
