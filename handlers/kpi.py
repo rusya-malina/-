@@ -1,6 +1,8 @@
 """Загрузка, ручное редактирование и просмотр KPI."""
 
 import contextlib
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from application.admin_service import EmployeeAdminService
 from application.kpi_reference_service import load_kpi_reference
@@ -18,6 +20,7 @@ from bot_context import (
     Update,
 )
 from config import (
+    BOT_TIMEZONE,
     GROUPS_FILE,
     GROUPS_WITH_BALANCES,
     GROUPS_WITH_HOURS,
@@ -722,6 +725,61 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_kpi = kpi_data[lookup_name]
 
     if data == "my_kpi_show_kpi":
+        reference = await load_kpi_reference()
+        reference_items = reference.get("items", []) if isinstance(reference, dict) else []
+        legacy_names = {
+            "gt",
+            "гт",
+            "gross traffic",
+            "трафик",
+            "microacts",
+            "micro acts",
+            "микроакты",
+            "микро акты",
+            "las",
+            "лас",
+            "lau",
+            "лау",
+            "retrafic",
+            "re trafic",
+            "ретрафик",
+        }
+        is_dynamic_reference = bool(reference_items) and not any(
+            " ".join(str(item.get("name", "")).casefold().replace("ё", "е").split()) in legacy_names
+            for item in reference_items
+            if isinstance(item, dict)
+        )
+        if is_dynamic_reference:
+            facts = user_kpi.get("additional_kpi_facts", {}) or {}
+            plans = user_kpi.get("additional_kpi_plans", {}) or {}
+            lines = [
+                "📊 **Ваши показатели KPI**",
+                f"👤 Сотрудник: *{user_name_value}*",
+                "━━━━━━━━━━━━━━━━━━",
+                "",
+            ]
+            weighted_total = 0.0
+            for item in reference_items:
+                name = str(item.get("name", "")).strip()
+                if not name:
+                    continue
+                fact = float(facts.get(name, 0) or 0)
+                plan = float(plans.get(name, item.get("quantity", 0)) or 0)
+                percent = fact / plan * 100 if plan > 0 else 0
+                weight = float(item.get("weight_percent", 0) or 0)
+                weighted_total += percent * weight / 100
+                lines.append(
+                    f"• **{name}** — План: `{plan:.0f}` | Факт: `{fact:.0f}` (`{percent:.1f}%`) | Вес: `{weight:.0f}%`"
+                )
+            lines.append(f"\n🏆 **Итоговый KPI по весам: `{weighted_total:.1f}%`**")
+            await query.message.edit_text(
+                "\n".join(lines),
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("⬅️ Назад к меню", callback_data="my_kpi_back")]]
+                ),
+                parse_mode="Markdown",
+            )
+            return
 
         def calc_pct(fact, plan):
             return (fact / plan * 100) if plan > 0 else 0
@@ -898,6 +956,49 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("ℹ️ Данные сотрудника для расчёта плана не найдены.")
         return
     entry = kpi_data.get(employee.get("name_key", ""), {})
+    reference = await load_kpi_reference()
+    reference_items = reference.get("items", []) if isinstance(reference, dict) else []
+    legacy_names = {
+        "gt",
+        "гт",
+        "gross traffic",
+        "трафик",
+        "microacts",
+        "micro acts",
+        "микроакты",
+        "las",
+        "лас",
+        "lau",
+        "лау",
+        "retrafic",
+        "re trafic",
+        "ретрафик",
+    }
+    is_dynamic_reference = bool(reference_items) and not any(
+        " ".join(str(item.get("name", "")).casefold().replace("ё", "е").split()) in legacy_names
+        for item in reference_items
+        if isinstance(item, dict)
+    )
+    if is_dynamic_reference:
+        facts = entry.get("additional_kpi_facts", {}) or {}
+        lines = [
+            "📊 **Персональная карточка плана**",
+            f"👤 *{employee['name']}*",
+            f"📆 На дату: `{datetime.now(ZoneInfo(BOT_TIMEZONE)).date().isoformat()}`",
+            "",
+            "🎯 **Новые KPI**",
+        ]
+        for target in (100, 111):
+            lines.append(f"**{target}% план**")
+            for item in reference_items:
+                name = str(item.get("name", "")).strip()
+                if not name:
+                    continue
+                plan = float(item.get("quantity", 0) or 0) * target / 100
+                fact = float(facts.get(name, 0) or 0)
+                lines.append(f"• {name}: осталось `{max(0, plan - fact):g}` из `{plan:g}`")
+        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        return
     projection = build_plan_projection(entry)
     workdays_left = projection["workdays_left"]
     rows_by_target = {row["target_percent"]: row for row in projection["rows"]}

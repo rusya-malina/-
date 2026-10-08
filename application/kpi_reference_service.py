@@ -212,6 +212,38 @@ def resolve_reference_fact_columns(reference: dict[str, Any] | None) -> list[dic
     ]
 
 
+def reference_metric_structure(reference: dict[str, Any] | None) -> dict[str, float]:
+    """Return the uploaded KPI names and their plans, independent of legacy names."""
+    return {
+        item["name"]: float(item.get("quantity", 0) or 0)
+        for item in resolve_reference_fact_columns(reference)
+        if item["name"]
+    }
+
+
+def reset_kpi_records_for_reference(records: dict[str, Any], reference: dict[str, Any] | None) -> None:
+    """Replace KPI fields while preserving identity, hours and all non-KPI data."""
+    structure = reference_metric_structure(reference)
+    legacy_fields = {
+        "gt_plan",
+        "gt_fact",
+        "micro_plan",
+        "micro_las_fact",
+        "micro_lau_fact",
+        "micro_las_event_fact",
+        "micro_lau_event_fact",
+        "retrafic_plan",
+        "retrafic_fact",
+    }
+    for record in records.values():
+        if not isinstance(record, dict):
+            continue
+        for field in legacy_fields:
+            record.pop(field, None)
+        record["additional_kpi_facts"] = {name: 0.0 for name in structure}
+        record["additional_kpi_plans"] = dict(structure)
+
+
 def resolve_kpi_reference_plans(reference: dict[str, Any] | None) -> dict[str, float] | None:
     """Return only canonical monthly plan values from the KPI handbook."""
     resolved = resolve_kpi_reference(reference)
@@ -251,11 +283,8 @@ async def load_kpi_reference() -> dict[str, Any]:
     if isinstance(pending, dict) and str(pending.get("effective_month", "")) <= datetime.now().strftime("%Y-%m"):
         await save_kpi_reference(pending)
         await JsonRepository(PENDING_KPI_REFERENCE_FILE).update(lambda stored: stored.clear())
-        plans = resolve_kpi_reference_plans(pending)
-        if plans:
-            await JsonRepository(KPI_FILE).update(
-                lambda records: [record.update(plans) for record in records.values() if isinstance(record, dict)]
-            )
+        if reference_metric_structure(pending):
+            await JsonRepository(KPI_FILE).update(lambda records: reset_kpi_records_for_reference(records, pending))
         return pending
     return current
 
@@ -270,5 +299,7 @@ __all__ = [
     "resolve_kpi_reference_plans",
     "resolve_kpi_reference_weights",
     "resolve_reference_fact_columns",
+    "reference_metric_structure",
+    "reset_kpi_records_for_reference",
     "_normalized_reference_name",
 ]

@@ -100,6 +100,12 @@ def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | N
         weights["microacts"] = separate_microacts
     if mapped:
         return weights
+    if not any(_metric_key(item.get("name")) in aliases for item in items):
+        return {
+            str(item.get("name", "")).strip(): _number(item.get("weight_percent")) / 100.0
+            for item in items
+            if str(item.get("name", "")).strip()
+        }
     if len(items) == 3:
         # The monthly handbook has historically used this canonical order.
         # It keeps renamed display labels connected to the source KPI fields.

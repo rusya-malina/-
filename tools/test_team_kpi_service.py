@@ -198,9 +198,9 @@ def test_unmapped_uploaded_reference_never_falls_back_to_old_weights() -> None:
     reference = {"items": [{"name": "Новый показатель", "weight_percent": 100}]}
     snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08", kpi_reference=reference)
     overall = snapshot["manager_reports"]["coor A"]["overall"]
-    assert overall["percent"] is None
-    assert overall["weights"] is None
-    assert overall["weights_source"] == "kpi_reference_unmapped"
+    assert overall["percent"] == 0
+    assert overall["weights"] == {"Новый показатель": 1.0}
+    assert overall["weights_source"] == "kpi_reference"
 
 
 def test_renamed_three_row_reference_uses_canonical_row_order() -> None:
@@ -214,7 +214,11 @@ def test_renamed_three_row_reference_uses_canonical_row_order() -> None:
     }
     snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08", kpi_reference=reference)
     overall = snapshot["manager_reports"]["coor A"]["overall"]
-    assert overall["weights"] == {"gt": 0.25, "microacts": 0.55, "retrafic": 0.2}
+    assert overall["weights"] == {
+        "Поток клиентов": 0.25,
+        "Активности": 0.55,
+        "Повторные визиты": 0.2,
+    }
     assert overall["weights_source"] == "kpi_reference"
 
 

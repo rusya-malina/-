@@ -9,7 +9,7 @@ from application.import_service import ImportSafetyError, ImportService
 from application.kpi_reference_service import (
     KpiReferenceValidationError,
     build_kpi_reference,
-    resolve_kpi_reference_plans,
+    reset_kpi_records_for_reference,
     save_kpi_reference,
     save_pending_kpi_reference,
 )
@@ -87,12 +87,6 @@ def _monthly_kpi_preview_markup() -> InlineKeyboardMarkup:
             [InlineKeyboardButton("❌ Отмена", callback_data="monthly_kpi_cancel")],
         ]
     )
-
-
-def _update_kpi_targets(data: dict, plans: dict[str, float]) -> None:
-    for record in data.values():
-        if isinstance(record, dict):
-            record.update(plans)
 
 
 def _text(value: object) -> str:
@@ -568,6 +562,13 @@ def _reference_column(frame, aliases: list[str], fallback_index: int):
     return frame.columns[fallback_index] if len(frame.columns) == 4 else None
 
 
+def _update_kpi_targets(data: dict, plans: dict[str, float]) -> None:
+    """Backward-compatible helper for older integrations."""
+    for record in data.values():
+        if isinstance(record, dict):
+            record.update(plans)
+
+
 async def process_monthly_kpi_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not has_permission(update.effective_user.id, context, Permission.DATA_UPLOAD):
         await update.message.reply_text("⛔️ У вас нет доступа к этому разделу.")
@@ -658,11 +659,7 @@ async def _apply_kpi_reference_import(
     reference = staged["reference"]
     if activate_now:
         await save_kpi_reference(reference)
-        plans = resolve_kpi_reference_plans(reference)
-        if not plans:
-            raise ValueError("Не удалось определить цели из месячного KPI")
-
-        await JsonRepository(KPI_FILE).update(lambda data: _update_kpi_targets(data, plans))
+        await JsonRepository(KPI_FILE).update(lambda data: reset_kpi_records_for_reference(data, reference))
         await TeamKpiService.from_default_storage().rebuild()
         await sync_kpi_state()
         await notify_users_kpi_updated(context, [])

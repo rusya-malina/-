@@ -115,9 +115,9 @@ class ImportService:
             if self.kpi_reference is not None and self.kpi_reference.path == KPI_REFERENCE_FILE
             else (await self.kpi_reference.load() if self.kpi_reference is not None else {})
         )
-        reference_plans = resolve_kpi_reference_plans(reference)
         reference_items = resolve_reference_fact_columns(reference)
-        if not reference_plans or not reference_items:
+        reference_plans = resolve_kpi_reference_plans(reference)
+        if not reference_items:
             raise ImportSafetyError("KPI reference is missing or invalid")
         core_names = {
             "gt",
@@ -220,21 +220,32 @@ class ImportService:
 
             las_event_fact = event_fact("las event", "las_event", "лас ивент", "лас_ивент")
             lau_event_fact = event_fact("lau event", "lau_event", "лау ивент", "лау_ивент")
-            kpi_data[clean_name] = {
-                "original_name": employee_name,
-                "gt_plan": reference_plans["gt_plan"],
-                "gt_fact": float(row["gt_fact"]),
-                "micro_plan": reference_plans["micro_plan"],
-                "micro_las_fact": float(row["micro_las_fact"]),
-                "micro_lau_fact": float(row["micro_lau_fact"]),
-                "micro_las_event_fact": las_event_fact,
-                "micro_lau_event_fact": lau_event_fact,
-                "retrafic_plan": reference_plans["retrafic_plan"],
-                "retrafic_fact": float(row["retrafic_fact"]),
-                "office_hours": float(row["office_hours"]),
-                "field_hours": float(row["field_hours"]),
-                "additional_kpi_facts": custom_facts,
-            }
+            if reference_plans:
+                kpi_data[clean_name] = {
+                    "original_name": employee_name,
+                    "gt_plan": reference_plans["gt_plan"],
+                    "gt_fact": float(row["gt_fact"]),
+                    "micro_plan": reference_plans["micro_plan"],
+                    "micro_las_fact": float(row["micro_las_fact"]),
+                    "micro_lau_fact": float(row["micro_lau_fact"]),
+                    "micro_las_event_fact": las_event_fact,
+                    "micro_lau_event_fact": lau_event_fact,
+                    "retrafic_plan": reference_plans["retrafic_plan"],
+                    "retrafic_fact": float(row["retrafic_fact"]),
+                    "office_hours": float(row["office_hours"]),
+                    "field_hours": float(row["field_hours"]),
+                    "additional_kpi_facts": custom_facts,
+                }
+            else:
+                kpi_data[clean_name] = {
+                    "original_name": employee_name,
+                    "office_hours": float(row.get("office_hours", 0) or 0),
+                    "field_hours": float(row.get("field_hours", 0) or 0),
+                    "additional_kpi_facts": custom_facts,
+                    "additional_kpi_plans": {
+                        item["name"]: float(item.get("quantity", 0) or 0) for item in reference_items
+                    },
+                }
             if clean_name not in updated_keys:
                 updated_names.append(employee_name)
                 updated_keys.add(clean_name)
