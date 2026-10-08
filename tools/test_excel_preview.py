@@ -109,6 +109,19 @@ def test_monthly_kpi_preview_markup() -> None:
     assert callbacks == ["monthly_kpi_now", "monthly_kpi_next", "monthly_kpi_cancel"]
 
 
+def test_monthly_kpi_updates_existing_targets() -> None:
+    data = {
+        "employee one": {"gt_plan": 40, "micro_plan": 50, "retrafic_plan": 10},
+        "metadata": "untouched",
+    }
+    uploads._update_kpi_targets(
+        data,
+        {"gt_plan": 100.0, "micro_plan": 160.0, "retrafic_plan": 15.0},
+    )
+    assert data["employee one"] == {"gt_plan": 100.0, "micro_plan": 160.0, "retrafic_plan": 15.0}
+    assert data["metadata"] == "untouched"
+
+
 async def main() -> None:
     await test_cancel_kpi_preview()
     await test_confirm_kpi_preview_does_not_rewrite_callback_contract()
@@ -116,6 +129,7 @@ async def main() -> None:
     test_management_rows_are_blocked()
     test_preview_markup()
     test_monthly_kpi_preview_markup()
+    test_monthly_kpi_updates_existing_targets()
 
     print("EXCEL_PREVIEW PASS")
 

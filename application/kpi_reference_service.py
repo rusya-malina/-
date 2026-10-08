@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from config import KPI_REFERENCE_FILE, PENDING_KPI_REFERENCE_FILE
+from config import KPI_FILE, KPI_REFERENCE_FILE, PENDING_KPI_REFERENCE_FILE
 from repositories.json_repository import JsonRepository
 
 
@@ -251,6 +251,11 @@ async def load_kpi_reference() -> dict[str, Any]:
     if isinstance(pending, dict) and str(pending.get("effective_month", "")) <= datetime.now().strftime("%Y-%m"):
         await save_kpi_reference(pending)
         await JsonRepository(PENDING_KPI_REFERENCE_FILE).update(lambda stored: stored.clear())
+        plans = resolve_kpi_reference_plans(pending)
+        if plans:
+            await JsonRepository(KPI_FILE).update(
+                lambda records: [record.update(plans) for record in records.values() if isinstance(record, dict)]
+            )
         return pending
     return current
 

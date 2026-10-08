@@ -9,6 +9,7 @@ from application.import_service import ImportSafetyError, ImportService
 from application.kpi_reference_service import (
     KpiReferenceValidationError,
     build_kpi_reference,
+    resolve_kpi_reference_plans,
     save_kpi_reference,
     save_pending_kpi_reference,
 )
@@ -25,12 +26,21 @@ from bot_context import (
     pd,
     tempfile,
 )
-from config import ADMIN_ID, GROUPS_FILE, LATEST_KPI_REFERENCE_FILE, TEAMS_FILE, UPLOADED_DATA_DIR, USERS_FILE
+from config import (
+    ADMIN_ID,
+    GROUPS_FILE,
+    KPI_FILE,
+    LATEST_KPI_REFERENCE_FILE,
+    TEAMS_FILE,
+    UPLOADED_DATA_DIR,
+    USERS_FILE,
+)
 from errors import StorageError
 from github_sync import sync_data_state, sync_kpi_state
 from keyboards import cancel_keyboard, get_data_keyboard, get_issuance_keyboard
 from navigation import clear_pending_import
 from permissions import Permission, has_permission
+from repositories.json_repository import JsonRepository
 from services import (
     _find_column,
     _normalize_person_name,
@@ -77,6 +87,12 @@ def _monthly_kpi_preview_markup() -> InlineKeyboardMarkup:
             [InlineKeyboardButton("❌ Отмена", callback_data="monthly_kpi_cancel")],
         ]
     )
+
+
+def _update_kpi_targets(data: dict, plans: dict[str, float]) -> None:
+    for record in data.values():
+        if isinstance(record, dict):
+            record.update(plans)
 
 
 def _text(value: object) -> str:
@@ -354,7 +370,7 @@ async def excel_preview_callback(update: Update, context: ContextTypes.DEFAULT_T
             text = "✅ Импорт KPI подтверждён и применён."
         elif kind == "kpi_reference":
             activate_now = query.data == "monthly_kpi_now"
-            await _apply_kpi_reference_import(staged, activate_now=activate_now)
+            await _apply_kpi_reference_import(staged, context, activate_now=activate_now)
             menu = get_data_keyboard()
             state = KPI_MENU_STATE
             text = (
@@ -636,10 +652,21 @@ async def process_monthly_kpi_file(update: Update, context: ContextTypes.DEFAULT
         return KPI_MENU_STATE
 
 
-async def _apply_kpi_reference_import(staged: dict, *, activate_now: bool = True) -> None:
+async def _apply_kpi_reference_import(
+    staged: dict, context: ContextTypes.DEFAULT_TYPE, *, activate_now: bool = True
+) -> None:
     reference = staged["reference"]
     if activate_now:
         await save_kpi_reference(reference)
+        plans = resolve_kpi_reference_plans(reference)
+        if not plans:
+            raise ValueError("Не удалось определить цели из месячного KPI")
+
+        await JsonRepository(KPI_FILE).update(lambda data: _update_kpi_targets(data, plans))
+        await TeamKpiService.from_default_storage().rebuild()
+        await sync_kpi_state()
+        await notify_users_kpi_updated(context, [])
+        await notify_managers_team_kpi_recalculated(context)
     else:
         year, month = map(int, datetime.now().strftime("%Y-%m").split("-"))
         if month == 12:
