@@ -240,6 +240,8 @@ def reset_kpi_records_for_reference(records: dict[str, Any], reference: dict[str
             continue
         for field in legacy_fields:
             record.pop(field, None)
+        record["office_hours"] = 0.0
+        record["field_hours"] = 0.0
         record["additional_kpi_facts"] = {name: 0.0 for name in structure}
         record["additional_kpi_plans"] = dict(structure)
 
