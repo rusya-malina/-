@@ -73,7 +73,7 @@ def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | N
         "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"},
     }
     items = [item for item in reference["items"] if isinstance(item, dict)]
-    weights = {"gt": 0.0, "microacts": 0.0, "retrafic": 0.0}
+    weights: dict[str, float] = {}
     mapped = False
     explicit_microacts = False
     separate_microacts = 0.0
@@ -87,16 +87,16 @@ def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | N
             continue
         matched = next((metric for metric, names in aliases.items() if name in names), None)
         if matched in {"gt", "retrafic"}:
-            weights[matched] += weight
+            weights[matched] = weights.get(matched, 0.0) + weight
             mapped = True
         elif matched == "microacts":
-            weights["microacts"] += weight
+            weights["microacts"] = weights.get("microacts", 0.0) + weight
             explicit_microacts = True
             mapped = True
         elif matched in {"las", "lau", "las_event", "lau_event"}:
             separate_microacts += weight
             mapped = True
-    if not explicit_microacts:
+    if not explicit_microacts and separate_microacts:
         weights["microacts"] = separate_microacts
     if mapped:
         return weights
@@ -203,6 +203,45 @@ def _aggregate_metrics(
             "ре трафик",
             "ретрафик",
         }
+        reference_metric_names: set[str] = set()
+        aliases = {
+            "gt": {"gt", "гт", "gross traffic", "трафик"},
+            "microacts": {
+                "microacts",
+                "micro acts",
+                "микроакты",
+                "микро акты",
+                "микроакты общие",
+                "las",
+                "лас",
+                "lau",
+                "лау",
+            },
+            "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"},
+        }
+        for item in reference.get("items", []):
+            if isinstance(item, dict):
+                name = str(item.get("name", "")).strip()
+                key = _metric_key(name)
+                canonical = next((metric for metric, names in aliases.items() if key in names), None)
+                if canonical:
+                    custom_plan = sum(
+                        _number(record.get("kpi", {}).get("additional_kpi_plans", {}).get(name))
+                        for record in records
+                        if isinstance(record.get("kpi"), dict)
+                    )
+                    custom_fact = sum(
+                        _number(record.get("kpi", {}).get("additional_kpi_facts", {}).get(name))
+                        for record in records
+                        if isinstance(record.get("kpi"), dict)
+                    )
+                    if custom_plan or custom_fact:
+                        metrics[canonical] = _metric(custom_plan, custom_fact)
+                if name:
+                    reference_metric_names.add(canonical or name)
+        for canonical in ("gt", "microacts", "retrafic"):
+            if canonical not in reference_metric_names:
+                metrics.pop(canonical, None)
         for item in reference.get("items", []):
             if not isinstance(item, dict):
                 continue

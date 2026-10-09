@@ -548,7 +548,13 @@ def _team_report_lines(report: dict, title: str) -> list[str]:
     dynamic_metrics = [
         (name, metric)
         for name, metric in metrics.items()
-        if name not in {"work_time", "gt", "microacts", "retrafic"} and isinstance(metric, dict)
+        if name != "work_time"
+        and isinstance(metric, dict)
+        and (
+            name not in {"gt", "microacts", "retrafic"}
+            or float(metric.get("plan", 0) or 0) > 0
+            or float(metric.get("fact", 0) or 0) > 0
+        )
     ]
     if dynamic_metrics:
         lines = [
@@ -757,8 +763,8 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "re trafic",
             "ретрафик",
         }
-        is_dynamic_reference = bool(reference_items) and not any(
-            " ".join(str(item.get("name", "")).casefold().replace("ё", "е").split()) in legacy_names
+        is_dynamic_reference = bool(reference_items) and any(
+            " ".join(str(item.get("name", "")).casefold().replace("ё", "е").split()) not in legacy_names
             for item in reference_items
             if isinstance(item, dict)
         )
@@ -987,8 +993,8 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "re trafic",
         "ретрафик",
     }
-    is_dynamic_reference = bool(reference_items) and not any(
-        " ".join(str(item.get("name", "")).casefold().replace("ё", "е").split()) in legacy_names
+    is_dynamic_reference = bool(reference_items) and any(
+        " ".join(str(item.get("name", "")).casefold().replace("ё", "е").split()) not in legacy_names
         for item in reference_items
         if isinstance(item, dict)
     )
