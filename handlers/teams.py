@@ -2,6 +2,7 @@
 
 from telegram.error import TelegramError
 
+from application.kpi_reference_service import load_kpi_reference
 from application.team_service import TeamService
 from bot_context import (
     ContextTypes,
@@ -94,6 +95,26 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     user_id, group, visible_users, kpi_data, _issuance_data = team_context
     title = "MNG" if is_admin_mode(user_id, context) else group
+    reference = await load_kpi_reference()
+    reference_items = reference.get("items", []) if isinstance(reference, dict) else []
+    legacy_names = {
+        "gt",
+        "гт",
+        "gross traffic",
+        "трафик",
+        "microacts",
+        "micro acts",
+        "микроакты",
+        "микро акты",
+        "retrafic",
+        "re trafic",
+        "ретрафик",
+    }
+    is_dynamic_reference = bool(reference_items) and any(
+        " ".join(str(item.get("name", "")).casefold().replace("ё", "е").split()) not in legacy_names
+        for item in reference_items
+        if isinstance(item, dict)
+    )
     report_sections = _report_sections(group, visible_users)
     report_users = [person for _section, section_users in report_sections for person in section_users]
     lines = [
@@ -108,6 +129,28 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
             continue
         for index, person in enumerate(section_users, start=1):
             kpi = kpi_data.get(person.get("name_key") or _normalize_person_name(person["name"]), {})
+            if is_dynamic_reference:
+                facts = kpi.get("additional_kpi_facts", {}) or {}
+                plans = kpi.get("additional_kpi_plans", {}) or {}
+                metric_lines = []
+                for item in reference_items:
+                    name = str(item.get("name", "")).strip()
+                    if not name:
+                        continue
+                    plan = float(plans.get(name, item.get("quantity", 0)) or 0)
+                    fact = float(facts.get(name, 0) or 0)
+                    percent = fact / plan * 100 if plan else 0
+                    metric_lines.append(f"{name}: {percent:.0f}%")
+                hours_lines = (
+                    f"\n   🏢 Офисные часы: `{float(kpi.get('office_hours', 0) or 0):.1f}`"
+                    f"\n   ⛺️ Полевые часы: `{float(kpi.get('field_hours', 0) or 0):.1f}`"
+                    if group in {"coor A", "coor R"}
+                    else ""
+                )
+                lines.append(
+                    f"{index}. *{person['name']}* — {person['group']}\n   " + " | ".join(metric_lines) + hours_lines
+                )
+                continue
             gt_plan = float(kpi.get("gt_plan", 0) or 0)
             gt_fact = float(kpi.get("gt_fact", 0) or 0)
             micro_plan = float(kpi.get("micro_plan", 0) or 0)
