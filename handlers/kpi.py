@@ -545,6 +545,27 @@ def _team_metric_line(label: str, metric: dict) -> str:
 
 def _team_report_lines(report: dict, title: str) -> list[str]:
     metrics = report.get("metrics", {})
+    reference_items = report.get("reference_items", [])
+    if reference_items:
+        aliases = {
+            "gt": {"gt", "гт", "gross traffic", "трафик"},
+            "microacts": {"microacts", "micro acts", "микроакты", "микро акты", "микроакты общие"},
+            "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"},
+        }
+        lines = [
+            f"🏷 **{title}**",
+            f"👥 Сотрудников: **{report.get('employee_count', 0)}**",
+            "📊 **Показатели за текущий месяц**",
+        ]
+        for item in reference_items:
+            name = str(item.get("name", "")).strip()
+            if not name:
+                continue
+            key = " ".join(name.casefold().replace("ё", "е").replace("-", " ").replace("_", " ").split())
+            metric_key = next((candidate for candidate, names in aliases.items() if key in names), name)
+            metric = metrics.get(metric_key, {"plan": 0, "fact": 0, "percent": 0})
+            lines.append(f"📌 {_team_metric_line(name, metric)}")
+        return lines
     dynamic_metrics = [
         (name, metric)
         for name, metric in metrics.items()
@@ -734,29 +755,7 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "my_kpi_show_kpi":
         reference = await load_kpi_reference()
         reference_items = reference.get("items", []) if isinstance(reference, dict) else []
-        legacy_names = {
-            "gt",
-            "гт",
-            "gross traffic",
-            "трафик",
-            "microacts",
-            "micro acts",
-            "микроакты",
-            "микро акты",
-            "las",
-            "лас",
-            "lau",
-            "лау",
-            "retrafic",
-            "re trafic",
-            "ретрафик",
-        }
-        is_dynamic_reference = bool(reference_items) and any(
-            " ".join(str(item.get("name", "")).casefold().replace("ё", "е").split()) not in legacy_names
-            for item in reference_items
-            if isinstance(item, dict)
-        )
-        if is_dynamic_reference:
+        if reference_items:
             facts = user_kpi.get("additional_kpi_facts", {}) or {}
             plans = user_kpi.get("additional_kpi_plans", {}) or {}
             lines = [
@@ -965,28 +964,7 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     entry = kpi_data.get(employee.get("name_key", ""), {})
     reference = await load_kpi_reference()
     reference_items = reference.get("items", []) if isinstance(reference, dict) else []
-    legacy_names = {
-        "gt",
-        "гт",
-        "gross traffic",
-        "трафик",
-        "microacts",
-        "micro acts",
-        "микроакты",
-        "las",
-        "лас",
-        "lau",
-        "лау",
-        "retrafic",
-        "re trafic",
-        "ретрафик",
-    }
-    is_dynamic_reference = bool(reference_items) and any(
-        " ".join(str(item.get("name", "")).casefold().replace("ё", "е").split()) not in legacy_names
-        for item in reference_items
-        if isinstance(item, dict)
-    )
-    if is_dynamic_reference:
+    if reference_items:
         facts = entry.get("additional_kpi_facts", {}) or {}
         lines = [
             "📊 **Персональная карточка плана**",

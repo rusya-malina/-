@@ -300,6 +300,11 @@ def _report(
         "employee_ids": sorted(str(item["user_id"]) for item in employees),
         "employee_count": len(employees),
         "metrics": metrics,
+        "reference_items": [
+            dict(item)
+            for item in (reference.get("items", []) if isinstance(reference, dict) else [])
+            if isinstance(item, dict)
+        ],
         "overall": {**_overall(metrics, weights), "weights_source": weights_source},
         "quality": {
             "missing_employee_ids": missing_ids,
