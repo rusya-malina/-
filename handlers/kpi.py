@@ -8,7 +8,7 @@ from application.admin_service import EmployeeAdminService
 from application.kpi_reference_service import load_kpi_reference
 from application.kpi_service import KpiService, build_plan_projection
 from application.report_service import ReportService
-from application.team_kpi_service import CALCULATION_VERSION, TeamKpiService
+from application.team_kpi_service import TeamKpiService
 from application.training_service import TrainingService
 from bot_context import (
     BadRequest,
@@ -681,20 +681,8 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "my_kpi_show_team":
         manager_group = "MNG" if admin_mode else group
         service = TeamKpiService.from_default_storage()
-        snapshot = await service.load_current()
-        reference = await load_kpi_reference()
-        reference_updated_at = reference.get("updated_at") if isinstance(reference, dict) else None
-        manager_report = snapshot.get("manager_reports", {}).get(manager_group, {}) if snapshot else {}
-        snapshot_version = snapshot.get("calculation_version") if snapshot else None
-        snapshot_reference_updated_at = snapshot.get("kpi_reference_updated_at") if snapshot else None
-        has_work_time = isinstance(manager_report, dict) and "work_time" in manager_report.get("metrics", {})
-        if (
-            snapshot is None
-            or snapshot_version != CALCULATION_VERSION
-            or snapshot_reference_updated_at != reference_updated_at
-            or not has_work_time
-        ):
-            snapshot = await service.rebuild()
+        # Rebuild on every opening: the report must never reuse a stale legacy snapshot.
+        snapshot = await service.rebuild()
         await query.message.edit_text(
             build_team_kpi_report(snapshot, manager_group),
             reply_markup=InlineKeyboardMarkup(
