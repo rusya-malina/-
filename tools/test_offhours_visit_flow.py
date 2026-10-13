@@ -108,6 +108,11 @@ async def main() -> None:
     assert zevon_callbacks[:-1] == [f"offh_day:zevon:2026-09-{day:02d}" for day in (5, 12, 19, 26)]
     assert all(label.startswith("С ") for label in inline_labels(zevon_markup)[:-1])
 
+    gao_gao_markup = handler.venue_dates_markup("gao_gao", [], today=date(2026, 9, 1))
+    gao_gao_callbacks = inline_callbacks(gao_gao_markup)
+    assert gao_gao_callbacks[:-1] == [f"offh_day:gao_gao:2026-09-{day:02d}" for day in (4, 5, 11, 12, 18, 19, 25, 26)]
+    assert all(label.startswith(("П ", "С ")) for label in inline_labels(gao_gao_markup)[:-1])
+
     occupied = [
         {"venue": "bla_bla_bar", "visit_date": "2026-09-10", "name": "Алина A"},
         {"venue": "bla_bla_bar", "visit_date": "2026-09-10", "name": "Рита R"},

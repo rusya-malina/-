@@ -26,7 +26,10 @@ VENUES = {
     "gao_gao": "Гао Гао",
 }
 ALLOWED_WEEKDAYS = frozenset({3, 4, 5, 6})  # Thursday through Sunday
-VENUE_WEEKDAYS = {"zevon": frozenset({5})}  # Зевон работает только по субботам
+VENUE_WEEKDAYS = {
+    "zevon": frozenset({5}),  # Зевон работает только по субботам
+    "gao_gao": frozenset({4, 5}),  # Гао Гао работает только по пятницам и субботам
+}
 MAX_EMPLOYEES_PER_VENUE_DAY = 2
 MAX_USER_VENUE_MONTHLY_BOOKINGS = 2
 

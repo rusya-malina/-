@@ -45,6 +45,16 @@ async def main() -> None:
         26,
         27,
     ]
+    assert [day.day for day in month_visit_dates(date(2026, 9, 1), "gao_gao")] == [
+        4,
+        5,
+        11,
+        12,
+        18,
+        19,
+        25,
+        26,
+    ]
     try:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "offhours_visits.json"
@@ -53,6 +63,10 @@ async def main() -> None:
             assert not zevon_friday.ok and zevon_friday.code == "invalid_input"
             zevon_saturday = await service.book("808", "Зевон Тест", "A LAMP", "zevon", "2026-09-05")
             assert zevon_saturday.ok
+            gao_gao_thursday = await service.book("809", "Гао Гао Тест", "A LAMP", "gao_gao", "2026-09-03")
+            assert not gao_gao_thursday.ok and gao_gao_thursday.code == "invalid_input"
+            gao_gao_friday = await service.book("810", "Гао Гао Тест", "A LAMP", "gao_gao", "2026-09-04")
+            assert gao_gao_friday.ok
             first_day = next_allowed_day()
             second_day = next_allowed_day(1)
             if second_day == first_day:
@@ -140,7 +154,7 @@ async def main() -> None:
 
             stored = json.loads(path.read_text(encoding="utf-8"))
             assert stored["schema_version"] == 1
-            assert len(stored["history"]) == 12
+            assert len(stored["history"]) == 13
             assert stored["bookings"][first.changed_ids[0]]["status"] == "cancelled"
     finally:
         visit_module.local_today = original_today
