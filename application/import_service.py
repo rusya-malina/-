@@ -11,6 +11,7 @@ from typing import Any
 from application.kpi_reference_service import (
     _normalized_reference_name,
     load_kpi_reference,
+    reference_metric_id,
     resolve_kpi_reference_plans,
     resolve_reference_fact_columns,
 )
@@ -137,6 +138,19 @@ class ImportService:
             "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик", "retrafic_fact"},
             "ретрафик": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик", "retrafic_fact"},
         }
+
+        def aliases_for(key: str) -> set[str]:
+            aliases = set(fact_aliases.get(key, {key}))
+            if "las" in key or "лас" in key:
+                aliases.add("micro_las_fact")
+            if "lau" in key or "лау" in key:
+                aliases.add("micro_lau_fact")
+            if "retrafic" in key or "ретрафик" in key:
+                aliases.add("retrafic_fact")
+            if key in {"microacts", "микроакты", "микро акты"}:
+                aliases.update({"micro_fact", "microacts_fact"})
+            return aliases
+
         users_before = dict(users_data)
         valid_rows: list[dict[str, Any]] = []
         for row in rows:
@@ -180,7 +194,7 @@ class ImportService:
             missing = [
                 display
                 for key, display in required_fact_names.items()
-                if not any(alias in row_columns for alias in fact_aliases.get(key, {key}))
+                if not any(alias in row_columns for alias in aliases_for(key))
                 and key not in {"microacts", "микроакты", "микро акты"}
             ]
             if missing:
@@ -191,7 +205,7 @@ class ImportService:
                 )
             custom_facts: dict[str, float] = {}
             for key, display in required_fact_names.items():
-                aliases = fact_aliases.get(key, {key})
+                aliases = aliases_for(key)
                 column = next((row_columns[alias] for alias in aliases if alias in row_columns), None)
                 if column is None:
                     if key == "microacts":
@@ -225,6 +239,20 @@ class ImportService:
 
             las_event_fact = event_fact("las event", "las_event", "лас ивент", "лас_ивент")
             lau_event_fact = event_fact("lau event", "lau_event", "лау ивент", "лау_ивент")
+            kpi_metrics = {
+                reference_metric_id(item["name"]): {
+                    "name": item["name"],
+                    "plan": float(item.get("quantity", 0) or 0),
+                    "fact": float(custom_facts.get(item["name"], 0) or 0),
+                    "weight_percent": float(item.get("weight_percent", 0) or 0),
+                    **(
+                        {"threshold_percent": float(item["threshold_percent"])}
+                        if item.get("threshold_percent") is not None
+                        else {}
+                    ),
+                }
+                for item in reference_items
+            }
             if reference_plans:
                 kpi_data[clean_name] = {
                     "original_name": employee_name,
@@ -243,6 +271,7 @@ class ImportService:
                     "additional_kpi_plans": {
                         item["name"]: float(item.get("quantity", 0) or 0) for item in reference_items
                     },
+                    "kpi_metrics": kpi_metrics,
                 }
             else:
                 kpi_data[clean_name] = {
@@ -253,6 +282,7 @@ class ImportService:
                     "additional_kpi_plans": {
                         item["name"]: float(item.get("quantity", 0) or 0) for item in reference_items
                     },
+                    "kpi_metrics": kpi_metrics,
                 }
             if clean_name not in updated_keys:
                 updated_names.append(employee_name)

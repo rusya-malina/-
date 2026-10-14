@@ -192,6 +192,33 @@ def _normalized_reference_name(value: Any) -> str:
     return " ".join(str(value or "").strip().casefold().replace("ё", "е").split())
 
 
+def reference_metric_id(value: Any) -> str:
+    """Return a stable per-name identifier for one uploaded KPI row."""
+    key = _normalized_reference_name(value)
+    return "kpi_" + "_".join(key.split())
+
+
+def reference_metric_rows(reference: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Return the authoritative KPI rows used by every report and calculator."""
+    rows: list[dict[str, Any]] = []
+    for item in resolve_reference_fact_columns(reference):
+        name = item["name"]
+        rows.append(
+            {
+                "id": reference_metric_id(name),
+                "name": name,
+                "plan": float(item.get("quantity", 0) or 0),
+                "weight_percent": float(item.get("weight_percent", 0) or 0),
+                **(
+                    {"threshold_percent": float(item["threshold_percent"])}
+                    if item.get("threshold_percent") is not None
+                    else {}
+                ),
+            }
+        )
+    return rows
+
+
 def resolve_reference_fact_columns(reference: dict[str, Any] | None) -> list[dict[str, Any]]:
     """Return KPI rows that must have a matching fact column in the employee Excel."""
     if not isinstance(reference, dict) or not isinstance(reference.get("items"), list):
@@ -223,7 +250,7 @@ def reference_metric_structure(reference: dict[str, Any] | None) -> dict[str, fl
 
 def reset_kpi_records_for_reference(records: dict[str, Any], reference: dict[str, Any] | None) -> None:
     """Replace KPI fields while preserving identity, hours and all non-KPI data."""
-    structure = reference_metric_structure(reference)
+    rows = reference_metric_rows(reference)
     legacy_fields = {
         "gt_plan",
         "gt_fact",
@@ -242,8 +269,19 @@ def reset_kpi_records_for_reference(records: dict[str, Any], reference: dict[str
             record.pop(field, None)
         record["office_hours"] = 0.0
         record["field_hours"] = 0.0
-        record["additional_kpi_facts"] = {name: 0.0 for name in structure}
-        record["additional_kpi_plans"] = dict(structure)
+        record["kpi_metrics"] = {
+            row["id"]: {
+                "name": row["name"],
+                "plan": row["plan"],
+                "fact": 0.0,
+                "weight_percent": row["weight_percent"],
+                **({"threshold_percent": row["threshold_percent"]} if "threshold_percent" in row else {}),
+            }
+            for row in rows
+        }
+        # Kept only as a read-compatible migration shadow; new code never calculates from it.
+        record["additional_kpi_facts"] = {row["name"]: 0.0 for row in rows}
+        record["additional_kpi_plans"] = {row["name"]: row["plan"] for row in rows}
 
 
 def resolve_kpi_reference_plans(reference: dict[str, Any] | None) -> dict[str, float] | None:
@@ -302,6 +340,8 @@ __all__ = [
     "resolve_kpi_reference_weights",
     "resolve_reference_fact_columns",
     "reference_metric_structure",
+    "reference_metric_id",
+    "reference_metric_rows",
     "reset_kpi_records_for_reference",
     "_normalized_reference_name",
 ]

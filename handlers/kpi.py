@@ -1,12 +1,10 @@
 """Загрузка, ручное редактирование и просмотр KPI."""
 
 import contextlib
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from application.admin_service import EmployeeAdminService
 from application.kpi_reference_service import load_kpi_reference
-from application.kpi_service import KpiService, build_plan_projection
+from application.kpi_service import KpiService, build_plan_projection, build_reference_plan_projection
 from application.report_service import ReportService
 from application.team_kpi_service import TeamKpiService
 from application.training_service import TrainingService
@@ -20,7 +18,6 @@ from bot_context import (
     Update,
 )
 from config import (
-    BOT_TIMEZONE,
     GROUPS_FILE,
     GROUPS_WITH_BALANCES,
     GROUPS_WITH_HOURS,
@@ -955,23 +952,22 @@ async def show_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reference = await load_kpi_reference()
     reference_items = reference.get("items", []) if isinstance(reference, dict) else []
     if reference_items:
-        facts = entry.get("additional_kpi_facts", {}) or {}
+        projection = build_reference_plan_projection(entry, reference)
         lines = [
             "📊 **Персональная карточка плана**",
             f"👤 *{employee['name']}*",
-            f"📆 На дату: `{datetime.now(ZoneInfo(BOT_TIMEZONE)).date().isoformat()}`",
+            f"📆 На дату: `{projection['as_of']}`",
+            f"🗓 Осталось рабочих дней — {projection['workdays_left']}",
             "",
-            "🎯 **Новые KPI**",
+            "🎯 **Планы по KPI**",
         ]
-        for target in (100, 111):
-            lines.append(f"**{target}% план**")
-            for item in reference_items:
-                name = str(item.get("name", "")).strip()
-                if not name:
-                    continue
-                plan = float(item.get("quantity", 0) or 0) * target / 100
-                fact = float(facts.get(name, 0) or 0)
-                lines.append(f"• {name}: осталось `{max(0, plan - fact):g}` из `{plan:g}`")
+        for item in projection["rows"]:
+            lines.append(f"**{item['name']}** (вес {item['weight_percent']:.0f}%)")
+            for target in item["targets"]:
+                status = "План перевыполнен" if target["remaining"] <= 0 else f"{target['per_hour_rounded']}/час"
+                lines.append(f"{target['target_percent']}% — осталось `{target['remaining']:g}` | {status}")
+        lines.append("")
+        lines.append("ℹ️ Планы, факты и веса берутся из активного месячного справочника KPI.")
         await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
         return
     projection = build_plan_projection(entry)

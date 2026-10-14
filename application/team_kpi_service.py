@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from application.kpi_reference_service import load_kpi_reference
+from application.kpi_reference_service import load_kpi_reference, reference_metric_rows
 from config import BOT_TIMEZONE, GROUPS_FILE, KPI_FILE, KPI_REFERENCE_FILE, TEAM_KPI_FILE, USERS_FILE
 from organization import build_employee_registry
 from repositories.json_repository import JsonRepository
@@ -42,6 +42,13 @@ def _metric(plan: float, fact: float) -> dict[str, float]:
 def _metric_key(value: Any) -> str:
     text = str(value or "").strip().casefold().replace("ё", "е")
     return " ".join(text.replace("-", " ").replace("_", " ").split())
+
+
+def _reference_metric_weights(reference: dict[str, Any] | None) -> dict[str, float] | None:
+    rows = reference_metric_rows(reference)
+    if not rows:
+        return None
+    return {row["name"]: row["weight_percent"] / 100.0 for row in rows}
 
 
 def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | None:
@@ -122,6 +129,44 @@ def _reference_weights(reference: dict[str, Any] | None) -> dict[str, float] | N
 def _aggregate_metrics(
     records: list[dict[str, Any]], reference: dict[str, Any] | None = None
 ) -> tuple[dict[str, Any], list[str], list[str]]:
+    reference_rows = reference_metric_rows(reference)
+    if reference_rows:
+        metrics: dict[str, Any] = {}
+        for row in reference_rows:
+            fact = 0.0
+            plan = 0.0
+            for employee in records:
+                kpi = employee.get("kpi")
+                if not isinstance(kpi, dict):
+                    continue
+                metric = (kpi.get("kpi_metrics") or {}).get(row["id"], {})
+                plan += _number(metric.get("plan", row["plan"]))
+                fact += _number(metric.get("fact"))
+                if not metric:
+                    plan += _number((kpi.get("additional_kpi_plans") or {}).get(row["name"]))
+                    fact += _number((kpi.get("additional_kpi_facts") or {}).get(row["name"]))
+            metric = _metric(plan, fact)
+            if "threshold_percent" in row:
+                metric["threshold_percent"] = row["threshold_percent"]
+            metrics[row["name"]] = metric
+        office = sum(_number((employee.get("kpi") or {}).get("office_hours")) for employee in records)
+        field = sum(_number((employee.get("kpi") or {}).get("field_hours")) for employee in records)
+        metrics["work_time"] = {
+            **_metric(len(records) * 64.0, field),
+            "office_hours": office,
+            "field_hours": field,
+            "total_fact": office + field,
+            "execution_basis": "field_hours",
+            "hours_per_employee": 64.0,
+            "employee_count": len(records),
+        }
+        missing_employee_ids = [
+            str(employee["user_id"]) for employee in records if not isinstance(employee.get("kpi"), dict)
+        ]
+        zero_plan = [row["name"] for row in reference_rows if row["plan"] <= 0]
+        warnings = ["У части сотрудников отсутствуют KPI-данные"] if missing_employee_ids else []
+        return metrics, missing_employee_ids, zero_plan + warnings
+
     totals = {
         "gt_plan": 0.0,
         "gt_fact": 0.0,
@@ -329,44 +374,7 @@ def build_team_kpi_snapshot(
     now = datetime.now(ZoneInfo(BOT_TIMEZONE))
     selected_period = period or now.strftime("%Y-%m")
     timestamp = calculated_at or now.isoformat()
-    reference_weights = _reference_weights(kpi_reference)
-    weights = reference_weights if reference_weights else ({} if kpi_reference is not None else DEFAULT_WEIGHTS)
-    if isinstance(kpi_reference, dict) and isinstance(weights, dict):
-        core_names = {
-            "gt",
-            "гт",
-            "gross traffic",
-            "трафик",
-            "microacts",
-            "micro acts",
-            "микроакты",
-            "микро акты",
-            "микроакты общие",
-            "microacts total",
-            "las",
-            "лас",
-            "las event",
-            "лас ивент",
-            "lau",
-            "лау",
-            "lau event",
-            "лау ивент",
-            "retrafic",
-            "re trafic",
-            "re traffic",
-            "ре трафик",
-            "ретрафик",
-        }
-        has_named_core_metric = any(
-            isinstance(item, dict) and _metric_key(item.get("name")) in core_names
-            for item in kpi_reference.get("items", [])
-        )
-        for item in kpi_reference.get("items", []):
-            if not isinstance(item, dict):
-                continue
-            name = str(item.get("name", "")).strip()
-            if weights and has_named_core_metric and name and _metric_key(name) not in core_names:
-                weights[name] = _number(item.get("weight_percent")) / 100.0
+    weights = _reference_metric_weights(kpi_reference) if kpi_reference is not None else DEFAULT_WEIGHTS
     weights_source = (
         "kpi_reference"
         if kpi_reference is not None and weights

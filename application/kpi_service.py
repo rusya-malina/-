@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from application.kpi_reference_service import reference_metric_rows
 from config import BOT_TIMEZONE, KPI_FILE, PLANS_FILE
 from domain.models import OperationResult
 from repositories.json_repository import JsonRepository
@@ -181,6 +182,57 @@ def build_plan_projection(
     }
 
 
+def build_reference_plan_projection(
+    record: dict[str, Any],
+    reference: dict[str, Any],
+    as_of: date | None = None,
+    hours_per_workday: int = 4,
+) -> dict[str, Any]:
+    """Project every uploaded KPI row; no legacy GT/microacts fields are used."""
+    if hours_per_workday <= 0:
+        raise ValueError("hours_per_workday must be positive")
+    current_date = as_of or datetime.now(ZoneInfo(DEFAULT_TIMEZONE)).date()
+    period_end = date(
+        current_date.year,
+        current_date.month,
+        calendar.monthrange(current_date.year, current_date.month)[1],
+    )
+    workdays_left = remaining_workdays(current_date, period_end)
+    hours_left = workdays_left * hours_per_workday
+    stored_metrics = record.get("kpi_metrics") or {}
+    facts = record.get("additional_kpi_facts") or {}
+    plans = record.get("additional_kpi_plans") or {}
+    rows: list[dict[str, Any]] = []
+    for item in reference_metric_rows(reference):
+        metric = stored_metrics.get(item["id"], {})
+        plan = float(metric.get("plan", plans.get(item["name"], item["plan"])) or 0)
+        fact = float(metric.get("fact", facts.get(item["name"], 0)) or 0)
+        targets = []
+        for multiplier in PLAN_TARGETS:
+            target = plan * multiplier
+            remaining = max(0.0, target - fact)
+            targets.append(
+                {
+                    "target_percent": int(multiplier * 100),
+                    "plan": target,
+                    "fact": fact,
+                    "remaining": remaining,
+                    "per_hour": remaining / hours_left if hours_left else 0.0,
+                    "per_hour_rounded": _ceil_nonnegative(remaining / hours_left) if hours_left else 0,
+                }
+            )
+        rows.append(
+            {"id": item["id"], "name": item["name"], "weight_percent": item["weight_percent"], "targets": targets}
+        )
+    return {
+        "as_of": current_date.isoformat(),
+        "period_end": period_end.isoformat(),
+        "workdays_left": workdays_left,
+        "hours_left": hours_left,
+        "rows": rows,
+    }
+
+
 @dataclass
 class KpiService:
     """Owns KPI record and default-plan mutations without Telegram dependencies."""
@@ -260,6 +312,7 @@ __all__ = [
     "PLAN_FIELDS",
     "KpiService",
     "build_plan_projection",
+    "build_reference_plan_projection",
     "clean_name",
     "remaining_workdays",
 ]

@@ -2,7 +2,7 @@
 
 from telegram.error import TelegramError
 
-from application.kpi_reference_service import load_kpi_reference
+from application.kpi_reference_service import load_kpi_reference, reference_metric_id
 from application.team_service import TeamService
 from bot_context import (
     ContextTypes,
@@ -115,40 +115,15 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if is_dynamic_reference:
                 facts = kpi.get("additional_kpi_facts", {}) or {}
                 plans = kpi.get("additional_kpi_plans", {}) or {}
+                metric_records = kpi.get("kpi_metrics", {}) or {}
                 metric_lines = []
                 for item in reference_items:
                     name = str(item.get("name", "")).strip()
                     if not name:
                         continue
-                    key = " ".join(name.casefold().replace("ё", "е").replace("-", " ").split())
-                    aliases = {
-                        "gt": {"gt", "гт", "gross traffic", "трафик"},
-                        "microacts": {"microacts", "micro acts", "микроакты", "микро акты", "микроакты общие"},
-                        "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"},
-                    }
-                    metric = next((candidate for candidate, names in aliases.items() if key in names), None)
-                    legacy = {
-                        "gt": ("gt_plan", "gt_fact"),
-                        "microacts": ("micro_plan", None),
-                        "retrafic": ("retrafic_plan", "retrafic_fact"),
-                    }.get(metric)
-                    if legacy:
-                        plan = float(kpi.get(legacy[0], item.get("quantity", 0)) or 0)
-                        if legacy[1] is None:
-                            fact = sum(
-                                float(kpi.get(field, 0) or 0)
-                                for field in (
-                                    "micro_las_fact",
-                                    "micro_lau_fact",
-                                    "micro_las_event_fact",
-                                    "micro_lau_event_fact",
-                                )
-                            )
-                        else:
-                            fact = float(kpi.get(legacy[1], 0) or 0)
-                    else:
-                        plan = float(plans.get(name, item.get("quantity", 0)) or 0)
-                        fact = float(facts.get(name, 0) or 0)
+                    metric_record = metric_records.get(reference_metric_id(name), {})
+                    plan = float(metric_record.get("plan", plans.get(name, item.get("quantity", 0))) or 0)
+                    fact = float(metric_record.get("fact", facts.get(name, 0)) or 0)
                     percent = fact / plan * 100 if plan else 0
                     metric_lines.append(f"{name}: {percent:.0f}%")
                 hours_lines = (

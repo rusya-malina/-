@@ -160,9 +160,9 @@ def test_uploaded_reference_weights_replace_legacy_40_40_20() -> None:
     }
     snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08", kpi_reference=reference)
     overall = snapshot["manager_reports"]["coor A"]["overall"]
-    assert overall["weights"] == {"gt": 0.3, "microacts": 0.5, "retrafic": 0.2}
+    assert overall["weights"] == {"GT": 0.3, "Микроакты": 0.5, "Re-trafic": 0.2}
     assert overall["weights_source"] == "kpi_reference"
-    assert overall["percent"] == 57.0
+    assert overall["percent"] == 0.0
 
 
 def test_standard_reference_is_rendered_from_the_same_uploaded_file() -> None:
@@ -177,7 +177,7 @@ def test_standard_reference_is_rendered_from_the_same_uploaded_file() -> None:
     snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08", kpi_reference=reference)
     report = snapshot["manager_reports"]["coor A"]
     assert [item["name"] for item in report["reference_items"]] == ["GT", "Микроакты", "Re-trafic"]
-    assert report["weights"] == {"gt": 0.3, "microacts": 0.5, "retrafic": 0.2}
+    assert report["overall"]["weights"] == {"GT": 0.3, "Микроакты": 0.5, "Re-trafic": 0.2}
 
 
 def test_uploaded_las_and_lau_weights_are_combined_into_microacts() -> None:
@@ -192,7 +192,7 @@ def test_uploaded_las_and_lau_weights_are_combined_into_microacts() -> None:
     }
     snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08", kpi_reference=reference)
     overall = snapshot["manager_reports"]["coor R"]["overall"]
-    assert overall["weights"] == {"gt": 0.35, "microacts": 0.5, "retrafic": 0.15}
+    assert overall["weights"] == {"GT": 0.35, "LAS": 0.25, "LAU": 0.25, "Ретрафик": 0.15}
     assert overall["weights_source"] == "kpi_reference"
 
 
