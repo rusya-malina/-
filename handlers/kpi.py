@@ -756,6 +756,12 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reference = await load_kpi_reference()
         reference_items = reference.get("items", []) if isinstance(reference, dict) else []
         if reference_items:
+            reference_items = [
+                item
+                for item in reference_items
+                if " ".join(str(item.get("name", "")).casefold().replace("ё", "е").split())
+                not in {"gt", "гт", "gross traffic", "трафик"}
+            ]
             facts = user_kpi.get("additional_kpi_facts", {}) or {}
             plans = user_kpi.get("additional_kpi_plans", {}) or {}
             lines = [
@@ -798,33 +804,19 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         micro_fact = standard_micro_fact + las_event_fact + lau_event_fact
         micro_plan = user_kpi.get("micro_plan", 0)
 
-        gt_pct = calc_pct(user_kpi["gt_fact"], user_kpi["gt_plan"])
         micro_pct = calc_pct(micro_fact, micro_plan)
         retrafic_pct = calc_pct(user_kpi["retrafic_fact"], user_kpi["retrafic_plan"])
-
-        # Расчет трешхолда LAS %
-        threshold_las_fact = las_fact + las_event_fact
-        threshold_lau_fact = lau_fact + lau_event_fact
-        threshold_total = threshold_las_fact + threshold_lau_fact
-        las_percent = (threshold_las_fact / threshold_total * 100) if threshold_total > 0 else 0
-        need_las = 0 if las_percent >= 40 else max(0, int(((0.4 * threshold_total) - threshold_las_fact) / 0.6) + 1)
 
         micro_details = (
             f"🎯 **Микроакты:** План: `{micro_plan:.0f}` | Факт: `{micro_fact:.0f}` (`{micro_pct:.1f}%`)\n"
             f"  ├ Факт по LAS: `{las_fact:.0f}` | Факт по LAU: `{lau_fact:.0f}`\n"
             f"  ├ LAS Event: `{las_event_fact:.0f}` | LAU Event: `{lau_event_fact:.0f}`\n"
-            f"  ├ Итоговый LAS %: `{las_percent:.2f}%`\n"
         )
-        if need_las > 0:
-            micro_details += f"  └ ⚠️ **Рекомендация:** Добавить микроакты LAS: `{need_las}`\n"
-        else:
-            micro_details += "  └ ✅ **Показатель LAS в норме!**\n"
 
         text = (
             f"📊 **Ваши показатели KPI**\n"
             f"👤 Сотрудник: *{user_name_value}*\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
-            f"📈 **GT:** План: `{user_kpi['gt_plan']:.0f}` | Факт: `{user_kpi['gt_fact']:.0f}` (`{gt_pct:.1f}%`)\n\n"
             f"{micro_details}\n"
             f"🔄 **Re-trafic:** План: `{user_kpi['retrafic_plan']:.0f}` | Факт: `{user_kpi['retrafic_fact']:.0f}` (`{retrafic_pct:.1f}%`)\n"
         )
@@ -890,10 +882,8 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pct = (fact / plan * 100) if plan > 0 else 0
                 weight = float(item.get("weight_percent", 0) or 0)
                 weighted_total += pct * weight / 100
-                threshold = item.get("threshold_percent")
-                threshold_text = f" | порог: `{float(threshold):.0f}%`" if threshold is not None else ""
                 details.append(
-                    f"• **{name}** — План: `{plan:.0f}` | Факт: `{fact:.0f}` (`{pct:.1f}%`) | Вес: `{weight:.0f}%`{threshold_text}"
+                    f"• **{name}** — План: `{plan:.0f}` | Факт: `{fact:.0f}` (`{pct:.1f}%`) | Вес: `{weight:.0f}%`"
                 )
             details.append(f"🏆 **Итоговый KPI по весам: `{weighted_total:.1f}%`**")
             text += "\n" + "\n".join(details)

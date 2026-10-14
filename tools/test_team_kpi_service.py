@@ -165,6 +165,21 @@ def test_uploaded_reference_weights_replace_legacy_40_40_20() -> None:
     assert overall["percent"] == 57.0
 
 
+def test_standard_reference_is_rendered_from_the_same_uploaded_file() -> None:
+    users, groups, kpi_data = _source_data()
+    reference = {
+        "items": [
+            {"name": "GT", "weight_percent": 30, "quantity": 999},
+            {"name": "Микроакты", "weight_percent": 50, "quantity": 777},
+            {"name": "Re-trafic", "weight_percent": 20, "quantity": 666},
+        ]
+    }
+    snapshot = build_team_kpi_snapshot(users, groups, kpi_data, period="2026-08", kpi_reference=reference)
+    report = snapshot["manager_reports"]["coor A"]
+    assert [item["name"] for item in report["reference_items"]] == ["GT", "Микроакты", "Re-trafic"]
+    assert report["weights"] == {"gt": 0.3, "microacts": 0.5, "retrafic": 0.2}
+
+
 def test_uploaded_las_and_lau_weights_are_combined_into_microacts() -> None:
     users, groups, kpi_data = _source_data()
     reference = {

@@ -97,24 +97,7 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     title = "MNG" if is_admin_mode(user_id, context) else group
     reference = await load_kpi_reference()
     reference_items = reference.get("items", []) if isinstance(reference, dict) else []
-    legacy_names = {
-        "gt",
-        "гт",
-        "gross traffic",
-        "трафик",
-        "microacts",
-        "micro acts",
-        "микроакты",
-        "микро акты",
-        "retrafic",
-        "re trafic",
-        "ретрафик",
-    }
-    is_dynamic_reference = bool(reference_items) and any(
-        " ".join(str(item.get("name", "")).casefold().replace("ё", "е").split()) not in legacy_names
-        for item in reference_items
-        if isinstance(item, dict)
-    )
+    is_dynamic_reference = bool(reference_items)
     report_sections = _report_sections(group, visible_users)
     report_users = [person for _section, section_users in report_sections for person in section_users]
     lines = [
@@ -137,8 +120,35 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     name = str(item.get("name", "")).strip()
                     if not name:
                         continue
-                    plan = float(plans.get(name, item.get("quantity", 0)) or 0)
-                    fact = float(facts.get(name, 0) or 0)
+                    key = " ".join(name.casefold().replace("ё", "е").replace("-", " ").split())
+                    aliases = {
+                        "gt": {"gt", "гт", "gross traffic", "трафик"},
+                        "microacts": {"microacts", "micro acts", "микроакты", "микро акты", "микроакты общие"},
+                        "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик"},
+                    }
+                    metric = next((candidate for candidate, names in aliases.items() if key in names), None)
+                    legacy = {
+                        "gt": ("gt_plan", "gt_fact"),
+                        "microacts": ("micro_plan", None),
+                        "retrafic": ("retrafic_plan", "retrafic_fact"),
+                    }.get(metric)
+                    if legacy:
+                        plan = float(kpi.get(legacy[0], item.get("quantity", 0)) or 0)
+                        if legacy[1] is None:
+                            fact = sum(
+                                float(kpi.get(field, 0) or 0)
+                                for field in (
+                                    "micro_las_fact",
+                                    "micro_lau_fact",
+                                    "micro_las_event_fact",
+                                    "micro_lau_event_fact",
+                                )
+                            )
+                        else:
+                            fact = float(kpi.get(legacy[1], 0) or 0)
+                    else:
+                        plan = float(plans.get(name, item.get("quantity", 0)) or 0)
+                        fact = float(facts.get(name, 0) or 0)
                     percent = fact / plan * 100 if plan else 0
                     metric_lines.append(f"{name}: {percent:.0f}%")
                 hours_lines = (

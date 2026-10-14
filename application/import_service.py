@@ -119,35 +119,23 @@ class ImportService:
         reference_plans = resolve_kpi_reference_plans(reference)
         if not reference_items:
             raise ImportSafetyError("KPI reference is missing or invalid")
-        core_names = {
-            "gt",
-            "гт",
-            "gross traffic",
-            "трафик",
-            "microacts",
-            "micro acts",
-            "микроакты",
-            "микро акты",
-            "микроакты общие",
-            "microacts total",
-            "las",
-            "лас",
-            "las event",
-            "лас ивент",
-            "lau",
-            "лау",
-            "lau event",
-            "лау ивент",
-            "retrafic",
-            "re trafic",
-            "re traffic",
-            "ре трафик",
-            "ретрафик",
-        }
-        required_fact_names = {
-            _normalized_reference_name(item["name"]): item["name"]
-            for item in reference_items
-            if _normalized_reference_name(item["name"]) not in core_names
+        required_fact_names = {_normalized_reference_name(item["name"]): item["name"] for item in reference_items}
+        fact_aliases = {
+            "gt": {"gt", "гт", "gross traffic", "трафик", "gt_fact"},
+            "гт": {"gt", "гт", "gross traffic", "трафик", "gt_fact"},
+            "microacts": {"microacts", "micro acts", "микроакты", "микро акты", "micro_fact"},
+            "микроакты": {"microacts", "micro acts", "микроакты", "микро акты", "micro_fact"},
+            "микро акты": {"microacts", "micro acts", "микроакты", "микро акты", "micro_fact"},
+            "las": {"las", "лас", "micro_las_fact"},
+            "лас": {"las", "лас", "micro_las_fact"},
+            "lau": {"lau", "лау", "micro_lau_fact"},
+            "лау": {"lau", "лау", "micro_lau_fact"},
+            "las event": {"las event", "лас ивент", "las_event"},
+            "лас ивент": {"las event", "лас ивент", "las_event"},
+            "lau event": {"lau event", "лау ивент", "lau_event"},
+            "лау ивент": {"lau event", "лау ивент", "lau_event"},
+            "retrafic": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик", "retrafic_fact"},
+            "ретрафик": {"retrafic", "re trafic", "re traffic", "ре трафик", "ретрафик", "retrafic_fact"},
         }
         users_before = dict(users_data)
         valid_rows: list[dict[str, Any]] = []
@@ -189,7 +177,12 @@ class ImportService:
             employee_name = str(row["full_name"]).strip()
             clean_name = _normalize_person_name(employee_name)
             row_columns = {_normalized_reference_name(key): key for key in row}
-            missing = [display for key, display in required_fact_names.items() if key not in row_columns]
+            missing = [
+                display
+                for key, display in required_fact_names.items()
+                if not any(alias in row_columns for alias in fact_aliases.get(key, {key}))
+                and key not in {"microacts", "микроакты", "микро акты"}
+            ]
             if missing:
                 raise ImportSafetyError(
                     "В Excel отсутствуют столбцы фактических значений для KPI: "
@@ -198,7 +191,19 @@ class ImportService:
                 )
             custom_facts: dict[str, float] = {}
             for key, display in required_fact_names.items():
-                value = row[row_columns[key]]
+                aliases = fact_aliases.get(key, {key})
+                column = next((row_columns[alias] for alias in aliases if alias in row_columns), None)
+                if column is None:
+                    if key == "microacts":
+                        value = sum(
+                            float(row[row_columns[alias]] or 0)
+                            for alias in ("micro_las_fact", "micro_lau_fact", "las_event", "lau_event")
+                            if alias in row_columns and row[row_columns[alias]] == row[row_columns[alias]]
+                        )
+                    else:
+                        value = 0
+                else:
+                    value = row[column]
                 if value != value:
                     value = 0
                 try:
@@ -235,6 +240,9 @@ class ImportService:
                     "office_hours": float(row["office_hours"]),
                     "field_hours": float(row["field_hours"]),
                     "additional_kpi_facts": custom_facts,
+                    "additional_kpi_plans": {
+                        item["name"]: float(item.get("quantity", 0) or 0) for item in reference_items
+                    },
                 }
             else:
                 kpi_data[clean_name] = {
