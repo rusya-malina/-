@@ -72,6 +72,7 @@ async def main() -> None:
     original_kpi_group = kpi_handler.get_user_group
     original_kpi_load = kpi_handler.load_json
     original_report_factory = kpi_handler.ReportService.from_default_storage
+    original_team_reference = teams_handler.load_kpi_reference
 
     async def team_load(path):
         if path == teams_handler.USERS_FILE:
@@ -103,6 +104,15 @@ async def main() -> None:
     try:
         teams_handler.get_user_group = AsyncMock(return_value="coor A")
         teams_handler.load_json = team_load
+        teams_handler.load_kpi_reference = AsyncMock(
+            return_value={
+                "effective_month": "2026-10",
+                "items": [
+                    {"name": "LAS", "weight_percent": 50, "quantity": 100},
+                    {"name": "Re-trafic", "weight_percent": 50, "quantity": 100},
+                ],
+            }
+        )
         kpi_handler.get_user_group = AsyncMock(return_value="A LAMP")
         kpi_handler.load_json = kpi_load
         kpi_handler.ReportService.from_default_storage = lambda: FixtureReportService()
@@ -143,6 +153,7 @@ async def main() -> None:
     finally:
         teams_handler.get_user_group = original_team_group
         teams_handler.load_json = original_team_load
+        teams_handler.load_kpi_reference = original_team_reference
         kpi_handler.get_user_group = original_kpi_group
         kpi_handler.load_json = original_kpi_load
         kpi_handler.ReportService.from_default_storage = original_report_factory

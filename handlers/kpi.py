@@ -563,37 +563,11 @@ def _team_report_lines(report: dict, title: str) -> list[str]:
             metric = metrics.get(metric_key, {"plan": 0, "fact": 0, "percent": 0})
             lines.append(f"📌 {_team_metric_line(name, metric)}")
         return lines
-    dynamic_metrics = [
-        (name, metric)
-        for name, metric in metrics.items()
-        if name != "work_time"
-        and isinstance(metric, dict)
-        and (
-            name not in {"gt", "microacts", "retrafic"}
-            or float(metric.get("plan", 0) or 0) > 0
-            or float(metric.get("fact", 0) or 0) > 0
-        )
-    ]
-    if dynamic_metrics:
-        lines = [
-            f"🏷 **{title}**",
-            f"👥 Сотрудников: **{report.get('employee_count', 0)}**",
-            "📊 **Показатели за текущий месяц**",
-        ]
-        lines.extend(f"📌 {_team_metric_line(name, metric)}" for name, metric in dynamic_metrics)
-        return lines
-    microacts = metrics.get("microacts", {})
-    las_fact = float(microacts.get("las_fact", 0))
-    lau_fact = float(microacts.get("lau_fact", 0))
-    las_percent = float(microacts.get("las_percent", 0))
     lines = [
         f"🏷 **{title}**",
         f"👥 Сотрудников: **{report.get('employee_count', 0)}**",
-        f"📈 {_team_metric_line('GT', metrics.get('gt', {}))}",
-        f"🎯 {_team_metric_line('Микроакты', microacts)}",
-        f"  ├ Факт по LAS: `{las_fact:.0f}` | Факт по LAU: `{lau_fact:.0f}`",
-        f"  └ Итоговый LAS %: `{las_percent:.2f}%`",
-        f"🔄 {_team_metric_line('Re-trafic', metrics.get('retrafic', {}))}",
+        "⚠️ Активный месячный справочник KPI не загружен.",
+        "Загрузите справочник KPI заново или обратитесь к администратору.",
     ]
     return lines
 

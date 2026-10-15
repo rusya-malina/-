@@ -104,15 +104,22 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📊 **KPI команды — {title}**",
         f"👤 Сотрудников в командах: **{len(report_users)}**\n",
     ]
-    for section_name, section_users in report_sections:
-        if section_name:
-            lines.append(f"🏷 **{section_name}** — сотрудников: **{len(section_users)}**")
-        if not section_users:
-            lines.append("_Нет зарегистрированных пользователей._\n")
-            continue
-        for index, person in enumerate(section_users, start=1):
-            kpi = kpi_data.get(person.get("name_key") or _normalize_person_name(person["name"]), {})
-            if is_dynamic_reference:
+    if not is_dynamic_reference:
+        lines.extend(
+            [
+                "⚠️ Активный месячный справочник KPI не загружен.",
+                "Загрузите справочник KPI заново или обратитесь к администратору.",
+            ]
+        )
+    else:
+        for section_name, section_users in report_sections:
+            if section_name:
+                lines.append(f"🏷 **{section_name}** — сотрудников: **{len(section_users)}**")
+            if not section_users:
+                lines.append("_Нет зарегистрированных пользователей._\n")
+                continue
+            for index, person in enumerate(section_users, start=1):
+                kpi = kpi_data.get(person.get("name_key") or _normalize_person_name(person["name"]), {})
                 facts = kpi.get("additional_kpi_facts", {}) or {}
                 plans = kpi.get("additional_kpi_plans", {}) or {}
                 metric_records = kpi.get("kpi_metrics", {}) or {}
@@ -135,37 +142,7 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 lines.append(
                     f"{index}. *{person['name']}* — {person['group']}\n   " + " | ".join(metric_lines) + hours_lines
                 )
-                continue
-            gt_plan = float(kpi.get("gt_plan", 0) or 0)
-            gt_fact = float(kpi.get("gt_fact", 0) or 0)
-            micro_plan = float(kpi.get("micro_plan", 0) or 0)
-            micro_fact = sum(
-                float(kpi.get(field, 0) or 0)
-                for field in (
-                    "micro_las_fact",
-                    "micro_lau_fact",
-                    "micro_las_event_fact",
-                    "micro_lau_event_fact",
-                )
-            )
-            retrafic_plan = float(kpi.get("retrafic_plan", 0) or 0)
-            retrafic_fact = float(kpi.get("retrafic_fact", 0) or 0)
-            office_hours = float(kpi.get("office_hours", 0) or 0)
-            field_hours = float(kpi.get("field_hours", 0) or 0)
-            gt_percent = (gt_fact / gt_plan * 100) if gt_plan else 0
-            micro_percent = (micro_fact / micro_plan * 100) if micro_plan else 0
-            retrafic_percent = (retrafic_fact / retrafic_plan * 100) if retrafic_plan else 0
-            hours_lines = (
-                f"\n   🏢 Офисные часы: `{office_hours:.1f}`\n   ⛺️ Полевые часы: `{field_hours:.1f}`"
-                if group in {"coor A", "coor R"}
-                else ""
-            )
-            lines.append(
-                f"{index}. *{person['name']}* — {person['group']}\n"
-                f"   GT: {gt_percent:.0f}% | Микроакты: {micro_percent:.0f}% | Re-trafic: {retrafic_percent:.0f}%"
-                f"{hours_lines}"
-            )
-        lines.append("")
+            lines.append("")
     await update.message.reply_text(
         "\n".join(lines),
         reply_markup=get_team_menu_keyboard(),

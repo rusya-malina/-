@@ -52,7 +52,17 @@ async def test_scope_and_team_view() -> None:
 
     original_group = teams_handler.get_user_group
     original_load_json = teams_handler.load_json
+    original_load_reference = teams_handler.load_kpi_reference
     teams_handler.get_user_group = AsyncMock(return_value="coor A")
+    teams_handler.load_kpi_reference = AsyncMock(
+        return_value={
+            "effective_month": "2026-10",
+            "items": [
+                {"name": "LAS", "weight_percent": 50, "quantity": 100},
+                {"name": "Re-trafic", "weight_percent": 50, "quantity": 100},
+            ],
+        }
+    )
 
     async def fake_load_json(path):
         if path == teams_handler.USERS_FILE:
@@ -63,22 +73,26 @@ async def test_scope_and_team_view() -> None:
             return {
                 "a user": {
                     "original_name": "A User",
-                    "gt_plan": 100,
-                    "gt_fact": 80,
-                    "micro_plan": 100,
-                    "micro_las_fact": 40,
-                    "micro_lau_fact": 30,
-                    "retrafic_plan": 100,
-                    "retrafic_fact": 75,
+                    "kpi_metrics": {
+                        "kpi_las": {"name": "LAS", "plan": 100, "fact": 80},
+                        "kpi_re-trafic": {"name": "Re-trafic", "plan": 100, "fact": 75},
+                    },
                 },
                 "r user": {
                     "original_name": "R User",
-                    "gt_plan": 100,
-                    "gt_fact": 99,
+                    "kpi_metrics": {},
                 },
             }
         if path == teams_handler.ISSUANCE_FILE:
             return {"_schema_version": 2}
+        if path == teams_handler.KPI_REFERENCE_FILE:
+            return {
+                "effective_month": "2026-10",
+                "items": [
+                    {"name": "LAS", "weight_percent": 50, "quantity": 100},
+                    {"name": "Re-trafic", "weight_percent": 50, "quantity": 100},
+                ],
+            }
         return {}
 
     teams_handler.load_json = fake_load_json
@@ -92,7 +106,7 @@ async def test_scope_and_team_view() -> None:
         assert "A User" in text
         assert "R User" not in text
         assert "KPI команды" in text
-        assert "ID:" not in text and "Re-trafic: 75%" in text
+        assert "ID:" not in text and "Re-trafic: 75%" in text and "LAS: 80%" in text
 
         message.reply_text.reset_mock()
         result = await teams_handler.show_team_balances(update, context)
@@ -114,6 +128,7 @@ async def test_scope_and_team_view() -> None:
     finally:
         teams_handler.get_user_group = original_group
         teams_handler.load_json = original_load_json
+        teams_handler.load_kpi_reference = original_load_reference
 
 
 async def main() -> None:
