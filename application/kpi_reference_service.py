@@ -320,7 +320,8 @@ async def load_kpi_reference() -> dict[str, Any]:
     data = await JsonRepository(KPI_REFERENCE_FILE).load()
     current = data if isinstance(data, dict) else {}
     pending = await JsonRepository(PENDING_KPI_REFERENCE_FILE).load()
-    if isinstance(pending, dict) and str(pending.get("effective_month", "")) <= datetime.now().strftime("%Y-%m"):
+    pending_month = str(pending.get("effective_month", "")).strip() if isinstance(pending, dict) else ""
+    if pending_month and reference_metric_structure(pending) and pending_month <= datetime.now().strftime("%Y-%m"):
         await save_kpi_reference(pending)
         await JsonRepository(PENDING_KPI_REFERENCE_FILE).update(lambda stored: stored.clear())
         if reference_metric_structure(pending):
