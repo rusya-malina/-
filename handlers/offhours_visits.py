@@ -9,6 +9,7 @@ from typing import Any
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, ConversationHandler
 
+from application.group_report_service import replace_group_report
 from application.offhours_visit_service import (
     MAX_EMPLOYEES_PER_VENUE_DAY,
     VENUES,
@@ -304,8 +305,10 @@ async def group_bookings_today(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("⛔️ Отчёт доступен только координаторам, супервайзеру и менеджеру.")
         return
     bookings = await OffhoursVisitService.from_default_storage().active_bookings()
-    await update.message.reply_text(
-        _today_bookings_text(local_today(), bookings),
+    await replace_group_report(
+        context,
+        chat_id=chat.id,
+        text=_today_bookings_text(local_today(), bookings),
         parse_mode="HTML",
     )
 

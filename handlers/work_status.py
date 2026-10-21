@@ -7,6 +7,7 @@ from contextlib import suppress
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
+from application.group_report_service import replace_group_report
 from application.work_status_service import (
     accept_pair_invite,
     create_pair_invite,
@@ -220,8 +221,10 @@ async def group_working_today(update: Update, context: ContextTypes.DEFAULT_TYPE
     if group not in COORDINATOR_GROUPS | {"SPV", "MNG"}:
         await update.message.reply_text("⛔️ Отчёт доступен только координаторам, супервайзеру и менеджеру.")
         return
-    await update.message.reply_text(
-        _format_overview(await get_coordinator_overview()),
+    await replace_group_report(
+        context,
+        chat_id=chat.id,
+        text=_format_overview(await get_coordinator_overview()),
         parse_mode="Markdown",
     )
 
