@@ -560,7 +560,7 @@ def _team_report_lines(report: dict, title: str) -> list[str]:
                 continue
             key = " ".join(name.casefold().replace("ё", "е").replace("-", " ").replace("_", " ").split())
             metric_key = next((candidate for candidate, names in aliases.items() if key in names), name)
-            metric = metrics.get(metric_key, {"plan": 0, "fact": 0, "percent": 0})
+            metric = metrics.get(metric_key) or metrics.get(name) or {"plan": 0, "fact": 0, "percent": 0}
             lines.append(f"📌 {_team_metric_line(name, metric)}")
         return lines
     lines = [
