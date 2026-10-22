@@ -224,6 +224,7 @@ async def group_working_today(update: Update, context: ContextTypes.DEFAULT_TYPE
     await replace_group_report(
         context,
         chat_id=chat.id,
+        report_type="work_status",
         text=_format_overview(await get_coordinator_overview()),
         parse_mode="Markdown",
     )

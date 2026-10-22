@@ -308,6 +308,7 @@ async def group_bookings_today(update: Update, context: ContextTypes.DEFAULT_TYP
     await replace_group_report(
         context,
         chat_id=chat.id,
+        report_type="bookings",
         text=_today_bookings_text(local_today(), bookings),
         parse_mode="HTML",
     )

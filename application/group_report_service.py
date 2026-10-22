@@ -10,10 +10,11 @@ async def replace_group_report(
     context: Any,
     *,
     chat_id: int,
+    report_type: str,
     text: str,
     parse_mode: str | None = None,
 ) -> Any:
-    """Delete the previous report from this group and send the fresh one."""
+    """Delete the previous report of this type and send the fresh one."""
     bot_data = getattr(context, "bot_data", None)
     if not isinstance(bot_data, dict):
         bot_data = {}
@@ -21,7 +22,8 @@ async def replace_group_report(
             context.bot_data = bot_data
 
     report_ids = bot_data.setdefault("group_report_message_ids", {})
-    previous_message_id = report_ids.get(str(chat_id))
+    report_key = f"{chat_id}:{report_type}"
+    previous_message_id = report_ids.get(report_key)
     if previous_message_id:
         with suppress(Exception):
             await context.bot.delete_message(chat_id=chat_id, message_id=int(previous_message_id))
@@ -30,7 +32,7 @@ async def replace_group_report(
     if parse_mode:
         kwargs["parse_mode"] = parse_mode
     message = await context.bot.send_message(**kwargs)
-    report_ids[str(chat_id)] = message.message_id
+    report_ids[report_key] = message.message_id
     return message
 
 
