@@ -140,10 +140,11 @@ def _aggregate_metrics(
                 if not isinstance(kpi, dict):
                     continue
                 metric = (kpi.get("kpi_metrics") or {}).get(row["id"], {})
-                plan += _number(metric.get("plan", row["plan"]))
-                fact += _number(metric.get("fact"))
-                if not metric:
-                    plan += _number((kpi.get("additional_kpi_plans") or {}).get(row["name"]))
+                if metric:
+                    plan += _number(metric.get("plan", row["plan"]))
+                    fact += _number(metric.get("fact"))
+                else:
+                    plan += _number((kpi.get("additional_kpi_plans") or {}).get(row["name"], row["plan"]))
                     fact += _number((kpi.get("additional_kpi_facts") or {}).get(row["name"]))
             metric = _metric(plan, fact)
             if "threshold_percent" in row:
