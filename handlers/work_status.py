@@ -186,14 +186,18 @@ async def show_work_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         text = f"📍 **Статус работы на {_today()}**\n\nВыберите статус:"
 
-    if status.get("status") in {"working", "not_working"} or status.get("pair_name"):
+    if status.get("pair_name"):
         await update.message.reply_text(
             text,
             reply_markup=get_main_keyboard(int(user_id), group=group),
             parse_mode="Markdown",
         )
         return
-    await update.message.reply_text(text, reply_markup=_status_markup(user_id, status), parse_mode="Markdown")
+    await update.message.reply_text(
+        text,
+        reply_markup=_status_markup(user_id, status),
+        parse_mode="Markdown",
+    )
 
 
 async def show_working_lists(update: Update, context: ContextTypes.DEFAULT_TYPE):

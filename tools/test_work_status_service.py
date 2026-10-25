@@ -106,3 +106,33 @@ def test_rejected_invitation_returns_candidate(monkeypatch):
         assert [item["user_id"] for item in candidates] == ["102"]
 
     asyncio.run(scenario())
+
+
+def test_employee_can_change_not_working_to_working(monkeypatch):
+    users = {"201": {"name": "Рита Три"}}
+    groups = {"201": {"name": "Рита Три", "group": "R LAMP"}}
+    state = {}
+
+    async def fake_load(path):
+        if path == service.USERS_FILE:
+            return users
+        if path == service.GROUPS_FILE:
+            return groups
+        return state
+
+    async def fake_update(path, mutator):
+        mutator(state)
+
+    monkeypatch.setattr(service, "load_json", fake_load)
+    monkeypatch.setattr(service, "update_json", fake_update)
+    monkeypatch.setattr(service, "_today", lambda: "2026-09-23")
+
+    async def scenario():
+        assert (await service.set_work_status("201", "not_working"))["ok"]
+        assert (await service.get_today_status("201"))["status"] == "not_working"
+        assert (await service.set_work_status("201", "working"))["ok"]
+        status = await service.get_today_status("201")
+        assert status["status"] == "working"
+        assert "updated_at" in status
+
+    asyncio.run(scenario())
