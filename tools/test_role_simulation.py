@@ -41,6 +41,8 @@ KPI = {
         "micro_lau_fact": 30,
         "retrafic_plan": 100,
         "retrafic_fact": 75,
+        "additional_kpi_plans": {"Re-trafic": 100},
+        "additional_kpi_facts": {"Re-trafic": 75},
         "office_hours": 10,
         "field_hours": 5,
     }
@@ -55,6 +57,9 @@ ISSUANCE = {
     }
     for user_id, name in USERS.items()
 }
+REFERENCE = {
+    "items": [{"name": "Re-trafic", "quantity": 100, "weight": 20}],
+}
 
 
 def update_for(user_id: int, text: str = ""):
@@ -67,6 +72,8 @@ async def main() -> None:
     original_team_load = teams_handler.load_json
     original_kpi_group = kpi_handler.get_user_group
     original_kpi_load = kpi_handler.load_json
+    original_team_reference = teams_handler.load_kpi_reference
+    original_kpi_reference = kpi_handler.load_kpi_reference
 
     async def team_load(path):
         if path == teams_handler.USERS_FILE:
@@ -89,6 +96,8 @@ async def main() -> None:
     try:
         teams_handler.load_json = team_load
         kpi_handler.load_json = kpi_load
+        teams_handler.load_kpi_reference = lambda: _reference()
+        kpi_handler.load_kpi_reference = lambda: _reference()
 
         role_cases = [
             (101, "A LAMP", False),
@@ -150,6 +159,12 @@ async def main() -> None:
         teams_handler.load_json = original_team_load
         kpi_handler.get_user_group = original_kpi_group
         kpi_handler.load_json = original_kpi_load
+        teams_handler.load_kpi_reference = original_team_reference
+        kpi_handler.load_kpi_reference = original_kpi_reference
+
+
+async def _reference():
+    return REFERENCE
 
 
 if __name__ == "__main__":

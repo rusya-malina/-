@@ -190,7 +190,7 @@ def build_conversation_handler() -> ConversationHandler:
             ],
             CONFIRM_DELETE_EMP: [
                 CallbackQueryHandler(
-                    delete_employee_confirm, pattern=r"^(del_select:|del_type:|del_back_list|manual_emp_)"
+                    delete_employee_confirm, pattern=r"^(del_select:|del_type:|del_back_list|kpi_restore:|manual_emp_)"
                 )
             ],
             MANUAL_KPI_NEW_NAME: [

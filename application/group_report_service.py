@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import suppress
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 async def replace_group_report(
@@ -36,4 +39,44 @@ async def replace_group_report(
     return message
 
 
-__all__ = ["replace_group_report"]
+async def refresh_existing_group_reports(
+    context: Any,
+    *,
+    report_type: str,
+    text: str,
+    parse_mode: str | None = None,
+) -> int:
+    """Refresh only already registered reports of one type in all groups.
+
+    Report IDs are kept separately by ``chat_id:report_type``. Consequently,
+    refreshing ``work_status`` cannot delete or replace a ``bookings`` report.
+    If no report of this type has been sent in the current bot process, this
+    function is a no-op; it never creates an unsolicited group message.
+    """
+    bot_data = getattr(context, "bot_data", None)
+    if not isinstance(bot_data, dict):
+        return 0
+    report_ids = bot_data.get("group_report_message_ids")
+    if not isinstance(report_ids, dict):
+        return 0
+
+    report_suffix = f":{report_type}"
+    report_keys = [key for key in report_ids if str(key).endswith(report_suffix)]
+    refreshed = 0
+    for report_key in report_keys:
+        try:
+            chat_id = int(str(report_key)[: -len(report_suffix)])
+            await replace_group_report(
+                context,
+                chat_id=chat_id,
+                report_type=report_type,
+                text=text,
+                parse_mode=parse_mode,
+            )
+            refreshed += 1
+        except Exception:  # noqa: BLE001
+            logger.exception("Не удалось обновить групповой отчёт %s для %s", report_type, report_key)
+    return refreshed
+
+
+__all__ = ["refresh_existing_group_reports", "replace_group_report"]

@@ -7,7 +7,7 @@ from contextlib import suppress
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
-from application.group_report_service import replace_group_report
+from application.group_report_service import refresh_existing_group_reports, replace_group_report
 from application.work_status_service import (
     accept_pair_invite,
     create_pair_invite,
@@ -279,6 +279,12 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         if not result["ok"]:
             await query.message.edit_text(result["message"], parse_mode="Markdown")
             return
+        await refresh_existing_group_reports(
+            context,
+            report_type="work_status",
+            text=_format_overview(await get_coordinator_overview()),
+            parse_mode="Markdown",
+        )
         if desired == "not_working":
             await _show_result_and_main_menu(
                 query,

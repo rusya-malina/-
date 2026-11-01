@@ -3,6 +3,7 @@
 import contextlib
 
 from application.admin_service import EmployeeAdminService
+from application.kpi_archive_service import KpiArchiveService
 from application.kpi_reference_service import load_kpi_reference
 from application.kpi_service import KpiService, build_plan_projection, build_reference_plan_projection
 from application.report_service import ReportService
@@ -150,6 +151,7 @@ async def set_plan_retrafic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_manual_kpi_inline_markup() -> InlineKeyboardMarkup:
     kpi_data = await load_json(KPI_FILE)
+    archive_data = await KpiArchiveService.from_default_storage().archive.load()
     inline_keyboard = []
 
     if kpi_data:
@@ -158,6 +160,8 @@ async def get_manual_kpi_inline_markup() -> InlineKeyboardMarkup:
     inline_keyboard.append([InlineKeyboardButton("➕ Новый сотрудник", callback_data="manual_emp_new")])
     if kpi_data:
         inline_keyboard.append([InlineKeyboardButton("🗑 Удалить сотрудника", callback_data="manual_emp_del_menu")])
+    if archive_data.get("records"):
+        inline_keyboard.append([InlineKeyboardButton("🗄 Архив KPI", callback_data="manual_emp_archive")])
     inline_keyboard.append([InlineKeyboardButton("⚙️ Внести общий план", callback_data="manual_emp_plan")])
     inline_keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="manual_emp_cancel")])
 
@@ -222,6 +226,27 @@ async def manual_kpi_select_employee(update: Update, context: ContextTypes.DEFAU
 
     if data == "manual_emp_plan":
         return await set_plan_gt_start(query, context)
+
+    if data == "manual_emp_archive":
+        archived = await KpiArchiveService.from_default_storage().list_archived()
+        if not archived:
+            await query.answer("Архив KPI пуст", show_alert=True)
+            return MANUAL_KPI_NAME
+        rows = []
+        for item in archived:
+            employee = item.get("employee", {})
+            deleted_at = str(item.get("deletion", {}).get("deleted_at", ""))[:10]
+            label = f"↩️ {employee.get('name', 'Без имени')}"
+            if deleted_at:
+                label += f" ({deleted_at})"
+            rows.append([InlineKeyboardButton(label, callback_data=f"kpi_restore:{item['archive_id']}")])
+        rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="manual_emp_back")])
+        await query.message.edit_text(
+            "🗄 **Архив KPI**\n\nВыберите запись для восстановления:",
+            reply_markup=InlineKeyboardMarkup(rows),
+            parse_mode="Markdown",
+        )
+        return CONFIRM_DELETE_EMP
 
     if data == "manual_emp_new":
         await query.message.edit_text(
@@ -300,9 +325,29 @@ async def select_previous_employee_handler(update: Update, context: ContextTypes
 
 async def delete_employee_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id_num = query.from_user.id
+    if not is_admin_mode(user_id_num, context):
+        await query.answer("Доступ запрещён", show_alert=True)
+        return ConversationHandler.END
     await query.answer()
     data = query.data
-    user_id_num = query.from_user.id
+
+    if data.startswith("kpi_restore:"):
+        archive_id = data.split("kpi_restore:", 1)[1]
+        operation = await KpiArchiveService.from_default_storage().restore_entry(archive_id, user_id_num)
+        if operation.ok:
+            with contextlib.suppress(Exception):
+                await TeamKpiService.from_default_storage().rebuild()
+            text = f"✅ **KPI-запись {operation.details.get('name', '')} восстановлена.**"
+        elif operation.code == "conflict":
+            text = "⚠️ **Восстановление отменено:** активная KPI-запись с таким именем уже существует."
+        else:
+            text = "⚠️ **Не удалось восстановить KPI-запись.** Возможно, архив уже обработан."
+        await query.message.edit_text(text, parse_mode="Markdown")
+        await query.message.reply_text(
+            "🏠 Главное меню", reply_markup=get_main_keyboard(user_id_num, admin_mode=True)
+        )
+        return ConversationHandler.END
 
     if data == "del_back_list":
         kpi_data = await load_json(KPI_FILE)
@@ -370,9 +415,18 @@ async def delete_employee_confirm(update: Update, context: ContextTypes.DEFAULT_
                 else (f"⚠️ **Не удалось удалить сотрудника {target_name}.**")
             )
         else:
-            operation = await KpiService.from_default_storage().delete_entry(target_name)
+            operation = await KpiArchiveService.from_default_storage().archive_entry(target_name, user_id_num)
             if not operation.ok:
                 status_text = f"⚠️ **Запись KPI сотрудника {target_name} не найдена.**"
+            else:
+                with contextlib.suppress(Exception):
+                    await TeamKpiService.from_default_storage().rebuild()
+                status_text = (
+                    f"🗄 **KPI-запись {target_name} перемещена в архив.**\n\n"
+                    "Профиль пользователя, выдачи, обучение и брони не изменены.\n"
+                    "Командные KPI пересчитаны.\n"
+                    "Восстановление доступно в разделе «Архив KPI»."
+                )
 
         await query.message.delete()
         await context.bot.send_message(
