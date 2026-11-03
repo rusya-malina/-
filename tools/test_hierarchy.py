@@ -17,18 +17,19 @@ from organization import get_scope_groups, get_visible_users
 
 
 async def test_scope_and_team_view() -> None:
-    assert get_scope_groups("MNG") == {"A LAMP", "R LAMP", "coor A", "coor R", "SPV", "MNG"}
-    assert get_scope_groups("SPV") == {"A LAMP", "R LAMP", "coor A", "coor R", "SPV"}
+    assert get_scope_groups("MNG") == {"A LAMP", "R LAMP", "coor A", "coor R", "coor Bonds", "SPV", "MNG"}
+    assert get_scope_groups("SPV") == {"A LAMP", "R LAMP", "coor A", "coor R", "coor Bonds", "SPV"}
     assert get_scope_groups("coor A") == {"A LAMP", "coor A"}
     assert get_scope_groups("coor R") == {"R LAMP", "coor R"}
+    assert get_scope_groups("coor Bonds") == {"coor Bonds"}
     grouped_people = [
         {"name": "A User", "group": "A LAMP"},
         {"name": "R User", "group": "R LAMP"},
     ]
     mng_sections = get_report_sections("MNG", grouped_people)
     spv_sections = get_report_sections("SPV", grouped_people)
-    assert [name for name, _people in mng_sections] == ["A LAMP", "R LAMP"]
-    assert [name for name, _people in spv_sections] == ["A LAMP", "R LAMP"]
+    assert [name for name, _people in mng_sections] == ["A LAMP", "R LAMP", "coor Bonds"]
+    assert [name for name, _people in spv_sections] == ["A LAMP", "R LAMP", "coor Bonds"]
 
     users = {"10": "Coor A", "11": "A User", "12": "R User", "13": "SPV User"}
     groups = {

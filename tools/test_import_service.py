@@ -110,6 +110,57 @@ def test_import_service() -> None:
         asyncio.run(scenario())
 
 
+def test_coor_bonds_kpi_import_is_allowed() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        kpi_path = root / "kpi.json"
+        issuance_path = root / "issuance.json"
+        users_path = root / "users.json"
+        groups_path = root / "groups.json"
+        reference_path = root / "kpi_reference.json"
+        kpi_path.write_text("{}", encoding="utf-8")
+        issuance_path.write_text("{}", encoding="utf-8")
+        users_path.write_text(json.dumps({"501": {"name": "Bonds Lead"}}), encoding="utf-8")
+        groups_path.write_text(
+            json.dumps({"501": {"name": "Bonds Lead", "group": "coor Bonds"}}), encoding="utf-8"
+        )
+        reference_path.write_text(
+            json.dumps(
+                {"items": [{"name": "Bonds KPI", "weight_percent": 100, "quantity": 25}]},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        service = ImportService(
+            JsonRepository(str(kpi_path)),
+            JsonRepository(str(issuance_path)),
+            JsonRepository(str(users_path)),
+            groups=JsonRepository(str(groups_path)),
+            kpi_reference=JsonRepository(str(reference_path)),
+        )
+
+        async def scenario() -> None:
+            staged = await service.prepare_kpi_import(
+                [
+                    {
+                        "full_name": "Bonds Lead",
+                        "group": "coor Bonds",
+                        "Bonds KPI": 11,
+                        "office_hours": 4,
+                        "field_hours": 8,
+                    }
+                ]
+            )
+            assert staged["unresolved_team_names"] == []
+            assert staged["groups_data"]["501"]["group"] == "coor Bonds"
+            assert staged["kpi_data"]["bonds lead"]["additional_kpi_facts"]["Bonds KPI"] == 11.0
+            await service.apply_kpi_import(staged)
+            stored = json.loads(kpi_path.read_text(encoding="utf-8"))
+            assert stored["bonds lead"]["additional_kpi_plans"]["Bonds KPI"] == 25.0
+
+        asyncio.run(scenario())
+
+
 def test_issuance_name_matching_avoids_duplicate_records() -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)

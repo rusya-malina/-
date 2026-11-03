@@ -92,7 +92,7 @@ def coordinator_venues_markup(group: str | None = None) -> InlineKeyboardMarkup:
     """Return one compact venue selector for the management booking report."""
     buttons = [InlineKeyboardButton(name, callback_data=f"offh_report_venue:{venue}") for venue, name in VENUES.items()]
     keyboard = [buttons[index : index + 2] for index in range(0, len(buttons), 2)]
-    if group in {"coor A", "coor R"}:
+    if group in {"coor A", "coor R", "coor Bonds"}:
         keyboard.append([InlineKeyboardButton("📅 Брони на сегодня", callback_data="offh_report_today")])
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="offh_report_close")])
     return InlineKeyboardMarkup(keyboard)
@@ -301,7 +301,7 @@ async def group_bookings_today(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("Эта команда доступна только в групповом чате.")
         return
     group = await get_user_group(update.effective_user.id)
-    if group not in {"coor A", "coor R", "SPV", "MNG"}:
+    if group not in {"coor A", "coor R", "coor Bonds", "SPV", "MNG"}:
         await update.message.reply_text("⛔️ Отчёт доступен только координаторам, супервайзеру и менеджеру.")
         return
     bookings = await OffhoursVisitService.from_default_storage().active_bookings()
@@ -440,7 +440,7 @@ async def offhours_visit_callback(update: Update, context: ContextTypes.DEFAULT_
 async def coordinator_bookings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     group = await get_user_group(query.from_user.id)
-    if group not in {"coor A", "coor R", "SPV", "MNG"}:
+    if group not in {"coor A", "coor R", "coor Bonds", "SPV", "MNG"}:
         await query.answer("Полный список доступен только руководителям.", show_alert=True)
         return ConversationHandler.END
 
@@ -455,7 +455,7 @@ async def coordinator_bookings_callback(update: Update, context: ContextTypes.DE
         return OFFHOURS_VISITS_MENU
 
     if data == "offh_report_today":
-        if group not in {"coor A", "coor R"}:
+        if group not in {"coor A", "coor R", "coor Bonds"}:
             await query.answer("Выгрузка за сегодня доступна только координаторам.", show_alert=True)
             return OFFHOURS_VISITS_MENU
         await query.answer()
@@ -477,7 +477,7 @@ async def coordinator_bookings_callback(update: Update, context: ContextTypes.DE
 
 async def show_coordinator_bookings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group = await get_user_group(update.effective_user.id)
-    if group not in {"coor A", "coor R", "SPV", "MNG"}:
+    if group not in {"coor A", "coor R", "coor Bonds", "SPV", "MNG"}:
         await update.message.reply_text(
             "⛔️ Полный список броней доступен только координаторам, супервайзеру и менеджеру."
         )

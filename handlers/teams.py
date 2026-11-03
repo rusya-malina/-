@@ -29,7 +29,7 @@ from organization import (
     is_management_group,
     merge_employee_issuance,
 )
-from permissions import Permission, has_permission, is_admin_mode
+from permissions import Permission, get_admin_view_group, has_permission, is_admin_mode
 from roles import get_user_group
 from services import _format_quantity, _normalize_person_name, calculate_balances
 from states import (
@@ -44,10 +44,10 @@ async def _get_team_context(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group = await get_user_group(user_id)
     admin_mode = is_admin_mode(user_id, context)
     if admin_mode:
-        group = "MNG"
+        group = get_admin_view_group(user_id, context) or "MNG"
     if not is_management_group(group):
         await update.message.reply_text(
-            "⛔️ Раздел «Моя команда» доступен только MNG, SPV, coor A и coor R.",
+            "⛔️ Раздел «Моя команда» доступен только руководителям.",
             reply_markup=get_main_keyboard(user_id, group),
         )
         return None
@@ -65,6 +65,8 @@ async def _get_team_context(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kpi_data=kpi_data,
         issuance_data=issuance_data,
     )
+    if admin_mode and get_admin_view_group(user_id, context):
+        visible_users = [person for person in visible_users if person.get("group") == group]
     return user_id, group, visible_users, kpi_data, issuance_data
 
 
@@ -84,7 +86,8 @@ def _report_sections(group: str, visible_users: list[dict]) -> list[tuple[str | 
     """MNG/SPV получают две ветки; coor получает свою единую ветку."""
     if group in {"MNG", "SPV"}:
         return [
-            (team, [person for person in visible_users if person["group"] == team]) for team in ("A LAMP", "R LAMP")
+            (team, [person for person in visible_users if person["group"] == team])
+            for team in ("A LAMP", "R LAMP", "coor Bonds")
         ]
     return [(None, visible_users)]
 
@@ -94,7 +97,7 @@ async def show_team_kpi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if team_context is None:
         return ConversationHandler.END
     user_id, group, visible_users, kpi_data, _issuance_data = team_context
-    title = "MNG" if is_admin_mode(user_id, context) else group
+    title = get_admin_view_group(user_id, context) or ("MNG" if is_admin_mode(user_id, context) else group)
     reference = await load_kpi_reference()
     reference_items = reference.get("items", []) if isinstance(reference, dict) else []
     is_dynamic_reference = bool(reference_items)
@@ -156,7 +159,7 @@ async def show_team_balances(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if team_context is None:
         return ConversationHandler.END
     user_id, group, visible_users, kpi_data, issuance_data = team_context
-    title = "MNG" if is_admin_mode(user_id, context) else group
+    title = get_admin_view_group(user_id, context) or ("MNG" if is_admin_mode(user_id, context) else group)
     report_sections = _report_sections(group, visible_users)
     report_users = [person for _section, section_users in report_sections for person in section_users]
     lines = [

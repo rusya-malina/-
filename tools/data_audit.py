@@ -70,7 +70,7 @@ def main() -> None:
             labels = [record.get("team") for record in data.values() if isinstance(record, dict)]
             print(f"  team_labels={sorted(set(labels))}")
         if filename == "groups.json":
-            allowed = {"A LAMP", "R LAMP", "coor A", "coor R", "SPV", "MNG"}
+            allowed = {"A LAMP", "R LAMP", "coor A", "coor R", "coor Bonds", "SPV", "MNG"}
             invalid = [
                 user_id
                 for user_id, record in data.items()

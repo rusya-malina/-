@@ -16,6 +16,7 @@ from errors import StorageError
 from storage import load_json_sync, save_json_sync
 
 ADMIN_MODE_KEY = "admin_mode"
+ADMIN_VIEW_GROUP_KEY = "admin_view_group"
 PERSISTED_MODE_SCHEMA_VERSION = 1
 _PERSISTENCE_LOADED = False
 _PERSISTED_ADMIN_MODE = False
@@ -75,8 +76,27 @@ def set_admin_mode(context: Any, enabled: bool, user_id: int | str | None = None
     """Устанавливает режим и сохраняет его только для реального администратора."""
     data = _user_data(context)
     data[ADMIN_MODE_KEY] = bool(enabled)
+    if not enabled:
+        data.pop(ADMIN_VIEW_GROUP_KEY, None)
     if user_id is not None and is_admin_user(user_id):
         _persist_admin_mode(enabled)
+
+
+def set_admin_view_group(context: Any, group: str | None) -> None:
+    """Set the reporting/menu group being viewed while admin mode stays enabled."""
+    data = _user_data(context)
+    if group:
+        data[ADMIN_VIEW_GROUP_KEY] = group
+    else:
+        data.pop(ADMIN_VIEW_GROUP_KEY, None)
+
+
+def get_admin_view_group(user_id: int | str | None, context: Any) -> str | None:
+    """Return the admin's selected simulated coordinator group, if any."""
+    if not is_admin_mode(user_id, context):
+        return None
+    value = _user_data(context).get(ADMIN_VIEW_GROUP_KEY)
+    return str(value) if value else None
 
 
 def get_mode(user_id: int | str | None, context: Any) -> Mode:
@@ -104,7 +124,7 @@ def _is_coordinator(user_id: int | str | None) -> bool:
     try:
         from roles import get_user_group_sync
 
-        return get_user_group_sync(user_id) in {"coor A", "coor R"}
+        return get_user_group_sync(user_id) in {"coor A", "coor R", "coor Bonds"}
     except (OSError, StorageError, TypeError, ValueError):
         logging.exception("Не удалось определить группу пользователя %s", user_id)
         return False
@@ -136,7 +156,7 @@ def has_permission(
 def main_menu_kwargs(user_id: int | str | None, context: Any, group: str | None = None) -> dict[str, Any]:
     """Возвращает параметры главного меню без возможности потерять admin mode."""
     return {
-        "group": group,
+        "group": group or get_admin_view_group(user_id, context),
         "admin_mode": is_admin_mode(user_id, context),
     }
 
@@ -152,9 +172,11 @@ def permission_denied_text(permission: Permission) -> str:
 
 __all__ = [
     "ADMIN_MODE_KEY",
+    "ADMIN_VIEW_GROUP_KEY",
     "Mode",
     "Permission",
     "get_mode",
+    "get_admin_view_group",
     "has_permission",
     "is_admin_mode",
     "is_admin_user",
@@ -162,4 +184,5 @@ __all__ = [
     "main_menu_kwargs",
     "permission_denied_text",
     "set_admin_mode",
+    "set_admin_view_group",
 ]

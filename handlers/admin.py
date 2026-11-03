@@ -19,7 +19,7 @@ from handlers.requests import (
 )
 from keyboards import cancel_keyboard, get_extra_keyboard, get_main_keyboard
 from navigation import main_menu_markup
-from permissions import Permission, has_permission, set_admin_mode
+from permissions import Permission, has_permission, set_admin_mode, set_admin_view_group
 from roles import get_user_group
 from services import notify_user_bot_stopped
 from states import (
@@ -41,8 +41,26 @@ async def enter_admin_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔️ Команда доступна только администратору.")
         return ConversationHandler.END
     set_admin_mode(context, True, user_id=update.effective_user.id)
+    set_admin_view_group(context, None)
     await update.message.reply_text(
         "🛡 **Режим администратора включён.**\nДля возврата в режим coor R используйте /coor.",
+        reply_markup=main_menu_markup(ADMIN_ID, context),
+        parse_mode="Markdown",
+    )
+    return ConversationHandler.END
+
+
+async def enter_admin_bonds_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Open admin mode while rendering statistics as coor Bonds."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔️ Команда доступна только администратору.")
+        return ConversationHandler.END
+    set_admin_mode(context, True, user_id=update.effective_user.id)
+    set_admin_view_group(context, "coor Bonds")
+    await update.message.reply_text(
+        "🛡 **Режим admin bonds включён.**\n"
+        "Меню и статистика отображаются в контексте руководителя coor Bonds.\n"
+        "Для возврата используйте /admin или /coor.",
         reply_markup=main_menu_markup(ADMIN_ID, context),
         parse_mode="Markdown",
     )
@@ -56,15 +74,16 @@ async def exit_admin_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if user_id == ADMIN_ID:
         set_admin_mode(context, False, user_id=user_id)
+        set_admin_view_group(context, None)
         group = group or "coor R"
         text = "👥 **Режим coor R включён.**\nДля возврата к административным функциям используйте /admin."
-    elif group in {"coor A", "coor R"}:
+    elif group in {"coor A", "coor R", "coor Bonds"}:
         # Keep the command useful for ordinary coordinators without granting admin rights.
         set_admin_mode(context, False, user_id=user_id)
         text = f"👥 **Меню {group} открыто.**"
     else:
         await update.message.reply_text(
-            "⛔️ Команда /coor доступна только координаторам coor A и coor R.",
+            "⛔️ Команда /coor доступна только координаторам.",
         )
         return ConversationHandler.END
 

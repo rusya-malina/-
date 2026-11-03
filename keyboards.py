@@ -17,20 +17,20 @@ from organization import is_management_group
 from permissions import is_admin_mode
 from roles import get_user_group_sync
 
-COORDINATOR_GROUPS = frozenset({"coor A", "coor R"})
-BOOKING_REPORT_GROUPS = frozenset({"coor A", "coor R", "SPV", "MNG"})
+COORDINATOR_GROUPS = frozenset({"coor A", "coor R", "coor Bonds"})
+BOOKING_REPORT_GROUPS = frozenset({"coor A", "coor R", "coor Bonds", "SPV", "MNG"})
 
 
 def get_registration_group_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [["A LAMP", "R LAMP"], ["coor A", "coor R"], ["SPV", "MNG"]],
+        [["A LAMP", "R LAMP"], ["coor A", "coor R"], ["coor Bonds"], ["SPV", "MNG"]],
         resize_keyboard=True,
         one_time_keyboard=True,
     )
 
 
 def get_main_keyboard(user_id: int, group: str | None = None, admin_mode: bool = False) -> ReplyKeyboardMarkup:
-    if user_id == ADMIN_ID and admin_mode:
+    if user_id == ADMIN_ID and admin_mode and not group:
         keyboard = [
             ["Мой KPI", "Справочник KPI"],
             ["Остатки"],
@@ -127,7 +127,7 @@ cancel_keyboard = ReplyKeyboardMarkup([["⬅️ Назад"]], resize_keyboard=T
 
 def get_team_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [["A LAMP", "R LAMP"], ["coor A", "coor R"], ["SPV", "MNG"], ["⬅️ Назад"]],
+        [["A LAMP", "R LAMP"], ["coor A", "coor R"], ["coor Bonds"], ["SPV", "MNG"], ["⬅️ Назад"]],
         resize_keyboard=True,
         one_time_keyboard=True,
     )

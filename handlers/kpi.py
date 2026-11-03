@@ -40,7 +40,7 @@ from organization import (
     merge_employee_issuance,
     normalize_employee_name,
 )
-from permissions import Permission, has_permission, is_admin_mode
+from permissions import Permission, get_admin_view_group, has_permission, is_admin_mode
 from roles import get_user_group
 from services import (
     _format_quantity,
@@ -663,7 +663,7 @@ def build_team_kpi_report(snapshot: dict, manager_group: str) -> str:
 
     if manager_group in {"SPV", "MNG"}:
         lines.extend(["", "━━━━━━━━━━━━━━━━━━", "📌 **Показатели по командам**"])
-        for team_group in ("A LAMP", "R LAMP"):
+        for team_group in ("A LAMP", "R LAMP", "coor Bonds"):
             team_report = snapshot.get("teams", {}).get(team_group)
             if isinstance(team_report, dict):
                 lines.extend(["", *_team_report_lines(team_report, team_group)])
@@ -688,13 +688,14 @@ async def my_kpi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id not in users and not admin_mode:
         await update.message.reply_text("⚠️ Вы еще не зарегистрированы. Нажмите /start.")
         return ConversationHandler.END
+    view_group = get_admin_view_group(user_id_num, context)
     if not admin_mode and group not in TEAM_OPTIONS:
         await update.message.reply_text("⚠️ Ваша группа ещё не подтверждена. Нажмите /start.")
         return ConversationHandler.END
 
     await update.message.reply_text(
         "📌 **Раздел «Мой KPI»**\n\nВыберите интересующий раздел:",
-        reply_markup=my_kpi_markup(group, admin_mode),
+        reply_markup=my_kpi_markup(view_group or group, admin_mode),
         parse_mode="Markdown",
     )
     return ConversationHandler.END
@@ -712,6 +713,7 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group = await get_user_group(user_id_num)
 
     admin_mode = is_admin_mode(user_id_num, context)
+    view_group = get_admin_view_group(user_id_num, context)
     if data == "my_kpi_show_hours" and not admin_mode and group not in GROUPS_WITH_HOURS:
         await query.answer("Раздел «Часы» недоступен для вашей группы.", show_alert=True)
         return
@@ -725,7 +727,7 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if data == "my_kpi_show_team":
-        manager_group = "MNG" if admin_mode else group
+        manager_group = view_group or ("MNG" if admin_mode else group)
         service = TeamKpiService.from_default_storage()
         # Rebuild on every opening: the report must never reuse a stale legacy snapshot.
         snapshot = await service.rebuild()
@@ -741,7 +743,7 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "my_kpi_back":
         await query.message.edit_text(
             "📌 **Раздел «Мой KPI»**\n\nВыберите интересующий раздел:",
-            reply_markup=my_kpi_markup(group, admin_mode),
+            reply_markup=my_kpi_markup(view_group or group, admin_mode),
             parse_mode="Markdown",
         )
         return
@@ -1046,9 +1048,11 @@ def _coordinator_team_balances(
     groups: dict,
     kpi_data: dict,
     issuance_data: dict,
+    *,
+    admin_mode: bool = False,
 ) -> tuple[str, int, dict]:
     """Aggregate balances for the coordinator's own LAMP branch only."""
-    target_group = {"coor A": "A LAMP", "coor R": "R LAMP"}[group]
+    target_group = {"coor A": "A LAMP", "coor R": "R LAMP", "coor Bonds": "coor Bonds"}[group]
     people = get_visible_users(
         user_id,
         users,
@@ -1056,6 +1060,7 @@ def _coordinator_team_balances(
         exclude_user_id=user_id,
         kpi_data=kpi_data,
         issuance_data=issuance_data,
+        admin_mode=admin_mode,
     )
     totals = {
         "mints_issued": 0.0,
@@ -1105,7 +1110,13 @@ async def show_balances(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     employee = get_employee_by_id(user_id, users, groups, kpi_data, issuance_data)
     user_name_value = employee["name"] if employee else user_name(users.get(user_id), "Администратор")
-    if not admin_mode and group in {"coor A", "coor R"}:
+    view_group = get_admin_view_group(update.effective_user.id, context)
+    if view_group == "coor Bonds":
+        target_group, member_count, balances = _coordinator_team_balances(
+            user_id, "coor Bonds", users, groups, kpi_data, issuance_data, admin_mode=True
+        )
+        user_name_value = f"Команда {target_group} ({member_count} сотрудников)"
+    elif not admin_mode and group in {"coor A", "coor R", "coor Bonds"}:
         target_group, member_count, balances = _coordinator_team_balances(
             user_id, group, users, groups, kpi_data, issuance_data
         )

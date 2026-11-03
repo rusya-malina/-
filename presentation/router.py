@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from bot_context import CallbackQueryHandler, CommandHandler, ConversationHandler, MessageHandler, filters
 from handlers.admin import (
+    enter_admin_bonds_mode,
     enter_admin_mode,
     exit_admin_mode,
     open_extra_menu,
@@ -122,6 +123,7 @@ def build_conversation_handler() -> ConversationHandler:
         entry_points=[
             CommandHandler("start", start),
             CommandHandler("admin", enter_admin_mode),
+            CommandHandler("admin_bonds", enter_admin_bonds_mode),
             CommandHandler("coor", exit_admin_mode),
             MessageHandler(filters.Regex(r"^Моя команда$"), open_my_team_menu),
             MessageHandler(filters.Regex(r"^Загрузить обучение$"), open_training_menu),
@@ -301,6 +303,7 @@ def build_conversation_handler() -> ConversationHandler:
         },
         fallbacks=[
             CommandHandler("admin", enter_admin_mode),
+            CommandHandler("admin_bonds", enter_admin_bonds_mode),
             CommandHandler("coor", exit_admin_mode),
             MessageHandler(filters.Regex(r"^⬅️ Назад$"), cancel_action),
             MessageHandler(filters.Regex(r"^Мой KPI$"), my_kpi_menu),

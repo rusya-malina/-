@@ -26,7 +26,7 @@ from roles import get_user_group
 STATUS_BUTTON = "📍 Статус работы"
 WORK_STATUS_POLL_WEEKDAYS = frozenset({3, 4, 5, 6})  # Thursday through Sunday
 TEAM_GROUPS = frozenset({"A LAMP", "R LAMP"})
-COORDINATOR_GROUPS = frozenset({"coor A", "coor R"})
+COORDINATOR_GROUPS = frozenset({"coor A", "coor R", "coor Bonds"})
 logger = logging.getLogger(__name__)
 
 

@@ -251,7 +251,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 "(`coor A`, `coor R`, `SPV` или `MNG`).\n\n"
                 + "\n".join(blocked_rows[:10])
                 + ("\n…" if len(blocked_rows) > 10 else "")
-                + "\n\nЗагрузите файл только с сотрудниками `A LAMP` и `R LAMP`.",
+                + "\n\nЗагрузите файл только с сотрудниками `A LAMP`, `R LAMP` или направления `coor Bonds`.",
                 parse_mode="Markdown",
             )
             return UPLOAD_EXCEL
@@ -266,7 +266,7 @@ async def process_excel_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 "⛔ **Импорт KPI заблокирован.** Не удалось определить команду для сотрудников:\n\n"
                 + "\n".join(f"• {name}" for name in unresolved_team_names[:10])
                 + ("\n…" if len(unresolved_team_names) > 10 else "")
-                + "\n\nДобавьте колонку `group`/`team` со значением `A LAMP` или `R LAMP` "
+                + "\n\nДобавьте колонку `group`/`team` со значением `A LAMP`, `R LAMP` или `coor Bonds` "
                 "либо сначала назначьте сотрудникам команду через администратора.",
                 parse_mode="Markdown",
             )

@@ -29,7 +29,10 @@ from repositories.json_repository import JsonRepository, transaction
 from services import _normalize_person_name
 from storage import replace_latest_file
 
-SOURCE_GROUPS = frozenset({"A LAMP", "R LAMP"})
+SOURCE_GROUPS = frozenset({"A LAMP", "R LAMP", "coor Bonds"})
+# coor Bonds is a KPI-bearing direction. Other management rows remain blocked
+# because their KPI is aggregated from subordinate teams rather than imported
+# as an employee fact row.
 MANAGEMENT_GROUPS = frozenset({"coor A", "coor R", "SPV", "MNG"})
 _GROUP_ALIASES = {
     "a lamp": "A LAMP",
@@ -38,6 +41,8 @@ _GROUP_ALIASES = {
     "coor r": "coor R",
     "коор a": "coor A",
     "коор р": "coor R",
+    "coor bonds": "coor Bonds",
+    "коор bonds": "coor Bonds",
     "spv": "SPV",
     "mng": "MNG",
 }

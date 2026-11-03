@@ -101,7 +101,7 @@ def test_hierarchical_weighted_aggregation() -> None:
     spv = snapshot["manager_reports"]["SPV"]
     assert spv["employee_count"] == 3
     assert round(spv["metrics"]["gt"]["percent"], 6) == round(200 / 300 * 100, 6)
-    assert set(spv["by_team"]) == {"A LAMP", "R LAMP"}
+    assert set(spv["by_team"]) == {"A LAMP", "R LAMP", "coor Bonds"}
     assert snapshot["manager_reports"]["MNG"]["employee_count"] == 3
 
 

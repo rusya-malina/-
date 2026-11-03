@@ -8,14 +8,15 @@ from data_models import group_name, normalize_issuance_record, user_name
 
 ORG_STRUCTURE = {
     "MNG": {"level": 1, "parent": None, "children": ("SPV",)},
-    "SPV": {"level": 2, "parent": "MNG", "children": ("coor A", "coor R")},
+    "SPV": {"level": 2, "parent": "MNG", "children": ("coor A", "coor R", "coor Bonds")},
     "coor A": {"level": 3, "parent": "SPV", "children": ("A LAMP",)},
     "coor R": {"level": 3, "parent": "SPV", "children": ("R LAMP",)},
+    "coor Bonds": {"level": 3, "parent": "SPV", "children": ()},
     "A LAMP": {"level": 4, "parent": "coor A", "children": ()},
     "R LAMP": {"level": 4, "parent": "coor R", "children": ()},
 }
 
-MANAGEMENT_GROUPS = frozenset({"MNG", "SPV", "coor A", "coor R"})
+MANAGEMENT_GROUPS = frozenset({"MNG", "SPV", "coor A", "coor R", "coor Bonds"})
 TEAM_GROUPS = frozenset({"A LAMP", "R LAMP"})
 
 
@@ -161,11 +162,13 @@ def get_scope_groups(group: str | None) -> frozenset[str]:
     if group == "MNG":
         return frozenset(TEAM_OPTIONS)
     if group == "SPV":
-        return frozenset({"SPV", "coor A", "coor R", "A LAMP", "R LAMP"})
+        return frozenset({"SPV", "coor A", "coor R", "coor Bonds", "A LAMP", "R LAMP"})
     if group == "coor A":
         return frozenset({"coor A", "A LAMP"})
     if group == "coor R":
         return frozenset({"coor R", "R LAMP"})
+    if group == "coor Bonds":
+        return frozenset({"coor Bonds"})
     if group in TEAM_GROUPS:
         return frozenset({group})
     return frozenset()

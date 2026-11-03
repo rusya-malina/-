@@ -12,10 +12,11 @@ from config import BOT_TIMEZONE, GROUPS_FILE, KPI_FILE, KPI_REFERENCE_FILE, TEAM
 from organization import build_employee_registry
 from repositories.json_repository import JsonRepository
 
-SOURCE_GROUPS = ("A LAMP", "R LAMP")
+SOURCE_GROUPS = ("A LAMP", "R LAMP", "coor Bonds")
 MANAGER_SCOPES = {
     "coor A": ("A LAMP",),
     "coor R": ("R LAMP",),
+    "coor Bonds": ("coor Bonds",),
     "SPV": SOURCE_GROUPS,
     "MNG": SOURCE_GROUPS,
 }
