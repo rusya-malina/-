@@ -132,6 +132,36 @@ async def reg_get_first_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return REG_LAST_NAME
 
 
+async def _notify_admin_about_registration(
+    context: ContextTypes.DEFAULT_TYPE,
+    user_id: int,
+    full_name: str,
+    selected_group: str,
+) -> None:
+    """Send one actionable notification after a registration request is persisted."""
+    inline_keyboard = [
+        [
+            InlineKeyboardButton("✅ Принять", callback_data=f"req_accept:registration:{user_id}"),
+            InlineKeyboardButton("❌ Отклонить", callback_data=f"req_reject:registration:{user_id}"),
+        ]
+    ]
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=(
+                "🔔 **Новая заявка на регистрацию!**\n\n"
+                f"👤 ФИО: *{full_name}*\n"
+                f"👥 Группа: **{selected_group}**\n"
+                f"🆔 Telegram ID: `{user_id}`"
+            ),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard),
+            parse_mode="Markdown",
+        )
+        logging.info("Уведомление о новой заявке отправлено администратору: user_id=%s", user_id)
+    except TelegramError as error:
+        logging.error("Не удалось отправить уведомление админу о заявке %s: %s", user_id, error)
+
+
 async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id == ADMIN_ID:
         await update.message.reply_text(
@@ -184,27 +214,7 @@ async def reg_get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
     )
 
-    inline_keyboard = [
-        [
-            InlineKeyboardButton("✅ Принять", callback_data=f"req_accept:registration:{user_id_num}"),
-            InlineKeyboardButton("❌ Отклонить", callback_data=f"req_reject:registration:{user_id_num}"),
-        ]
-    ]
-
-    try:
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=(
-                f"🔔 **Новая заявка на регистрацию!**\n\n"
-                f"👤 ФИО: *{full_name}*\n"
-                f"👥 Группа: **{selected_group}**\n"
-                f"🆔 Telegram ID: `{user_id_num}`"
-            ),
-            reply_markup=InlineKeyboardMarkup(inline_keyboard),
-            parse_mode="Markdown",
-        )
-    except TelegramError as e:
-        logging.error(f"Не удалось отправить уведомление админу: {e}")
+    await _notify_admin_about_registration(context, user_id_num, full_name, selected_group)
 
     return ConversationHandler.END
 
