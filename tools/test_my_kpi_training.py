@@ -119,11 +119,58 @@ async def test_training_callback_inside_my_kpi() -> None:
     assert query.answer.await_count == 1
 
 
+async def test_bonds_training_callback_filters_other_management_teams() -> None:
+    users = {"100": {"name": "Администратор"}, "201": {"name": "Bonds сотрудник"}, "301": {"name": "R сотрудник"}}
+    groups = {
+        "201": {"name": "Bonds сотрудник", "group": "coor Bonds"},
+        "301": {"name": "R сотрудник", "group": "coor R"},
+    }
+    history = {
+        "201": {"deliveries": [{"type": "one", "month": TrainingService.current_month()}]},
+        "301": {"deliveries": [{"type": "two", "month": TrainingService.current_month()}]},
+    }
+
+    async def fake_load(path):
+        return {
+            USERS_FILE: users,
+            GROUPS_FILE: groups,
+            KPI_FILE: {},
+            ISSUANCE_FILE: {},
+            TRAINING_HISTORY_FILE: history,
+        }[path]
+
+    query = SimpleNamespace(
+        data="my_kpi_show_trainings",
+        from_user=SimpleNamespace(id=100),
+        answer=AsyncMock(),
+        message=SimpleNamespace(edit_text=AsyncMock()),
+    )
+    context = SimpleNamespace(user_data={"admin_mode": True, "admin_view_group": "coor Bonds"})
+    all_visible = [
+        {"name": "Bonds сотрудник", "group": "coor Bonds", "aliases": ["201"]},
+        {"name": "R сотрудник", "group": "coor R", "aliases": ["301"]},
+    ]
+
+    with (
+        patch("handlers.kpi.load_json", new=AsyncMock(side_effect=fake_load)),
+        patch("handlers.kpi.get_user_group", new=AsyncMock(return_value="coor R")),
+        patch("handlers.kpi.get_visible_users", return_value=all_visible),
+        patch("handlers.kpi.is_admin_mode", return_value=True),
+        patch("handlers.kpi.get_admin_view_group", return_value="coor Bonds"),
+    ):
+        await kpi_handler.my_kpi_callback(SimpleNamespace(callback_query=query), context)
+
+    text = query.message.edit_text.await_args.args[0]
+    assert "Bonds сотрудник — 1" in text
+    assert "R сотрудник" not in text
+
+
 async def main() -> None:
     test_delivery_count_and_zero_value()
     test_button_is_visible_only_for_coordinators()
     await test_kpi_menu_clears_stale_training_state()
     await test_training_callback_inside_my_kpi()
+    await test_bonds_training_callback_filters_other_management_teams()
     print("MY_KPI_TRAINING PASS")
 
 

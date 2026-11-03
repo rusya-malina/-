@@ -753,10 +753,13 @@ async def my_kpi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id_num,
             users,
             groups,
+            admin_mode=admin_mode,
             exclude_user_id=user_id_num,
             kpi_data=kpi_data,
             issuance_data=issuance_data,
         )
+        if view_group:
+            visible_users = [person for person in visible_users if person.get("group") == view_group]
         training_history = await load_json(TRAINING_HISTORY_FILE)
         report = build_monthly_training_report(visible_users, training_history)
         await query.message.edit_text(
