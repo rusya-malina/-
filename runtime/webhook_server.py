@@ -229,8 +229,6 @@ class WebhookServer:
     async def _stop_application(self) -> None:
         if self.application.running:
             await self.application.stop()
-        if self.application_loop is not None and self.application_loop.is_running():
-            self.application_loop.stop()
 
     def _handle_shutdown(self, signum, _frame) -> None:
         logging.info("Shutdown signal %s received", signum)

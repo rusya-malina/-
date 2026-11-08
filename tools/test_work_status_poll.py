@@ -68,6 +68,28 @@ def test_status_answer_returns_to_main_menu() -> None:
     assert "Мой KPI" in menu_labels
 
 
+def test_status_menu_preserves_not_working_state() -> None:
+    query = SimpleNamespace(
+        from_user=SimpleNamespace(id=101),
+        data="work_status:menu",
+        answer=AsyncMock(),
+        message=SimpleNamespace(edit_text=AsyncMock(), reply_text=AsyncMock()),
+    )
+    original_group = work_status.get_user_group
+    original_status = work_status.get_today_status
+    work_status.get_user_group = AsyncMock(return_value="A LAMP")
+    work_status.get_today_status = AsyncMock(return_value={"status": "not_working"})
+    try:
+        asyncio.run(work_status.work_status_callback(SimpleNamespace(callback_query=query), SimpleNamespace()))
+    finally:
+        work_status.get_user_group = original_group
+        work_status.get_today_status = original_status
+
+    text = query.message.edit_text.await_args.args[0]
+    assert "🔴 Не работаю" in text
+    assert "🟢 Работаю" not in text
+
+
 def test_overview_contains_unanswered_group() -> None:
     text = work_status._format_overview(
         {

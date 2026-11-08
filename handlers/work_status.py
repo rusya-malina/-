@@ -138,6 +138,14 @@ async def _show_result_and_main_menu(query, text: str, user_id: str, group: str)
     )
 
 
+def _status_selection_text(status: dict) -> str:
+    if status.get("status") == "not_working":
+        return f"📍 **Статус на {_today()}:** 🔴 Не работаю"
+    if status.get("status") == "working":
+        return f"📍 **Статус на {_today()}:** 🟢 Работаю"
+    return f"📍 **Статус на {_today()}**\n\nВыберите статус:"
+
+
 def _format_overview(overview: dict) -> str:
     lines = [f"📍 **Статус работы на {overview['date']}**", ""]
     lines.extend(["🟢 **Работают**"])
@@ -265,7 +273,7 @@ async def work_status_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             )
             return
         await query.message.edit_text(
-            f"📍 **Статус на {_today()}:** 🟢 Работаю",
+            _status_selection_text(status),
             reply_markup=_status_markup(user_id, status),
             parse_mode="Markdown",
         )
