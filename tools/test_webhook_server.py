@@ -32,6 +32,7 @@ class FakeApplication:
         self.started = False
         self.stopped = False
         self.shutdown_called = False
+        self.shutdown_count = 0
 
     async def initialize(self) -> None:
         self.initialized = True
@@ -46,6 +47,7 @@ class FakeApplication:
 
     async def shutdown(self) -> None:
         self.shutdown_called = True
+        self.shutdown_count += 1
 
 
 def request(port: int, method: str, path: str, body: bytes = b"", secret: str | None = None):
@@ -104,6 +106,7 @@ def test_webhook_server_routes_and_deduplicates() -> None:
         server.close()
         time.sleep(0.05)
         assert application.shutdown_called is True
+        assert application.shutdown_count == 1
         assert application.stopped is True
 
 

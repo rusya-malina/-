@@ -109,6 +109,7 @@ class WebhookServer:
     ready: threading.Event = field(default_factory=threading.Event)
     stopped: threading.Event = field(default_factory=threading.Event)
     startup_error: BaseException | None = None
+    application_shutdown_complete: threading.Event = field(default_factory=threading.Event)
     _seen_update_ids: deque[int] = field(default_factory=lambda: deque(maxlen=SEEN_UPDATE_IDS_LIMIT))
     _seen_update_id_set: set[int] = field(default_factory=set)
     _seen_lock: threading.Lock = field(default_factory=threading.Lock)
@@ -221,14 +222,18 @@ class WebhookServer:
         finally:
             if self.application.running:
                 loop.run_until_complete(self.application.stop())
-            if self.application_loop is not None:
+            if not self.application_shutdown_complete.is_set():
                 loop.run_until_complete(self.application.shutdown())
+                self.application_shutdown_complete.set()
             loop.close()
             self.application_loop = None
 
     async def _stop_application(self) -> None:
         if self.application.running:
             await self.application.stop()
+        if not self.application_shutdown_complete.is_set():
+            await self.application.shutdown()
+            self.application_shutdown_complete.set()
 
     def _handle_shutdown(self, signum, _frame) -> None:
         logging.info("Shutdown signal %s received", signum)
