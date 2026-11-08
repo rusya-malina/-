@@ -16,6 +16,7 @@ from handlers.teams import team_moderation_callback
 from handlers.training import send_training_compliance_job
 from handlers.uploads import process_excel_file, process_issuance_excel_file  # noqa: F401
 from handlers.work_status import (
+    group_working_bonds,
     group_working_today,
     send_missed_work_status_poll_job,
     send_work_status_poll_job,
@@ -34,6 +35,7 @@ async def _configure_group_commands(app: Application) -> None:
     await app.bot.set_my_commands(
         [
             BotCommand("working_today", "Список работающих сегодня"),
+            BotCommand("working_bonds", "Статус команды Bonds сегодня"),
             BotCommand("bookings_today", "Забронированные точки сегодня"),
         ],
         scope=BotCommandScopeAllGroupChats(),
@@ -75,6 +77,7 @@ def build_application(token: str) -> Application:
 
     app.add_handler(build_conversation_handler())
     app.add_handler(CommandHandler("working_today", group_working_today))
+    app.add_handler(CommandHandler("working_bonds", group_working_bonds))
     app.add_handler(CommandHandler("bookings_today", group_bookings_today))
     app.add_handler(CallbackQueryHandler(team_moderation_callback, pattern=r"^team_(accept|reject):"))
     app.add_handler(CallbackQueryHandler(requests_callback, pattern=r"^req_"))

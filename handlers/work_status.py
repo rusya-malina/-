@@ -12,6 +12,7 @@ from application.work_status_service import (
     accept_pair_invite,
     create_pair_invite,
     get_coordinator_overview,
+    get_group_overview,
     get_today_status,
     get_work_status_recipients,
     reject_pair_invite,
@@ -238,6 +239,25 @@ async def group_working_today(update: Update, context: ContextTypes.DEFAULT_TYPE
         chat_id=chat.id,
         report_type="work_status",
         text=_format_overview(await get_coordinator_overview()),
+        parse_mode="Markdown",
+    )
+
+
+async def group_working_bonds(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Reply with only the coor Bonds work-status report in a group chat."""
+    chat = update.effective_chat
+    if not chat or chat.type not in {"group", "supergroup"}:
+        await update.message.reply_text("Эта команда доступна только в групповом чате.")
+        return
+    group = await get_user_group(update.effective_user.id)
+    if group not in COORDINATOR_GROUPS | {"SPV", "MNG"}:
+        await update.message.reply_text("⛔️ Отчёт доступен только руководителям.")
+        return
+    await replace_group_report(
+        context,
+        chat_id=chat.id,
+        report_type="work_status_bonds",
+        text=_format_overview(await get_group_overview("coor Bonds")),
         parse_mode="Markdown",
     )
 

@@ -7,10 +7,11 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from config import BOT_TIMEZONE, GROUPS_FILE, USERS_FILE, WORK_STATUS_FILE
-from organization import TEAM_GROUPS, build_employee_registry
+from organization import build_employee_registry
 from storage import load_json, update_json
 
 STATUS_FILE = WORK_STATUS_FILE
+WORK_STATUS_GROUPS = frozenset({"A LAMP", "R LAMP", "coor Bonds"})
 
 
 def _today() -> str:
@@ -23,7 +24,7 @@ async def _roster() -> list[dict[str, Any]]:
     return [
         item
         for item in build_employee_registry(users, groups)
-        if item.get("group") in TEAM_GROUPS and str(item.get("user_id", "")).isdigit()
+        if item.get("group") in WORK_STATUS_GROUPS and str(item.get("user_id", "")).isdigit()
     ]
 
 
@@ -264,7 +265,14 @@ async def reject_pair_invite(invite_id: str, reason: str = "rejected") -> dict[s
 
 
 async def get_coordinator_overview() -> dict[str, Any]:
+    return await get_group_overview()
+
+
+async def get_group_overview(group: str | None = None) -> dict[str, Any]:
+    """Build today's overview, optionally limited to one status group."""
     roster = await _roster()
+    if group:
+        roster = [employee for employee in roster if employee.get("group") == group]
     day = await _load_day()
     employees = day["employees"]
     pairs = []

@@ -136,3 +136,39 @@ def test_employee_can_change_not_working_to_working(monkeypatch):
         assert "updated_at" in status
 
     asyncio.run(scenario())
+
+
+def test_bonds_status_roster_and_group_overview(monkeypatch):
+    users = {
+        "401": {"name": "Bonds сотрудник"},
+        "402": {"name": "A сотрудник"},
+    }
+    groups = {
+        "401": {"name": "Bonds сотрудник", "group": "coor Bonds"},
+        "402": {"name": "A сотрудник", "group": "A LAMP"},
+    }
+    state = {}
+
+    async def fake_load(path):
+        if path == service.USERS_FILE:
+            return users
+        if path == service.GROUPS_FILE:
+            return groups
+        return state
+
+    async def fake_update(path, mutator):
+        mutator(state)
+
+    monkeypatch.setattr(service, "load_json", fake_load)
+    monkeypatch.setattr(service, "update_json", fake_update)
+    monkeypatch.setattr(service, "_today", lambda: "2026-09-23")
+
+    async def scenario():
+        recipients = await service.get_work_status_recipients()
+        assert [item["name"] for item in recipients] == ["A сотрудник", "Bonds сотрудник"]
+        assert (await service.set_work_status("401", "working"))["ok"]
+        overview = await service.get_group_overview("coor Bonds")
+        assert [item["name"] for item in overview["working"]] == ["Bonds сотрудник"]
+        assert overview["unanswered"] == []
+
+    asyncio.run(scenario())
